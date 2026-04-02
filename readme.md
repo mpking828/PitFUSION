@@ -11,6 +11,7 @@ A simple selfhosted html file that Fuses together Nexus and TheBlueAlliance into
  - [Nexus](hhttps://frc.nexus/)
  - [The Blue Alliance ](https://thebluealliance.com/)
  - [ Pulse - Pit Display](https://pulsefrc.app/)
+ - [Team 88 TJ²](https://www.tj2.org/)
 
 
 
@@ -25,6 +26,7 @@ A simple selfhosted html file that Fuses together Nexus and TheBlueAlliance into
 - Nexus announcements and Parts requests
 - Match Schedule
 - Playoff Bracket display mode
+- Logo support — automatically tries to load logo.png, logo.jpg, logo.jpeg, logo.svg, or logo.webp from the same directory as the HTML file. If found, it appears above the PitFusion wordmark
 
 
 ## Deployment
@@ -35,13 +37,11 @@ Obtain the nessacary API keys:
  - [Nexus API page](https://frc.nexus/api)
  - [The Blue Alliance API Docs](https://www.thebluealliance.com/apidocs)
 
-Edit the PitFusion.html file, and update the following section with your team number, the event code, your Nexus API Key, and your TBA API Key.  This section is about 1/3 of the way down the file.
+Edit the PitFusion.html file, and update the following section with your Nexus API Key and your TBA API Key.  This section is about 1/3 of the way down the file.
 ```bash
 // ============================================================
 // CONFIGURE HERE
 // ============================================================
-const TEAM_NUMBER = '88';
-const EVENT_KEY   = '026mabos';  //Format 2026mabos
 const NEXUS_KEY   = 'YOUR_NEXUS_KEY';
 const TBA_KEY     = 'YOUR_TBA_KEY';
 // ============================================================
@@ -53,8 +53,8 @@ To install Python on Windows
 > [!NOTE]
 > The Microsoft Store version now provides Python Manager, so you can use that instead.  Just type python from a windows command prompt, and it will prompt you to install it.
 
-### Changes requried for each event
-Update the EVENT_KEY to match the code
+### Add a logo
+Logo support — automatically tries to load logo.png, logo.jpg, logo.jpeg, logo.svg, or logo.webp from the same directory as the HTML file. If found, it appears above the PitFusion wordmark
 
 ## Launching 
   1. Launch a windows command prompt
