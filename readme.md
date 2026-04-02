@@ -8,7 +8,7 @@ A simple selfhosted html file that Fuses together Nexus and TheBlueAlliance into
 
 ## Acknowledgements
 
- - [Nexus](hhttps://frc.nexus/)
+ - [Nexus](https://frc.nexus/)
  - [The Blue Alliance ](https://thebluealliance.com/)
  - [ Pulse - Pit Display](https://pulsefrc.app/)
 
@@ -51,3 +51,4 @@ const TBA_KEY     = 'YOUR_TBA_KEY';
 ![Main Screen](docs/MainScreen1.png?raw=true)
 ![Bracket View](docs/BracketView1.png?raw=true)
 ![Team View](docs/TeamView1.png?raw=true)
+![Alerts View](docs/AlertsView1.png?raw=true)
