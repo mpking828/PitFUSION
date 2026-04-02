@@ -35,7 +35,7 @@ Obtain the nessacary API keys:
  - [Nexus API page](https://frc.nexus/api)
  - [The Blue Alliance API Docs](https://www.thebluealliance.com/apidocs)
 
-Edit the PitFusion.html file, and update the following section with your team number, the event code, your Nexus API Key, and your TBA API Key.
+Edit the PitFusion.html file, and update the following section with your team number, the event code, your Nexus API Key, and your TBA API Key.  This section is about 1/3 of the way down the file.
 ```bash
 // ============================================================
 // CONFIGURE HERE
