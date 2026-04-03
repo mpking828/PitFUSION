@@ -71,12 +71,12 @@ This will start a python HTTP server on port 8080 and serve any file in that dir
 > After the file has been launched in a webbrowser, you no longer need to keep the python webserver running.  However it's probably best to keep it running if you reload the webpage.
 ## Custom Theming
 Custom theme —
-
+```bash
 --custom-bg-image — set to e.g. url('myimage.jpg') to use a background photo (default none)
 --custom-bg-washout — float from 0.0 (no wash) to 1.0 (fully covered), default 0.65
 --custom-bg-washout-color — RGB triplet, default 0,0,0 (black) for dark themes; change to 255,255,255 for light themes
 The has-bg class is applied automatically when an image is detected
-
+```
 ## Screenshots
 
 ![Main Screen](docs/MainScreen1.png?raw=true)
