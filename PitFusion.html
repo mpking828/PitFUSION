@@ -4,15 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PitFusion &mdash; FRC Pit Display</title>
+<script>
+// Apply theme before first paint to avoid flash
+(function(){var t=localStorage.getItem('pitfusion_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
+/* ============================================================
+   THEME DEFINITIONS
+   To customise the "Custom" theme, edit the variables inside
+   [data-theme="custom"]{ } below.
+   ============================================================ */
+
+/* Shared layout / typography tokens — not theme-dependent */
 :root{
-  --bg:#09090f;--surface:#0f1018;--surface2:#161824;
-  --border:#1f2236;--border2:#2a2f4a;
-  --accent:#00d4ff;--accent2:#ff6b35;
-  --green:#00e676;--yellow:#ffd600;--red:#ff1744;
-  --blue-a:#1976d2;--red-a:#c62828;
-  --text:#eef0f8;--text-dim:#6b7899;--text-mid:#9ba8cc;
   --fd:'Barlow Condensed',sans-serif;
   --fb:'Barlow',sans-serif;
   --fm:'Share Tech Mono',monospace;
@@ -26,9 +31,127 @@
   --fs-cd:clamp(1.7rem,3vw,2.7rem);
   --pad:clamp(10px,1.3vw,20px);--r:8px;
 }
+
+/* ── DARK MODE (default) ── */
+[data-theme="dark"]{
+  --bg:#09090f;--surface:#0f1018;--surface2:#161824;
+  --border:#1f2236;--border2:#2a2f4a;
+  --accent:#00d4ff;--accent2:#ff6b35;
+  --green:#00e676;--yellow:#ffd600;--red:#ff1744;
+  --blue-a:#1976d2;--red-a:#c62828;
+  --text:#eef0f8;--text-dim:#6b7899;--text-mid:#9ba8cc;
+  --body-bg:none;
+}
+
+/* ── LIGHT MODE ── */
+[data-theme="light"]{
+  --bg:#f0f2f8;--surface:#ffffff;--surface2:#e8eaf2;
+  --border:#c8ccdc;--border2:#b0b6cc;
+  --accent:#0077aa;--accent2:#d44000;
+  --green:#1a7a3a;--yellow:#b38000;--red:#cc1133;
+  --blue-a:#1565c0;--red-a:#b71c1c;
+  --text:#111827;--text-dim:#5a637a;--text-mid:#3a4460;
+  --body-bg:none;
+}
+
+/* ── TJ² / TEAM 88 ── */
+/* Background image: FRC88Background.png in same directory as this .html file */
+[data-theme="tj2"]{
+  --bg:transparent;
+  --surface:rgba(255,255,255,0.18);
+  --surface2:rgba(255,255,255,0.12);
+  --border:rgba(255,255,255,0.30);
+  --border2:rgba(255,255,255,0.45);
+  --accent:#1a4fa3;       /* TJ² Royal Blue */
+  --accent2:#e86a10;      /* TJ² Orange */
+  --green:#1a7a3a;
+  --yellow:#e8a800;       /* TJ² Gold/Yellow */
+  --red:#c0311a;          /* TJ² Red */
+  --blue-a:#1a4fa3;
+  --red-a:#c0311a;
+  --text:#1a1a1a;         /* Dark text — readable over light bg */
+  --text-dim:#3a3a3a;
+  --text-mid:#2a2a2a;
+}
+
+/* ── CUSTOM — edit these variables to your liking ── */
+/* To use a background image: set --custom-bg-image to the filename,
+   e.g.  --custom-bg-image: url('mybackground.jpg');
+   Set --custom-bg-washout to control how much white/black overlay dims it.
+   0 = no washout (full image), 1 = fully covered (just the --bg color shows) */
+[data-theme="custom"]{
+  --bg:#0d0d0d;
+  --surface:#141414;
+  --surface2:#1c1c1c;
+  --border:#2a2a2a;
+  --border2:#3a3a3a;
+  --accent:#ff9900;
+  --accent2:#cc3300;
+  --green:#00cc44;
+  --yellow:#ffcc00;
+  --red:#ff2244;
+  --blue-a:#1976d2;
+  --red-a:#c62828;
+  --text:#f0f0f0;
+  --text-dim:#707070;
+  --text-mid:#a0a0a0;
+  /* Background image — set to e.g. url('myimage.png') or leave as none */
+  --custom-bg-image: none;
+  /* Washout overlay — 0.0 (none) to 1.0 (fully washed out). Dark themes
+     typically use 0.5–0.8; light themes 0.1–0.4 */
+  --custom-bg-washout: 0.65;
+  /* Washout overlay color — use black for dark themes, white for light */
+  --custom-bg-washout-color: 0,0,0;
+}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(--fs-body);-webkit-font-smoothing:antialiased}
+/* TJ2 — use the real tye-dye photo as body background */
+body[data-theme="tj2"]{
+  background-color: #f5e8d0;  /* warm fallback if image missing */
+  background-image: url('FRC88Background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+/* TJ2 — washout overlay via ::before on body */
+body[data-theme="tj2"]::before{
+  content:'';
+  position:fixed;inset:0;
+  background:rgba(255,255,255,0.42);  /* 42% white wash — enough to read over, still vibrant */
+  pointer-events:none;
+  z-index:0;
+}
+/* Custom theme — optional background image with washout */
+body[data-theme="custom"][style*="--custom-bg-image"]::before,
+body[data-theme="custom"]::before{
+  content:'';
+  position:fixed;inset:0;
+  background:rgba(var(--custom-bg-washout-color),var(--custom-bg-washout));
+  pointer-events:none;
+  z-index:0;
+  display:var(--custom-before-display, none);
+}
+body[data-theme="custom"].has-bg{
+  background-image:var(--custom-bg-image);
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+  background-attachment:fixed;
+}
+body[data-theme="custom"].has-bg::before{
+  display:block;
+}
+/* Ensure app content sits above the washout overlay */
+[data-theme="tj2"] #app,
+[data-theme="tj2"] #setup-page,
+[data-theme="tj2"] #lo,
+[data-theme="custom"] #app,
+[data-theme="custom"] #setup-page,
+[data-theme="custom"] #lo{
+  position:relative;z-index:1;
+}
 #app{display:grid;grid-template-rows:var(--hdr-h) 1fr var(--ftr-h);width:100vw;height:100vh;overflow:hidden}
 
 /* HEADER */
@@ -100,24 +223,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(
 .ml{display:flex;flex-direction:column;gap:4px}
 .msh{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--text-dim);padding:8px 0 4px;border-bottom:2px solid var(--border);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
 .mc{background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:1px 7px;font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim)}
-.mr{display:grid;grid-template-columns:155px 1fr auto auto;align-items:center;gap:9px;background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:8px 13px;transition:border-color .2s;scroll-margin-top:6px}
+.mr{display:grid;grid-template-columns:170px 1fr auto auto;align-items:center;gap:9px;background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:12px 14px;transition:border-color .2s;scroll-margin-top:6px}
 .mr.my{border-color:rgba(0,212,255,.4);background:rgba(0,212,255,.04)}
 .mr.act{border-color:var(--green);background:rgba(0,230,118,.06);box-shadow:0 0 14px rgba(0,230,118,.14)}
 .mr.dn{opacity:.45}
 .ml-lbl{font-family:var(--fd);font-size:var(--fs-body);font-weight:700;color:var(--text);white-space:nowrap}
 .ml-teams{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
-.chip{border-radius:4px;padding:2px 8px;font-family:var(--fm);font-size:var(--fs-sm);font-weight:600;border:2px solid;white-space:nowrap}
+.chip{border-radius:4px;padding:4px 10px;font-family:var(--fd);font-size:var(--fs-body);font-weight:700;border:2px solid;white-space:nowrap}
 .cb{background:rgba(25,118,210,.15);border-color:rgba(25,118,210,.5);color:#90caf9}
 .cr{background:rgba(198,40,40,.15);border-color:rgba(198,40,40,.5);color:#ef9a9a}
 .cm{background:rgba(255,214,0,.15);border-color:rgba(255,214,0,.6);color:var(--yellow);font-weight:900}
-.mscore{font-family:var(--fd);font-size:var(--fs-body);font-weight:700;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.mscore{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;display:flex;align-items:center;gap:5px;white-space:nowrap}
 .scb{color:#64b5f6}.scr{color:#ef9a9a}.scs{color:var(--text-dim)}
 .mtime{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;text-align:right}
 .badge{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:4px;border:2px solid;white-space:nowrap}
 .bq{background:rgba(0,212,255,.1);color:var(--accent);border-color:rgba(0,212,255,.35)}
 .bd{background:rgba(255,214,0,.1);color:var(--yellow);border-color:rgba(255,214,0,.35)}
 .bf{background:rgba(0,230,118,.1);color:var(--green);border-color:rgba(0,230,118,.35)}
-.bx{background:rgba(107,120,153,.08);color:var(--text-dim);border-color:var(--border)}
+.bx{background:rgba(107,120,153,.12);color:var(--text);border-color:var(--border)}
 
 /* SIDEBAR */
 .sidebar{display:flex;flex-direction:column;background:var(--bg);overflow:hidden;min-height:0}
@@ -131,14 +254,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(
 .tp::-webkit-scrollbar{width:4px}
 .tp::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 .rt{width:100%;border-collapse:collapse}
-.rt th{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);padding:0 0 6px;text-align:left;border-bottom:2px solid var(--border)}
+.rt th{font-family:var(--fd);font-size:var(--fs-body);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);padding:0 0 10px;text-align:left;border-bottom:2px solid var(--border)}
 .rt th:not(:first-child){text-align:right}
-.rt td{padding:5px 0;border-bottom:1px solid rgba(31,34,54,.8);font-size:var(--fs-body)}
-.rt td:not(:first-child){text-align:right;font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-mid)}
-.rp{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);min-width:28px;display:inline-block}
+.rt td{padding:10px 0;border-bottom:1px solid rgba(31,34,54,.8);font-size:var(--fs-body)}
+.rt td:not(:first-child){text-align:right;font-family:var(--fd);font-size:var(--fs-body);font-weight:700;color:var(--text-mid)}
+.rp{font-family:var(--fd);font-size:var(--fs-body);font-weight:700;color:var(--text-dim);min-width:36px;display:inline-block}
 .rn{font-family:var(--fd);font-weight:900;font-size:var(--fs-body);color:var(--text)}
 .rn.me{color:var(--yellow)}
-.rme{background:rgba(255,214,0,.04)}
+.rme{background:rgba(255,214,0,.08)}
+.rme td:not(:first-child){color:var(--text)}
 .ic{background:var(--surface2);border:2px solid var(--border2);border-radius:var(--r);padding:11px 13px;margin-bottom:9px}
 .it{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--text);margin-bottom:2px}
 .is{font-size:var(--fs-sm);color:var(--text-dim);margin-bottom:7px}
@@ -159,111 +283,59 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(
 .ftr-note{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;letter-spacing:.06em}
 
 /* BRACKET MODE */
-/* col-l becomes: stream strip (fixed height) | bracket (fills rest) */
-.col-l.bracket-mode {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
+.col-l.bracket-mode{display:flex;flex-direction:column;overflow:hidden}
+.stream-half.bracket-mode{flex-shrink:0;height:0}
+#bracket-panel.bracket-mode{display:block!important;flex:1;overflow:auto;padding:var(--pad);background:var(--bg);min-height:0;width:100%;height:100%}
 
-/* Stream shrinks to a 16:9 strip at its natural aspect ratio */
-.stream-half.bracket-mode {
-  flex-shrink: 0;
-  height: 0;       /* will be set by JS based on width */
-}
+/* ── BRACKET LAYOUT ── */
+/* Horizontal flow: R1 | R2 | R3 | R4 | R5 | Finals */
+#bracket-panel{padding:var(--pad);background:var(--bg);overflow:auto}
+.bkt-flow{display:flex;gap:8px;align-items:flex-start;min-height:0;height:100%;overflow:auto}
+.bkt-flow::-webkit-scrollbar{height:5px;width:5px}
+.bkt-flow::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
-/* Bracket panel expands to fill all remaining col-l height */
-#bracket-panel.bracket-mode {
-  display: flex !important;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-  padding: var(--pad);
-  background: var(--bg);
-  min-height: 0;
-}
+/* Round column */
+.bkt-round{display:flex;flex-direction:column;gap:6px;min-width:170px;flex-shrink:0}
+.bkt-round-hdr{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim);text-align:center;padding:4px 0 6px;border-bottom:2px solid var(--border);margin-bottom:2px;white-space:nowrap}
 
-/* Bracket full-area: upper left, lower right, finals bottom */
-.bkt-full {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr auto;
-  gap: 10px;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
+/* Spacer to vertically align cards between rounds */
+.bkt-spacer{flex-shrink:0}
 
-.bkt-upper-area {
-  grid-column: 1; grid-row: 1;
-  display: flex; flex-direction: column;
-  min-height: 0; overflow: hidden;
-}
+/* Match card */
+.bkt-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0}
+.bkt-card.bkt-card-my{border-color:rgba(0,212,255,.55)}
+.bkt-card.bkt-card-active{border-color:var(--green);box-shadow:0 0 10px rgba(0,230,118,.2)}
+.bkt-card-lbl{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-dim);padding:3px 8px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.bkt-card-score{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-mid)}
 
-.bkt-lower-area {
-  grid-column: 2; grid-row: 1;
-  display: flex; flex-direction: column;
-  min-height: 0; overflow: hidden;
-}
+/* Alliance row inside card */
+.bkt-row{display:flex;align-items:center;gap:0;padding:0;border-bottom:1px solid var(--border);min-height:36px}
+.bkt-row:last-child{border-bottom:none}
+.bkt-row.bkt-row-winner{background:rgba(0,230,118,.07)}
+.bkt-row.bkt-row-loser{opacity:.5}
+.bkt-row.bkt-row-red{background:rgba(198,40,40,.07)}
+.bkt-row.bkt-row-blue{background:rgba(25,118,210,.07)}
 
-.bkt-finals-area {
-  grid-column: 1 / 3; grid-row: 2;
-  display: flex; flex-direction: column;
-  flex-shrink: 0;
-}
+/* Seed badge */
+.bkt-row-seed{font-family:var(--fd);font-size:var(--fs-sm);font-weight:900;min-width:26px;text-align:center;padding:6px 4px;flex-shrink:0;align-self:stretch;display:flex;align-items:center;justify-content:center}
+.bkt-row-red   .bkt-row-seed{background:rgba(198,40,40,.18);color:#ef9a9a}
+.bkt-row-blue  .bkt-row-seed{background:rgba(25,118,210,.18);color:#90caf9}
 
-.bkt-rounds-fit {
-  display: grid;
-  gap: 8px;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
+/* Alliance label + teams */
+.bkt-row-body{flex:1;padding:5px 7px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.bkt-row-alliance{font-family:var(--fd);font-size:var(--fs-sm);font-weight:900;color:var(--text);white-space:nowrap}
+.bkt-row-alliance.bkt-my{color:var(--yellow);text-shadow:0 0 10px rgba(255,214,0,.4)}
+.bkt-row-teams{font-family:var(--fm);font-size:clamp(0.62rem,0.75vw,0.72rem);color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-.bkt-upper-area .bkt-rounds-fit { grid-template-columns: 4fr 2fr 1fr; }
-.bkt-lower-area .bkt-rounds-fit { grid-template-columns: 1fr 1fr 1fr; }
-.bkt-finals-area .bkt-rounds-fit {
-  grid-template-columns: repeat(3, auto);
-  justify-content: center;
-  flex: none;
-}
+/* Score */
+.bkt-row-pts{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;padding:0 9px;color:var(--text-mid);flex-shrink:0;min-width:42px;text-align:right}
+.bkt-row-winner .bkt-row-pts{color:var(--green)}
 
-.bkt-col-fit {
-  display: flex; flex-direction: column;
-  gap: 5px; min-height: 0; overflow: hidden;
-}
+/* TBD */
+.bkt-tbd{color:var(--text-dim);font-style:italic;padding:5px 7px;font-family:var(--fd);font-size:var(--fs-sm)}
 
-.bkt-col-fit .bkt-match { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.bkt-col-fit .bkt-alliance { flex: 1; min-height: 0; }
-
-/* BRACKET */
-#bracket-panel{padding:var(--pad);background:var(--bg)}
-.bkt-wrap{display:flex;flex-direction:column;gap:12px;min-width:0}
-.bkt-section-hdr{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--text-dim);padding:6px 0 4px;border-bottom:2px solid var(--border);margin-bottom:6px}
-.bkt-rounds{display:flex;gap:10px;align-items:flex-start;overflow-x:auto;padding-bottom:4px}
-.bkt-rounds::-webkit-scrollbar{height:4px}
-.bkt-rounds::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.bkt-col{display:flex;flex-direction:column;gap:8px;min-width:160px;flex-shrink:0}
-.bkt-col-hdr{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);text-align:center;margin-bottom:2px}
-.bkt-match{background:var(--surface);border:2px solid var(--border);border-radius:var(--r);overflow:hidden;min-width:160px}
-.bkt-match.bkt-active{border-color:var(--green);box-shadow:0 0 12px rgba(0,230,118,.2)}
-.bkt-match.bkt-my{border-color:rgba(0,212,255,.5)}
-.bkt-match-lbl{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);padding:3px 8px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-.bkt-score-pill{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-mid)}
-.bkt-alliance{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--border)}
-.bkt-alliance:last-child{border-bottom:none}
-.bkt-alliance.bkt-winner{background:rgba(0,230,118,.06)}
-.bkt-alliance.bkt-loser{opacity:.55}
-.bkt-seed{font-family:var(--fd);font-size:var(--fs-sm);font-weight:900;color:var(--text-dim);min-width:20px;flex-shrink:0}
-.bkt-seed.blue-seed{color:#64b5f6}.bkt-seed.red-seed{color:#ef9a9a}
-.bkt-teams{font-family:var(--fd);font-size:var(--fs-body);font-weight:700;color:var(--text);flex:1;line-height:1.15}
-.bkt-teams.bkt-my-team{color:var(--yellow)}
-.bkt-pts{font-family:var(--fm);font-size:var(--fs-sm);font-weight:700;color:var(--text-mid);min-width:30px;text-align:right;flex-shrink:0}
-.bkt-pts.bkt-winner-pts{color:var(--green)}
-.bkt-tbd{color:var(--text-dim);font-style:italic}
-.bkt-empty{background:var(--surface2);border:2px dashed var(--border2);border-radius:var(--r);padding:10px 8px;text-align:center;font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);letter-spacing:.06em}
-.bkt-finals-wrap{display:flex;justify-content:center;margin-top:4px}
-.bkt-finals-card{min-width:220px;max-width:280px}
+/* Finals separator */
+.bkt-finals-sep{width:2px;background:var(--border2);border-radius:2px;align-self:stretch;flex-shrink:0;margin:0 4px}
 
 /* LOADING */
 #lo{position:fixed;inset:0;background:rgba(9,9,15,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999}
@@ -272,9 +344,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(
 .ltxt{font-family:var(--fd);font-size:var(--fs-lbl);letter-spacing:.15em;text-transform:uppercase;color:var(--text-dim)}
 
 /* SETUP PAGE */
-#setup-page{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;padding:20px}
+#setup-page{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;z-index:10000;padding:20px}
 #setup-page.hidden{display:none}
-.setup-card{background:var(--surface);border:2px solid var(--border2);border-radius:12px;padding:36px 40px;width:100%;max-width:520px;display:flex;flex-direction:column;gap:22px}
+.setup-card{background:var(--surface);border:2px solid var(--border2);border-radius:12px;padding:36px 40px;width:100%;max-width:520px;display:flex;flex-direction:column;gap:22px;margin:auto}
 .setup-logo-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:4px}
 .setup-logo-img{max-height:80px;max-width:240px;object-fit:contain;display:none}
 .setup-logo-img.loaded{display:block}
@@ -323,6 +395,410 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(
 }
 
 
+/* TJ2 theme — frosted glass panels over tye-dye photo */
+[data-theme="tj2"] .hdr,
+[data-theme="tj2"] .footer,
+[data-theme="tj2"] .col-l,
+[data-theme="tj2"] .sidebar,
+[data-theme="tj2"] .stream-bar,
+[data-theme="tj2"] .tab-bar,
+[data-theme="tj2"] .q-half,
+[data-theme="tj2"] .panel-m,
+[data-theme="tj2"] #setup-page .setup-card{
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+}
+[data-theme="tj2"] #setup-page{
+  background:rgba(255,255,255,0.20);
+}
+/* TJ2 — countdown pill: opaque so yellow is readable over the tye-dye */
+[data-theme="tj2"] .cd-pill{
+  background:rgba(255,255,255,0.92) !important;
+  border-color:rgba(26,79,163,0.6) !important;
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+}
+[data-theme="tj2"] .cd-pill .cd-lbl,
+[data-theme="tj2"] .cd-pill .cd-match{
+  color:#1a1a1a !important;
+}
+[data-theme="tj2"] .cd-pill .cd-val{
+  color:var(--accent) !important;
+}
+[data-theme="tj2"] .cd-pill .cd-val.urg{
+  color:var(--red) !important;
+}
+/* TJ2 — match list: royal blue opaque background */
+[data-theme="tj2"] .panel-m{
+  background:rgba(26,79,163,0.88) !important;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+}
+[data-theme="tj2"] .mr{
+  background:rgba(20,60,130,0.92);
+  border-color:rgba(255,255,255,0.25);
+}
+[data-theme="tj2"] .mr.my{
+  border-color:rgba(232,168,0,0.7);
+  background:rgba(20,60,130,0.95);
+}
+[data-theme="tj2"] .mr.act{
+  border-color:var(--green);
+  background:rgba(20,60,130,0.95);
+}
+[data-theme="tj2"] .mr.dn{
+  opacity:.55;
+}
+[data-theme="tj2"] .msh{
+  color:rgba(255,255,255,0.9);
+  border-color:rgba(255,255,255,0.3);
+}
+[data-theme="tj2"] .ml-lbl{
+  color:#ffffff;
+}
+[data-theme="tj2"] .mtime,
+[data-theme="tj2"] .mscore .scs{
+  color:rgba(255,255,255,0.7);
+}
+/* TJ2 — playoff bracket */
+[data-theme="tj2"] #bracket-panel{
+  background:rgba(26,79,163,0.88) !important;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+[data-theme="tj2"] .bkt-card{
+  background:rgba(20,60,130,0.92);
+  border-color:rgba(255,255,255,0.2);
+}
+[data-theme="tj2"] .bkt-card.bkt-card-my{
+  border-color:rgba(232,168,0,0.75);
+}
+[data-theme="tj2"] .bkt-card-lbl{
+  background:rgba(15,45,110,0.95);
+  color:rgba(255,255,255,0.85);
+  border-color:rgba(255,255,255,0.12);
+}
+[data-theme="tj2"] .bkt-card-score{color:rgba(255,255,255,0.7)}
+[data-theme="tj2"] .bkt-row{border-color:rgba(255,255,255,0.1)}
+[data-theme="tj2"] .bkt-row-alliance{color:#ffffff}
+[data-theme="tj2"] .bkt-row-teams{color:rgba(255,255,255,0.5)}
+[data-theme="tj2"] .bkt-row-pts{color:rgba(255,255,255,0.75)}
+[data-theme="tj2"] .bkt-row-winner .bkt-row-pts{color:#6fffaa}
+[data-theme="tj2"] .bkt-round-hdr{color:rgba(255,255,255,0.75);border-color:rgba(255,255,255,0.25)}
+
+/* TJ2 — rankings table: white text, pill highlight for my team */
+[data-theme="tj2"] .rt th{
+  color:rgba(255,255,255,0.75);
+  border-color:rgba(255,255,255,0.3);
+}
+[data-theme="tj2"] .rt td{
+  border-color:rgba(255,255,255,0.12);
+  color:#ffffff;
+}
+[data-theme="tj2"] .rt td:not(:first-child){
+  color:rgba(255,255,255,0.9);
+}
+[data-theme="tj2"] .rp{
+  color:rgba(255,255,255,0.6);
+}
+[data-theme="tj2"] .rn{
+  color:#ffffff;
+}
+[data-theme="tj2"] .rme{
+  background:rgba(26,79,163,0.75);
+  outline:2px solid rgba(255,255,255,0.7);
+  outline-offset:-1px;
+  border-radius:4px;
+}
+[data-theme="tj2"] .rme td{
+  color:#ffffff !important;
+}
+[data-theme="tj2"] .rn.me{
+  color:#ffeb3b;
+  text-shadow:0 0 8px rgba(255,220,0,0.6);
+}
+/* TJ2 — My Team tab: alliance chips readable on blue */
+[data-theme="tj2"] .cb{
+  background:rgba(100,180,255,0.25);
+  border-color:rgba(120,200,255,0.7);
+  color:#d0eeff;
+}
+[data-theme="tj2"] .cr{
+  background:rgba(255,120,100,0.25);
+  border-color:rgba(255,150,130,0.7);
+  color:#ffe0da;
+}
+[data-theme="tj2"] .cm{
+  background:rgba(255,220,0,0.25);
+  border-color:rgba(255,220,0,0.8);
+  color:#fff176;
+}
+[data-theme="tj2"] .ic{
+  background:rgba(20,60,130,0.80);
+  border-color:rgba(255,255,255,0.25);
+}
+[data-theme="tj2"] .it{
+  color:#ffffff;
+}
+[data-theme="tj2"] .is{
+  color:rgba(255,255,255,0.7);
+}
+[data-theme="tj2"] .sbl{
+  color:rgba(255,255,255,0.6);
+  border-color:rgba(255,255,255,0.25);
+}
+[data-theme="tj2"] .stc{
+  background:rgba(20,60,130,0.80);
+  border-color:rgba(255,255,255,0.2);
+}
+[data-theme="tj2"] .stv{
+  color:#ffffff;
+}
+[data-theme="tj2"] .stl{
+  color:rgba(255,255,255,0.6);
+}
+
+/* TJ2 — queuing alliance blocks: readable text, royal blue pill for my team */
+[data-theme="tj2"] .a-blk.bl{
+  background:rgba(30,80,200,0.55);
+  border-color:rgba(120,180,255,0.6);
+}
+[data-theme="tj2"] .a-blk.rd{
+  background:rgba(180,40,30,0.55);
+  border-color:rgba(255,140,120,0.6);
+}
+[data-theme="tj2"] .a-blk.bl .a-label{
+  color:#aad4ff;
+}
+[data-theme="tj2"] .a-blk.rd .a-label{
+  color:#ffbbaa;
+}
+[data-theme="tj2"] .a-team{
+  color:#ffffff;
+}
+[data-theme="tj2"] .a-team.me{
+  background:rgba(26,79,163,0.85);
+  color:#ffeb3b;
+  text-shadow:0 0 8px rgba(255,220,0,0.5);
+  outline:2px solid rgba(255,255,255,0.7);
+  outline-offset:1px;
+  border-radius:4px;
+  padding:1px 6px;
+  display:inline-block;
+}
+[data-theme="tj2"] .vs{
+  color:rgba(255,255,255,0.75);
+}
+
+/* TJ2 — sidebar tab panels: royal blue opaque background */
+[data-theme="tj2"] .tp{
+  background:rgba(26,79,163,0.88);
+}
+/* TJ2 — alerts tab: announcement and parts cards readable */
+[data-theme="tj2"] #ann-content > div,
+[data-theme="tj2"] #parts-content > div{
+  background:rgba(20,60,130,0.92) !important;
+  border-left-color:var(--accent2) !important;
+  border-color:rgba(255,255,255,0.2) !important;
+}
+[data-theme="tj2"] #ann-content > div > div,
+[data-theme="tj2"] #parts-content > div > div{
+  color:#ffffff !important;
+}
+[data-theme="tj2"] .empty{
+  color:rgba(255,255,255,0.6);
+}
+/* TJ2 — queuing sidebar tab: dark navy so all content pops */
+[data-theme="tj2"] #tab-queuing{
+  background:rgba(10,20,50,0.95);
+}
+[data-theme="tj2"] #tab-queuing .now-q,
+[data-theme="tj2"] #tab-queuing .not-q,
+[data-theme="tj2"] #tab-queuing .sec-lbl{
+  color:#ffffff;
+}
+[data-theme="tj2"] #tab-queuing .sc{
+  background:rgba(255,255,255,0.08);
+  border-color:rgba(255,255,255,0.2);
+}
+[data-theme="tj2"] #tab-queuing .sc-l{
+  color:rgba(255,255,255,0.6);
+}
+[data-theme="tj2"] #tab-queuing .sc-v{
+  color:rgba(255,255,255,0.85);
+}
+[data-theme="tj2"] #tab-queuing .sc-v.on{
+  color:#6fffaa;
+}
+[data-theme="tj2"] #tab-queuing .a-blk.bl{
+  background:rgba(25,80,200,0.55);
+  border-color:rgba(100,180,255,0.7);
+}
+[data-theme="tj2"] #tab-queuing .a-blk.rd{
+  background:rgba(180,30,30,0.55);
+  border-color:rgba(255,130,110,0.7);
+}
+[data-theme="tj2"] #bumper-box-sidebar{
+  background:rgba(255,255,255,0.08);
+  border-color:rgba(255,255,255,0.25);
+  color:#ffffff;
+}
+[data-theme="tj2"] #bumper-box-sidebar.bumper-red{
+  background:rgba(180,30,30,0.55);
+  border-color:rgba(255,130,110,0.7);
+  color:#ffaaaa;
+}
+[data-theme="tj2"] #bumper-box-sidebar.bumper-blue{
+  background:rgba(25,80,200,0.55);
+  border-color:rgba(100,180,255,0.7);
+  color:#aad4ff;
+}
+
+/* TJ2 — badges: force white text since --text is dark in this theme */
+[data-theme="tj2"] .badge{
+  color:#ffffff;
+}
+[data-theme="tj2"] .bq{color:var(--accent)}
+[data-theme="tj2"] .bd{color:var(--yellow)}
+[data-theme="tj2"] .bf{color:var(--green)}
+
+/* TJ2 — Next Match card */
+[data-theme="tj2"] .nm-card{
+  background:rgba(20,60,130,0.90);
+  border-color:rgba(255,255,255,0.25);
+}
+[data-theme="tj2"] .nm-card.nm-blue{
+  background:rgba(25,80,200,0.75);
+  border-color:rgba(120,180,255,0.6);
+}
+[data-theme="tj2"] .nm-card.nm-red{
+  background:rgba(160,30,30,0.75);
+  border-color:rgba(255,140,120,0.6);
+}
+[data-theme="tj2"] .nm-label{
+  color:#ffffff;
+}
+[data-theme="tj2"] .nm-card.nm-blue .nm-alliance{
+  color:#aad4ff;
+}
+[data-theme="tj2"] .nm-card.nm-red .nm-alliance{
+  color:#ffbbaa;
+}
+[data-theme="tj2"] .nm-section-lbl{
+  color:rgba(255,255,255,0.6);
+}
+[data-theme="tj2"] .nm-none,
+[data-theme="tj2"] .nm-queue{
+  color:rgba(255,255,255,0.55);
+}
+
+/* TJ2 — played matches rows in My Team tab */
+[data-theme="tj2"] .played-hdr{
+  color:rgba(255,255,255,0.6);
+  border-color:rgba(255,255,255,0.3);
+}
+[data-theme="tj2"] .played-row{
+  border-color:rgba(255,255,255,0.12);
+}
+[data-theme="tj2"] .played-match{
+  color:#ffffff;
+}
+[data-theme="tj2"] .played-blue{
+  color:#7ec8ff;
+}
+[data-theme="tj2"] .played-sep{
+  color:rgba(255,255,255,0.5);
+}
+[data-theme="tj2"] .played-red{
+  color:#ffaaaa;
+}
+[data-theme="tj2"] .played-dim{
+  color:rgba(255,255,255,0.4);
+}
+[data-theme="tj2"] .played-rp{
+  color:#ffffff !important;  /* override inline rpColor for base; accent/green stay via inline */
+}
+
+/* TJ2 — bracket round column headers */
+
+
+/* TJ2 — stream bar: opaque royal blue, readable text and controls */
+[data-theme="tj2"] .stream-bar{
+  background:rgba(26,79,163,0.92);
+  border-color:rgba(255,255,255,0.25);
+}
+[data-theme="tj2"] .s-lbl{
+  color:#ffffff;
+}
+[data-theme="tj2"] .s-btn{
+  background:rgba(15,45,110,0.85);
+  border-color:rgba(255,255,255,0.35);
+  color:#ffffff;
+}
+[data-theme="tj2"] .s-btn:hover{
+  background:rgba(15,45,110,1);
+  border-color:rgba(255,255,255,0.7);
+  color:#ffffff;
+}
+[data-theme="tj2"] #s-sel{
+  background:rgba(15,45,110,0.85) !important;
+  border-color:rgba(255,255,255,0.35) !important;
+  color:#ffffff !important;
+}
+
+/* TJ2 swatch preview — show the actual colors */
+/* Light mode — setup page needs light bg */
+[data-theme="light"] #setup-page{
+  background:var(--bg);
+}
+
+/* THEME SWITCHER */
+.theme-switcher{display:flex;flex-direction:column;gap:6px}
+.theme-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.theme-swatch{border:2px solid var(--border2);border-radius:var(--r);padding:8px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color .15s,transform .1s;background:var(--surface2)}
+.theme-swatch:hover{transform:translateY(-1px);border-color:var(--text-mid)}
+.theme-swatch.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.theme-swatch-preview{width:100%;height:28px;border-radius:4px;overflow:hidden;position:relative}
+.theme-swatch-name{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);text-align:center;white-space:nowrap}
+.theme-swatch.active .theme-swatch-name{color:var(--accent)}
+
+/* PLAYED MATCHES (My Team tab) */
+.played-hdr{display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:4px 0 5px;border-bottom:2px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)}
+.played-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700}
+.played-match{color:var(--text)}
+.played-blue{color:#64b5f6}
+.played-sep{color:var(--text-dim)}
+.played-red{color:#ef9a9a}
+.played-dim{color:var(--text-dim)}
+.played-rp{text-align:right;min-width:42px;font-size:var(--fs-lbl)}
+
+/* NEXT MATCH CARD (My Team tab) */
+.nm-card{border-radius:var(--r);padding:10px 13px;background:var(--surface2);border:2px solid var(--border2);display:flex;flex-direction:column;gap:5px}
+.nm-card.nm-blue{border-color:rgba(25,118,210,.55);background:rgba(25,118,210,.08)}
+.nm-card.nm-red{border-color:rgba(198,40,40,.55);background:rgba(198,40,40,.08)}
+.nm-header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.nm-label{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--text)}
+.nm-alliance{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.nm-card.nm-blue .nm-alliance{color:#64b5f6}
+.nm-card.nm-red  .nm-alliance{color:#ef9a9a}
+.nm-section-lbl{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin-top:4px}
+.nm-chips{display:flex;gap:4px;flex-wrap:wrap}
+.nm-none{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)}
+.nm-queue{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);margin-top:4px}
+
+/* BRACKET ALLIANCE LEGEND — 4×2 grid of cards */
+.bkt-legend{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px var(--pad);border-top:2px solid var(--border);background:var(--surface);flex-shrink:0}
+.bkt-legend-card{border-radius:var(--r);overflow:hidden;border:2px solid var(--border2)}
+.bkt-legend-card.bkt-legend-me{border-color:rgba(255,214,0,.55)}
+.bkt-legend-hdr{font-family:var(--fd);font-size:var(--fs-sm);font-weight:900;letter-spacing:.08em;text-transform:uppercase;text-align:center;padding:4px 8px;background:var(--border2);color:var(--text-mid)}
+.bkt-legend-card.bkt-legend-me .bkt-legend-hdr{background:rgba(255,214,0,.18);color:var(--yellow)}
+.bkt-legend-teams{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text);text-align:center;padding:5px 8px;background:var(--surface2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bkt-legend-card.bkt-legend-me .bkt-legend-teams{color:var(--yellow)}
+[data-theme="tj2"] .bkt-legend{background:rgba(26,79,163,0.88);border-color:rgba(255,255,255,0.2)}
+[data-theme="tj2"] .bkt-legend-card{border-color:rgba(255,255,255,0.2)}
+[data-theme="tj2"] .bkt-legend-hdr{background:rgba(15,45,110,0.95);color:rgba(255,255,255,0.85)}
+[data-theme="tj2"] .bkt-legend-teams{background:rgba(20,60,130,0.85);color:#ffffff}
+[data-theme="tj2"] .bkt-legend-card.bkt-legend-me .bkt-legend-hdr{background:rgba(255,214,0,.2);color:#ffeb3b}
+[data-theme="tj2"] .bkt-legend-card.bkt-legend-me .bkt-legend-teams{color:#ffeb3b}
+
 </style>
 </head>
 <body>
@@ -359,6 +835,28 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(
       <input class="setup-input" id="setup-event-manual" type="text" placeholder="e.g. 2026mabos" autocomplete="off" spellcheck="false">
       <div class="setup-hint">Overrides the dropdown selection above</div>
       <div class="setup-err" id="setup-err">Please enter a team number and select or type an event code.</div>
+    </div>
+
+    <div class="setup-field theme-switcher">
+      <label class="setup-label">Theme</label>
+      <div class="theme-swatches" id="theme-swatches">
+        <div class="theme-swatch active" data-theme="dark" onclick="selectTheme('dark',this)">
+          <div class="theme-swatch-preview" style="background:linear-gradient(135deg,#09090f 50%,#00d4ff 100%)"></div>
+          <div class="theme-swatch-name">Dark</div>
+        </div>
+        <div class="theme-swatch" data-theme="light" onclick="selectTheme('light',this)">
+          <div class="theme-swatch-preview" style="background:linear-gradient(135deg,#f0f2f8 50%,#0077aa 100%)"></div>
+          <div class="theme-swatch-name">Light</div>
+        </div>
+        <div class="theme-swatch" data-theme="tj2" onclick="selectTheme('tj2',this)">
+          <div class="theme-swatch-preview" style="background:radial-gradient(circle at center,#fff8e8 0%,#e86a10 30%,#e8a800 50%,#1a4fa3 75%,#c0311a 100%)"></div>
+          <div class="theme-swatch-name">TJ²</div>
+        </div>
+        <div class="theme-swatch" data-theme="custom" onclick="selectTheme('custom',this)">
+          <div class="theme-swatch-preview" style="background:linear-gradient(135deg,#0d0d0d 50%,#ff9900 100%)"></div>
+          <div class="theme-swatch-name">Custom</div>
+        </div>
+      </div>
     </div>
 
     <button class="setup-btn" id="setup-go" onclick="setupLaunch()">Launch PitFusion &rarr;</button>
@@ -445,7 +943,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(
   </div>
 
   <div class="footer">
-    <div class="ftr-note">Nexus refreshes every 15s &middot; TBA refreshes every 30s</div>
+    <div class="ftr-note"><span style="color:var(--accent);font-weight:700;margin-right:8px">V1.0</span>Nexus refreshes every 15s &middot; TBA refreshes every 30s</div>
     <div style="flex:1"></div>
     <button class="s-btn" id="stream-toggle-btn" onclick="toggleStreamVisibility()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">📺 Hide Stream</button>
     <button class="s-btn" id="bracket-toggle-btn" onclick="toggleBracket()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">🏆 Playoff Bracket</button>
@@ -457,8 +955,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(
 // ============================================================
 // API KEYS (keep these; team/event now come from setup page)
 // ============================================================
-const NEXUS_KEY = 'YOUR_NEXUS KEY';
-const TBA_KEY   = 'YOUR_TBA_KEY';
+const NEXUS_KEY = 'YOUR_NEXUS_API_KEY';
+const TBA_KEY   = 'YOUR_TBA_API_KEY';
 // ============================================================
 
 const C={team:'',event:'',nexus:NEXUS_KEY,tba:TBA_KEY};
@@ -467,6 +965,56 @@ const C={team:'',event:'',nexus:NEXUS_KEY,tba:TBA_KEY};
 
 const LS_TEAM  = 'pitfusion_team';
 const LS_EVENT = 'pitfusion_event';
+
+// ── THEME ──────────────────────────────────────────────────────────────────
+const LS_THEME = 'pitfusion_theme';
+const VALID_THEMES = ['dark','light','tj2','custom'];
+
+function applyTheme(t){
+  if(!VALID_THEMES.includes(t)) t = 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  document.body.setAttribute('data-theme', t);
+}
+
+function applyCustomBg(){
+  // Read --custom-bg-image from the custom theme block and apply has-bg if set
+  const tmp = document.createElement('div');
+  tmp.setAttribute('data-theme','custom');
+  tmp.style.cssText = 'position:absolute;visibility:hidden';
+  document.body.appendChild(tmp);
+  const val = getComputedStyle(tmp).getPropertyValue('--custom-bg-image').trim();
+  document.body.remove ? null : null;
+  tmp.remove();
+  if(val && val !== 'none' && val !== ''){
+    document.body.classList.add('has-bg');
+  } else {
+    document.body.classList.remove('has-bg');
+  }
+}
+
+function selectTheme(t, el){
+  applyTheme(t);
+  localStorage.setItem(LS_THEME, t);
+  document.querySelectorAll('.theme-swatch').forEach(s=>s.classList.remove('active'));
+  if(el) el.classList.add('active');
+  else {
+    const s = document.querySelector(`.theme-swatch[data-theme="${t}"]`);
+    if(s) s.classList.add('active');
+  }
+  if(t === 'custom') applyCustomBg();
+}
+
+// Apply saved theme immediately on load (before paint)
+(function(){
+  const saved = localStorage.getItem(LS_THEME) || 'dark';
+  applyTheme(saved);
+  // Mark correct swatch active once DOM is ready (swatches may not exist yet)
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const s = document.querySelector(`.theme-swatch[data-theme="${saved}"]`);
+    if(s){ document.querySelectorAll('.theme-swatch').forEach(x=>x.classList.remove('active')); s.classList.add('active'); }
+    if(saved === 'custom') applyCustomBg();
+  });
+})();
 
 // Try to show a logo.png/logo.jpg from the same directory as this .html file
 (function tryLoadLogo(){
@@ -757,7 +1305,7 @@ function rQ(){
   if(nowQ){
     const heading=myNext?e(myNext.label):'&mdash;';
     const subline=myNextTimeStr
-      ?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text-dim);margin-top:2px">Est. Queue: ${myNextTimeStr}</div>`
+      ?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text);margin-top:2px">Est. Queue: ${myNextTimeStr}</div>`
       :'';
     html+=`<div class="sec-lbl" style="font-size:var(--fs-sm);margin-bottom:2px">Your Next Match</div><div class="now-q">${heading}</div>${subline}`;
   } else {
@@ -843,7 +1391,7 @@ function rMl(){
     if(isAct) scrollId=id;
     else if(!scrollId&&isMe&&!isDn) scrollId=id;
     const mkC=(ts,cls)=>ts.map(t=>`<span class="chip ${t===myT?'cm':cls}">${e(t)}</span>`).join('');
-    const right=sc?`<div class="mscore"><span class="scb">${sc.blue}</span><span class="scs">&ndash;</span><span class="scr">${sc.red}</span></div>`:`<div class="mtime">${ts2(m)}</div>`;
+    const right=sc?`<div class="mscore"><span class="scb">${sc.blue}</span><span class="scs">&ndash;</span><span class="scr">${sc.red}</span></div>`:`<div class="mtime"></div>`;
     const actDisplay=isAct&&!isDn; // only show active glow if truly in progress
     let cls='mr';if(isMe)cls+=' my';if(actDisplay)cls+=' act';if(isDn)cls+=' dn';
     return`<div class="${cls}" id="${id}"><div class="ml-lbl">${e(m.label)}</div><div class="ml-teams">${mkC(bl,'cb')}${mkC(r,'cr')}</div>${right}${mkBadge(m,!!sc)}</div>`;
@@ -937,8 +1485,22 @@ function rRank(){
   const el=document.getElementById('rank-content');
   if(!tbaRk?.rankings){el.innerHTML='<div class="empty">No rankings yet</div>';return;}
   let html=`<table class="rt"><thead><tr><th colspan="2">Team</th><th>W&ndash;L&ndash;T</th><th>RP</th></tr></thead><tbody>`;
-  tbaRk.rankings.slice(0,24).forEach(r=>{const n=r.team_key.replace('frc',''),me=n===C.team,rp=r.sort_orders?.[0],rec=r.record?`${r.record.wins}&ndash;${r.record.losses}&ndash;${r.record.ties}`:'&mdash;';html+=`<tr${me?' class="rme"':''}><td><span class="rp">${r.rank}</span></td><td><span class="rn${me?' me':''}">${n}</span></td><td>${rec}</td><td>${typeof rp==='number'?rp.toFixed(2):'&mdash;'}</td></tr>`;});
+  tbaRk.rankings.forEach(r=>{
+    const n=r.team_key.replace('frc',''),me=n===C.team,rp=r.sort_orders?.[0];
+    const rec=r.record?`${r.record.wins}&ndash;${r.record.losses}&ndash;${r.record.ties}`:'&mdash;';
+    html+=`<tr${me?' class="rme" id="rank-my-row"':''}><td><span class="rp">${r.rank}</span></td><td><span class="rn${me?' me':''}">${n}</span></td><td>${rec}</td><td>${typeof rp==='number'?rp.toFixed(2):'&mdash;'}</td></tr>`;
+  });
   el.innerHTML=html+'</tbody></table>';
+  // Auto-scroll the rankings panel to center on the team's row
+  requestAnimationFrame(()=>{
+    const row=document.getElementById('rank-my-row');
+    const panel=document.getElementById('tab-rankings');
+    if(row&&panel){
+      const rowTop=row.offsetTop;
+      const panelH=panel.clientHeight;
+      panel.scrollTop=rowTop-(panelH/2)+(row.clientHeight/2);
+    }
+  });
 }
 
 // TEAM TAB
@@ -975,12 +1537,25 @@ function rTeam(){
   if(nxt){
     const r=nxt.redTeams||[],bl=nxt.blueTeams||[],isR=r.includes(myT),ac=isR?'var(--red-a)':'var(--blue-a)',al=isR?'Red Alliance':'Blue Alliance';
     const part=(isR?r:bl).filter(t=>t!==myT),opp=isR?bl:r;
-    html+=`<div class="sbl">Next Match</div><div class="ic" style="border-color:${ac}88"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900">${e(nxt.label)}</div>${mkBadge(nxt.status)}</div><div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${ac};margin-bottom:5px">${al}</div><div style="margin-bottom:6px"><div style="font-size:var(--fs-sm);color:var(--text-dim);margin-bottom:3px">Partners</div><div style="display:flex;gap:4px">${part.map(t=>`<span class="chip ${isR?'cr':'cb'}">${e(t)}</span>`).join('')}</div></div><div><div style="font-size:var(--fs-sm);color:var(--text-dim);margin-bottom:3px">Opponents</div><div style="display:flex;gap:4px">${opp.map(t=>`<span class="chip ${isR?'cb':'cr'}">${e(t)}</span>`).join('')}</div></div>${ts2(nxt)!=='&mdash;'?`<div style="margin-top:6px;font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim)">Est. queue: ${ts2(nxt)}</div>`:''}</div>`;
+    const queueStr=ts2(nxt)!=='&mdash;'?`<div class="nm-queue">Est. queue: ${ts2(nxt)}</div>`:'';
+    html+=`<div class="sbl">Next Match</div>
+    <div class="nm-card ${isR?'nm-red':'nm-blue'}">
+      <div class="nm-header">
+        <span class="nm-label">${e(nxt.label)}</span>
+        ${mkBadge(nxt,!!sm[nl(nxt.label)])}
+      </div>
+      <div class="nm-alliance ${isR?'nm-al-red':'nm-al-blue'}">${al}</div>
+      <div class="nm-section-lbl">Partners</div>
+      <div class="nm-chips">${part.map(t=>`<span class="chip ${isR?'cr':'cb'}">${e(t)}</span>`).join('')||'<span class="nm-none">TBD</span>'}</div>
+      <div class="nm-section-lbl" style="margin-top:8px">Opponents</div>
+      <div class="nm-chips">${opp.map(t=>`<span class="chip ${isR?'cb':'cr'}">${e(t)}</span>`).join('')}</div>
+      ${queueStr}
+    </div>`;
   }
   if(played.length){
     html+=`<div class="sbl">Played (${played.length})</div>`;
     // Header row
-    html+=`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:4px 0 5px;border-bottom:2px solid var(--border);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)">
+    html+=`<div class="played-hdr">
       <span>Match</span><span style="text-align:right">Score</span><span style="text-align:right;min-width:42px">RP</span>
     </div>`;
     played.forEach(m=>{
@@ -996,10 +1571,10 @@ function rTeam(){
       const rpColor=myRp==null?'var(--text-dim)':myRp>=3?'var(--green)':myRp>=2?'var(--accent)':myRp>=1?'var(--text)':'var(--text-dim)';
       const rpDisplay=myRp!=null?myRp:'&mdash;';
 
-      html+=`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-family:var(--fd);font-size:var(--fs-body);font-weight:700">
-        <span>${e(m.label)}</span>
-        <span style="text-align:right">${sc?`<span style="color:#64b5f6">${sc.blue}</span><span style="color:var(--text-dim)"> &ndash; </span><span style="color:#ef9a9a">${sc.red}</span>`:'<span style="color:var(--text-dim)">&mdash;</span>'}</span>
-        <span style="text-align:right;min-width:42px;font-size:var(--fs-lbl);color:${rpColor}">${rpDisplay}</span>
+      html+=`<div class="played-row">
+        <span class="played-match">${e(m.label)}</span>
+        <span style="text-align:right">${sc?`<span class="played-blue">${sc.blue}</span><span class="played-sep"> &ndash; </span><span class="played-red">${sc.red}</span>`:'<span class="played-dim">&mdash;</span>'}</span>
+        <span class="played-rp" style="color:${rpColor}">${rpDisplay}</span>
       </div>`;
     });
   }
@@ -1222,6 +1797,8 @@ function toggleBracket(){
     panelM.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:0;background:var(--bg)';
     pTitle.style.display = 'none';
     ml.style.display     = 'none';
+    bktPnl.style.flex    = '1';
+    bktPnl.style.minHeight = '0';
 
     // 4. Sidebar: hide Rankings + My Team, show Queuing tab
     document.getElementById('tab-rankings').style.display = 'none';
@@ -1252,6 +1829,8 @@ function toggleBracket(){
     panelM.style.cssText = '';
     pTitle.style.display = '';
     ml.style.display     = 'flex';
+    bktPnl.style.flex    = '';
+    bktPnl.style.minHeight = '';
 
     // Restore sidebar
     document.getElementById('tab-rankings').style.display = '';
@@ -1317,105 +1896,338 @@ function syncQueueingToSidebar(){
 }
 
 function rBracket(){
-  const el=document.getElementById('bracket-panel');
-  const myTeam=C.team;
-  const alliances=tbaAlliances||[];
+  const el = document.getElementById('bracket-panel');
+  const myTeam = C.team;
+  const alliances = tbaAlliances || [];
 
-  const mxByNum={};
+  const mxByNum = {};
   (tbaMx||[]).filter(m=>m.comp_level==='sf').forEach(m=>{ mxByNum[`sf${m.set_number}`]=m; });
-  (tbaMx||[]).filter(m=>m.comp_level==='f').forEach(m=>{ mxByNum[`f${m.match_number}`]=m; });
+  (tbaMx||[]).filter(m=>m.comp_level==='f' ).forEach(m=>{ mxByNum[`f${m.match_number}`]=m; });
 
-  const teamToSeed={};
+  const teamToSeed = {};
   alliances.forEach((a,i)=>{ (a.picks||[]).forEach(tk=>{ teamToSeed[tk.replace('frc','')]=i+1; }); });
 
-  function matchCard(matchKey, label){
-    const mx=mxByNum[matchKey];
+  const finalCol = [
+    {key:'f1',label:'Final 1',note:''},
+    {key:'f2',label:'Final 2',note:''},
+    {key:'f3',label:'Final 3',note:''},
+  ];
+
+  // ── Layout constants ──────────────────────────────────────────────────────
+  // 5 rounds + Finals = 6 columns
+  // Rounds: R1(4 cards), R2(4 cards), R3(2 cards), R4(2 cards), R5(1 card), Finals(1-3 cards)
+  const CARD_W   = 172;
+  const CARD_H   = 88;   // label bar ~22px + 2 rows ~33px each
+  const LABEL_H  = 22;
+  const ROW_H    = (CARD_H - LABEL_H) / 2;  // 33px
+  const COL_GAP  = 64;
+  const HDR_H    = 30;
+  const PAD      = 16;
+
+  // The canvas is divided into 4 equal BANDS, one per R1 match.
+  // BAND is tall enough that cards in the same column never overlap.
+  // Every card position is derived from band centres — no double-conversion.
+  const BAND   = CARD_H + 56;   // 144px per band — 56px gap between cards
+  const innerH = 4 * BAND;
+
+  function colX(ci){ return PAD + ci*(CARD_W+COL_GAP); }
+
+  // Absolute Y of the vertical centre of band b
+  // Bands start immediately after the header row
+  function bandCY(b){ return HDR_H + PAD + b*BAND + BAND/2; }
+
+  // Convert a card-centre Y to a card-top Y
+  function cy2top(cy){ return cy - CARD_H/2; }
+
+  // All positions are card-top Y values.
+  // R1  : 4 cards, one per band, perfectly equidistant
+  // R2  : M7=top of upper half, M8=top of lower half (winner matches)
+  //        M5=bottom of upper half, M6=bottom of lower half (loser matches)
+  //        "top/bottom of half" = bands 0-1 for upper, bands 2-3 for lower
+  //        winner centred between the two bands, loser at the midpoint
+  //        between winner-centre and the next band start — guaranteed no overlap
+  // R3  : M10 upper (aligns with M8), M9 lower (aligns with M6)
+  // R4  : M11 upper (aligns with M7), M12 lower (between M10 and M9)
+  // R5  : M13 centred between M11 and M12
+  function getCardY(ci, si){
+    // Band centres (absolute Y of card centre for R1 slots)
+    const cy0=bandCY(0), cy1=bandCY(1), cy2=bandCY(2), cy3=bandCY(3);
+
+    if(ci===0){
+      // R1: one card perfectly centred in each band
+      return cy2top(bandCY(si));
+    }
+
+    if(ci===1){
+      // R2: M7, M8, M5, M6 — one card per band, same as R1
+      // This guarantees no overlap and gives clean visual ordering top to bottom
+      if(si===0) return cy2top(cy0);   // M7 — band 0 (top)
+      if(si===1) return cy2top(cy1);   // M8 — band 1
+      if(si===2) return cy2top(cy2);   // M5 — band 2
+      if(si===3) return cy2top(cy3);   // M6 — band 3 (bottom)
+    }
+
+    if(ci===2){
+      // R3: M10 on top (si=0), M9 on bottom (si=1)
+      // Image 2 shows M10 aligns with the M5/M8 area (upper-mid),
+      // and M9 aligns with the M6 area (lower).
+      // M10: between M8 and M5 vertically — use band 2 centre
+      if(si===0) return cy2top(cy2);
+      // M9: aligns with M6 — band 3 centre
+      if(si===1) return cy2top(cy3);
+    }
+
+    if(ci===3){
+      // R4: M11 upper (si=0), M12 lower (si=1)
+      // M11: aligns with M7/M8 area — centre of bands 0+1
+      if(si===0) return cy2top((cy0+cy1)/2);
+      // M12: aligns with M10/M9 area — centre of bands 2+3
+      if(si===1) return cy2top((cy2+cy3)/2);
+    }
+
+    if(ci===4){
+      // R5: M13 centred between M11 and M12
+      const m11cy = (cy0+cy1)/2;
+      const m12cy = (cy2+cy3)/2;
+      if(si===0) return cy2top((m11cy+m12cy)/2);
+    }
+
+    return HDR_H + PAD + si*(CARD_H+56);
+  }
+
+  // Finals column
+  const hasFinals    = finalCol.some(c=>mxByNum[c.key]);
+  const shownFinals  = finalCol.filter((c,i)=>mxByNum[c.key]||(i===0));
+  const FINALS_SEP   = 32;
+  const finalsX      = colX(5) + FINALS_SEP;
+
+  function getFinalsY(si){
+    const FGAP   = 14;
+    const n      = shownFinals.length;
+    const used   = n*CARD_H + (n-1)*FGAP;
+    const startY = HDR_H + PAD + (innerH - used)/2;
+    return startY + si*(CARD_H+FGAP);
+  }
+
+  const canvasW = finalsX + CARD_W + PAD;
+  const canvasH = HDR_H + PAD*2 + innerH + PAD;
+
+  // ── Alliance helper ───────────────────────────────────────────────────────
+  function getAlliance(mx, side){
+    if(!mx) return null;
+    const keys=(mx.alliances?.[side]?.team_keys||[]).map(k=>k.replace('frc',''));
+    if(!keys.length) return null;
+    return {keys, seed:teamToSeed[keys[0]]??'?', score:mx.alliances?.[side]?.score};
+  }
+
+  // Absolute Y of the midpoint of a row within a card
+  // ci=-1 means finals col
+  function rowMid(ci, si, rowIdx){
+    const cy = ci >= 0 ? getCardY(ci,si) : getFinalsY(si);
+    return cy + LABEL_H + rowIdx*ROW_H + ROW_H/2;
+  }
+
+  // Right and left edge X of a card in column ci
+  function rightEdge(ci){ return (ci>=0?colX(ci):finalsX) + CARD_W; }
+  function leftEdge(ci) { return  ci>=0?colX(ci):finalsX; }
+
+  // ── Card HTML ─────────────────────────────────────────────────────────────
+  function cardHtml(x, y, key, label, note){
+    const mx = mxByNum[key];
+    const isActive=(nxData?.matches||[]).some(m=>
+      ['Now queuing','On deck','On field'].includes(m.status)&&
+      (m.label||'').replace(/\s/g,'').toLowerCase()===label.replace(/\s/g,'').toLowerCase()
+    );
     if(!mx){
-      return `<div class="bkt-match">
-        <div class="bkt-match-lbl">${e(label)}</div>
-        <div class="bkt-alliance"><span class="bkt-seed">?</span><span class="bkt-teams bkt-tbd">TBD</span></div>
-        <div class="bkt-alliance"><span class="bkt-seed">?</span><span class="bkt-teams bkt-tbd">TBD</span></div>
+      return `<div class="bkt-card" style="position:absolute;left:${x}px;top:${y}px;width:${CARD_W}px">
+        <div class="bkt-card-lbl">${e(label)}${note?` <span style="opacity:.5;font-size:.85em">${e(note)}</span>`:''}</div>
+        <div class="bkt-row"><span class="bkt-tbd">TBD</span></div>
+        <div class="bkt-row"><span class="bkt-tbd">TBD</span></div>
       </div>`;
     }
-    const redKeys =(mx.alliances?.red?.team_keys||[]).map(k=>k.replace('frc',''));
-    const blueKeys=(mx.alliances?.blue?.team_keys||[]).map(k=>k.replace('frc',''));
-    const redScore =mx.alliances?.red?.score;
-    const blueScore=mx.alliances?.blue?.score;
-    const done=!!(mx.winning_alliance)&&redScore!=null&&redScore>=0;
-    const scorePill=done?`<span class="bkt-score-pill">${blueScore}–${redScore}</span>`:'';
-    const redWon=done&&mx.winning_alliance==='red';
-    const blueWon=done&&mx.winning_alliance==='blue';
-    const redSeed=teamToSeed[redKeys[0]]??'?';
-    const blueSeed=teamToSeed[blueKeys[0]]??'?';
-    const myMatch=redKeys.includes(myTeam)||blueKeys.includes(myTeam);
+    const red=getAlliance(mx,'red'), blue=getAlliance(mx,'blue');
+    const done=!!(mx.winning_alliance)&&red?.score!=null&&red.score>=0;
+    const redWon=done&&mx.winning_alliance==='red', blueWon=done&&mx.winning_alliance==='blue';
+    const myMatch=(red?.keys||[]).includes(myTeam)||(blue?.keys||[]).includes(myTeam);
 
-    function allianceRow(keys,seed,isRed,won,pts){
-      if(!keys.length) return `<div class="bkt-alliance"><span class="bkt-seed">?</span><span class="bkt-teams bkt-tbd">TBD</span></div>`;
-      const teamsStr=keys.slice(0,3).join(' · ');
-      const isMe=keys.includes(myTeam);
-      const wonCls=done?(won?' bkt-winner':' bkt-loser'):'';
-      const myCls=isMe?' bkt-my-team':'';
-      const ptsHtml=pts!=null&&pts>=0?`<span class="bkt-pts${won?' bkt-winner-pts':''}">${pts}</span>`:'';
-      return `<div class="bkt-alliance${wonCls}">
-        <span class="bkt-seed ${isRed?'red-seed':'blue-seed'}">${seed}</span>
-        <span class="bkt-teams${myCls}">${e(teamsStr)}</span>
-        ${ptsHtml}
+    function row(al,isRed,won){
+      if(!al) return `<div class="bkt-row"><span class="bkt-tbd">TBD</span></div>`;
+      const wCls=done?(won?' bkt-row-winner':' bkt-row-loser'):'';
+      const sCls=isRed?' bkt-row-red':' bkt-row-blue';
+      const isMe=al.keys.includes(myTeam);
+      const pts=done&&al.score!=null&&al.score>=0?`<div class="bkt-row-pts">${al.score}</div>`:'';
+      return `<div class="bkt-row${wCls}${sCls}">
+        <div class="bkt-row-seed">${al.seed}</div>
+        <div class="bkt-row-body">
+          <div class="bkt-row-alliance${isMe?' bkt-my':''}">Alliance ${al.seed}</div>
+        </div>${pts}
       </div>`;
     }
-
-    return `<div class="bkt-match${myMatch?' bkt-my':''}">
-      <div class="bkt-match-lbl">${e(label)} ${scorePill}</div>
-      ${allianceRow(blueKeys,blueSeed,false,blueWon,blueScore)}
-      ${allianceRow(redKeys,redSeed,true,redWon,redScore)}
+    return `<div class="bkt-card${myMatch?' bkt-card-my':''}${isActive?' bkt-card-active':''}" style="position:absolute;left:${x}px;top:${y}px;width:${CARD_W}px">
+      <div class="bkt-card-lbl">${e(label)}${note?` <span style="opacity:.5;font-size:.85em">${e(note)}</span>`:''} ${isActive?'<span style="color:var(--green)">●</span>':''}</div>
+      ${row(red,true,redWon)}
+      ${row(blue,false,blueWon)}
     </div>`;
   }
 
-  // Fitted column helper — uses bkt-col-fit for no-scroll layout
-  function fitCol(title, keys, labels){
-    return `<div class="bkt-col-fit">
-      <div class="bkt-col-hdr">${title}</div>
-      ${keys.map((k,i)=>matchCard(k,labels[i])).join('')}
-    </div>`;
+  // ── SVG routing helpers ───────────────────────────────────────────────────
+  // Route a line from right edge of (fromCi,fromSi,fromRow) to left edge of (toCi,toSi,toRow)
+  // Uses a smooth cubic bezier through the gap — no path passes through intervening cards
+  // because each connection only spans one column gap.
+  // For connections that skip columns (R2-M8-loser is not used; all span exactly one step),
+  // we simply use a mid-control-point elbow.
+  function makePath(x1,y1,x2,y2,color,dashed){
+    const dx = x2-x1;
+    const cx1 = x1 + dx*0.45;
+    const cx2 = x2 - dx*0.45;
+    const d = `M${x1},${y1} C${cx1},${y1} ${cx2},${y2} ${x2},${y2}`;
+    const dash = dashed ? 'stroke-dasharray="5,4"' : '';
+    return `<path d="${d}" stroke="${color}" stroke-width="1.8" fill="none" stroke-linecap="round" ${dash}/>`;
   }
 
-  const finalKeys=['f1','f2','f3'];
-  const finalLbls=['Final 1','Final 2','Final 3'];
-  const finalCards=finalKeys.filter((k,i)=>mxByNum[k]||i===0).map((k,i)=>matchCard(k,finalLbls[i]));
+  // Winner color (cyan), Loser color (dim gray)
+  const CW = 'rgba(220,50,50,0.7)';   // winner lines — red
+  const CL = 'rgba(50,130,220,0.6)';  // loser lines — blue
 
-  const html=`<div class="bkt-full">
+  // Corrected connection map:
+  // [fromCi, fromSi, fromRow(0=red/top,1=blue/bot), isWinner, toCi, toSi, toRow]
+  // R1 M1=si0, M2=si1, M3=si2, M4=si3
+  // R2 M7=si0, M8=si1, M5=si2, M6=si3
+  // R3 M10=si0, M9=si1
+  // R4 M11=si0, M12=si1
+  // R5 M13=si0
+  const connMap = [
+    // R1 → R2
+    [0,0,0,true, 1,0,0],  // M1 winner → M7 red
+    [0,0,1,false,1,2,0],  // M1 loser  → M5 red
+    [0,1,0,true, 1,0,1],  // M2 winner → M7 blue
+    [0,1,1,false,1,2,1],  // M2 loser  → M5 blue
+    [0,2,0,true, 1,1,0],  // M3 winner → M8 red
+    [0,2,1,false,1,3,0],  // M3 loser  → M6 red
+    [0,3,0,true, 1,1,1],  // M4 winner → M8 blue
+    [0,3,1,false,1,3,1],  // M4 loser  → M6 blue
+    // R2 → R3/R4
+    [1,0,0,true, 3,0,0],  // M7 winner → M11 red
+    [1,0,1,false,2,1,0],  // M7 loser  → M9 red
+    [1,1,0,true, 3,0,1],  // M8 winner → M11 blue
+    // M8 loser not mapped (eliminated)
+    [1,2,0,true, 2,0,1],  // M5 winner → M10 blue
+    [1,3,0,true, 2,1,1],  // M6 winner → M9 blue
+    // R3 → R4
+    [2,0,0,true, 3,1,0],  // M10 winner → M12 red
+    [2,1,0,true, 3,1,1],  // M9 winner  → M12 blue
+    // R4 → R5 / Finals
+    [1,1,1,false,2,0,0],  // M8 loser → M10 red
+  ];
 
-    <!-- Upper bracket: left column -->
-    <div class="bkt-upper-area">
-      <div class="bkt-section-hdr">Upper Bracket</div>
-      <div class="bkt-rounds-fit">
-        ${fitCol('Round 1',['sf1','sf2','sf3','sf4'],['M1 (1v8)','M2 (4v5)','M3 (2v7)','M4 (3v6)'])}
-        ${fitCol('Semis',['sf5','sf6'],['M5','M6'])}
-        ${fitCol('Upper Final',['sf12'],['M12'])}
+  // Finals connections (special handling)
+  // R4 M11 winner → Finals red (row 0)
+  // R4 M12 winner → R5 M13 red (row 0)  [actually M11 loser→M13 red per spec]
+  // Wait — per spec:
+  //   R4 M11 Winner → Finals Red
+  //   R4 M11 Loser  → R5 M13 Red
+  //   R4 M12 Loser  → R5 M13 Blue
+  //   R5 M13 Winner → Finals Blue
+
+  let svgLines = '';
+
+  // Standard connections (all span exactly one column gap)
+  for(const [fci,fsi,frow,isWin,tci,tsi,trow] of connMap){
+    const x1=rightEdge(fci), y1=rowMid(fci,fsi,frow);
+    const x2=leftEdge(tci),  y2=rowMid(tci,tsi,trow);
+    svgLines += makePath(x1,y1,x2,y2, isWin?CW:CL, false);
+  }
+
+  // R4 M11 winner → Finals red row
+  {
+    const x1=rightEdge(3), y1=rowMid(3,0,0);
+    const x2=finalsX,      y2=rowMid(-1,0,0);
+    svgLines += makePath(x1,y1,x2,y2,CW,false);
+  }
+  // R4 M11 loser → R5 M13 red
+  {
+    const x1=rightEdge(3), y1=rowMid(3,0,1);
+    const x2=leftEdge(4),  y2=rowMid(4,0,0);
+    svgLines += makePath(x1,y1,x2,y2,CL,false);
+  }
+  // R4 M12 winner → R5 M13 blue (winner advances from lower bracket)
+  {
+    const x1=rightEdge(3), y1=rowMid(3,1,0);
+    const x2=leftEdge(4),  y2=rowMid(4,0,1);
+    svgLines += makePath(x1,y1,x2,y2,CW,false);
+  }
+  // R5 M13 winner → Finals blue row
+  {
+    const x1=rightEdge(4), y1=rowMid(4,0,0);
+    const x2=finalsX,      y2=rowMid(-1,0,1);
+    svgLines += makePath(x1,y1,x2,y2,CW,false);
+  }
+
+  // Finals dashed separator
+  const sepX = finalsX - FINALS_SEP/2;
+  svgLines += `<line x1="${sepX}" y1="${PAD}" x2="${sepX}" y2="${canvasH-PAD}" stroke="var(--border2)" stroke-width="1.5" stroke-dasharray="5,4"/>`;
+
+  // ── Build HTML ────────────────────────────────────────────────────────────
+  let cards = '';
+
+  const hdrStyle=`font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim);text-align:center;padding-bottom:5px;border-bottom:2px solid var(--border)`;
+
+  // Col labels
+  const colLabels=['Round 1','Round 2','Round 3','Round 4','Round 5'];
+  colLabels.forEach((lbl,ci)=>{
+    cards+=`<div style="position:absolute;left:${colX(ci)}px;top:${PAD}px;width:${CARD_W}px;${hdrStyle}">${lbl}</div>`;
+  });
+  if(hasFinals){
+    cards+=`<div style="position:absolute;left:${finalsX}px;top:${PAD}px;width:${CARD_W}px;${hdrStyle}">Finals</div>`;
+  }
+
+  // Match cards — cols 0-4
+  const colDefs=[
+    [{key:'sf1',label:'M1',note:'1v8'},{key:'sf2',label:'M2',note:'4v5'},{key:'sf3',label:'M3',note:'2v7'},{key:'sf4',label:'M4',note:'3v6'}],
+    [{key:'sf7',label:'M7',note:'Upper'},{key:'sf8',label:'M8',note:'Upper'},{key:'sf5',label:'M5',note:'Lower'},{key:'sf6',label:'M6',note:'Lower'}],
+    [{key:'sf10',label:'M10',note:'Lower'},{key:'sf9',label:'M9',note:'Lower'}],
+    [{key:'sf11',label:'M11',note:'Upper'},{key:'sf12',label:'M12',note:'Lower'}],
+    [{key:'sf13',label:'M13',note:'Lower Final'}],
+  ];
+  colDefs.forEach((col,ci)=>{
+    col.forEach((c,si)=>{ cards+=cardHtml(colX(ci),getCardY(ci,si),c.key,c.label,c.note); });
+  });
+
+  // Finals cards
+  if(hasFinals){
+    shownFinals.forEach((c,si)=>{
+      cards+=cardHtml(finalsX,getFinalsY(si),c.key,c.label,c.note);
+    });
+  }
+
+  // Build alliance legend — 4×2 grid of cards
+  let legendHtml = '';
+  if(alliances.length){
+    const legendCards = alliances.map((a,i)=>{
+      const seed = i+1;
+      const teams = (a.picks||[]).map(tk=>tk.replace('frc','')).slice(0,4).join(' – ');
+      const isMe = (a.picks||[]).some(tk=>tk.replace('frc','')=== myTeam);
+      return `<div class="bkt-legend-card${isMe?' bkt-legend-me':''}">
+        <div class="bkt-legend-hdr">Alliance ${seed}</div>
+        <div class="bkt-legend-teams">${e(teams)}</div>
+      </div>`;
+    }).join('');
+    legendHtml = `<div class="bkt-legend">${legendCards}</div>`;
+  }
+
+  el.innerHTML=`<div style="overflow:auto;width:100%;height:100%;display:flex;flex-direction:column">
+    <div style="overflow:auto;flex:1;min-height:0">
+      <div style="position:relative;width:${canvasW}px;height:${canvasH}px">
+        <svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none">
+          ${svgLines}
+        </svg>
+        ${cards}
       </div>
     </div>
-
-    <!-- Lower bracket: right column -->
-    <div class="bkt-lower-area">
-      <div class="bkt-section-hdr">Lower Bracket</div>
-      <div class="bkt-rounds-fit">
-        ${fitCol('Round 1',['sf7','sf8'],['M7','M8'])}
-        ${fitCol('Round 2',['sf9','sf10'],['M9','M10'])}
-        ${fitCol('Lower Finals',['sf11','sf13'],['M11','M13'])}
-      </div>
-    </div>
-
-    <!-- Finals: bottom spanning both -->
-    <div class="bkt-finals-area">
-      <div class="bkt-section-hdr" style="margin-bottom:6px">Finals</div>
-      <div class="bkt-rounds-fit">
-        ${finalCards.join('')}
-      </div>
-    </div>
-
+    ${legendHtml}
   </div>`;
-
-  el.innerHTML=html;
 }
+
 
 // init() is called by setupLaunch() — not auto-invoked here
 </script>
