@@ -16,7 +16,7 @@ A simple selfhosted html file that Fuses together Nexus and TheBlueAlliance into
 
 
 ## Features
-- [Themeing Guide](docs/PitFusion_Custom_Theme.md)
+- [Custom Theme Guide](docs/PitFusion_Custom_Theme.md)
 - Livestream display (Dropdown shows all available Livestreams)
 - Queuing Status
 - Queue Now Warning with countdown till next match
