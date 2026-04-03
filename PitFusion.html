@@ -212,7 +212,7 @@ body[data-theme="custom"].has-bg::before{
 .ml{display:flex;flex-direction:column;gap:4px}
 .msh{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--text-dim);padding:10px 0 6px;border-bottom:2px solid var(--border);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
 .mc{background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:1px 7px;font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim)}
-.mr{display:grid;grid-template-columns:200px 1fr auto auto;align-items:center;gap:9px;background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:16px 18px;transition:border-color .2s;scroll-margin-top:6px}
+.mr{display:grid;grid-template-columns:220px 1fr auto auto;align-items:center;gap:9px;background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:16px 18px;transition:border-color .2s;scroll-margin-top:6px}
 .mr.my{border-color:rgba(0,212,255,.4);background:rgba(0,212,255,.04)}
 .mr.act{border-color:var(--green);background:rgba(0,230,118,.06);box-shadow:0 0 14px rgba(0,230,118,.14)}
 .mr.dn{opacity:.45}
@@ -859,7 +859,7 @@ body[data-theme="custom"].has-bg::before{
 body.pit-xl .ml-lbl,
 body.pit-xl .chip,
 body.pit-xl .mscore{ font-size:var(--fs-pit-xl) !important; }
-body.pit-xl .mr{ padding:20px 18px !important; }
+body.pit-xl .mr{ grid-template-columns:290px 1fr auto auto !important; padding:20px 18px !important; }
 body.pit-xl .chip{ padding:8px 16px !important; }
 /* XL: rankings — only rank number and team number get bigger; W-L-T and RP stay normal */
 body.pit-xl .rn,
@@ -1012,7 +1012,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   </div>
 
   <div class="footer">
-    <div class="ftr-note"><span style="color:var(--accent);font-weight:700;margin-right:8px">V1.1.0</span>Nexus refreshes every 15s &middot; TBA refreshes every 30s</div>
+    <div class="ftr-note"><span style="color:var(--accent);font-weight:700;margin-right:8px">V1.1.1</span>Nexus refreshes every 15s &middot; TBA refreshes every 30s</div>
     <div style="flex:1"></div>
     <button class="s-btn" id="font-size-btn" onclick="togglePitFont()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">🔤 Bigger Text</button>
     <button class="s-btn" id="stream-toggle-btn" onclick="toggleStreamVisibility()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">📺 Hide Stream</button>
