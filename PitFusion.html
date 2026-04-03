@@ -108,20 +108,15 @@ html,body{width:100%;height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(--fs-body);-webkit-font-smoothing:antialiased}
 /* TJ2 — use the real tye-dye photo as body background */
 body[data-theme="tj2"]{
-  background-color: #f5e8d0;  /* warm fallback if image missing */
-  background-image: url('FRC88Background.png');
+  background-color: #f5e8d0;
+  /* Washout baked directly into background layers — no z-index fights */
+  background-image:
+    linear-gradient(rgba(255,255,255,0.42), rgba(255,255,255,0.42)),
+    url('FRC88Background.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   background-attachment: fixed;
-}
-/* TJ2 — washout overlay via ::before on body */
-body[data-theme="tj2"]::before{
-  content:'';
-  position:fixed;inset:0;
-  background:rgba(255,255,255,0.42);  /* 42% white wash — enough to read over, still vibrant */
-  pointer-events:none;
-  z-index:0;
 }
 /* Custom theme — optional background image with washout */
 body[data-theme="custom"][style*="--custom-bg-image"]::before,
@@ -143,15 +138,7 @@ body[data-theme="custom"].has-bg{
 body[data-theme="custom"].has-bg::before{
   display:block;
 }
-/* Ensure app content sits above the washout overlay */
-[data-theme="tj2"] #app,
-[data-theme="tj2"] #setup-page,
-[data-theme="tj2"] #lo,
-[data-theme="custom"] #app,
-[data-theme="custom"] #setup-page,
-[data-theme="custom"] #lo{
-  position:relative;z-index:1;
-}
+/* Setup page z-index handled by its own rule (10000) */
 #app{display:grid;grid-template-rows:var(--hdr-h) 1fr var(--ftr-h);width:100vw;height:100vh;overflow:hidden}
 
 /* HEADER */
@@ -402,14 +389,77 @@ body[data-theme="custom"].has-bg::before{
 [data-theme="tj2"] .sidebar,
 [data-theme="tj2"] .stream-bar,
 [data-theme="tj2"] .tab-bar,
-[data-theme="tj2"] .q-half,
-[data-theme="tj2"] .panel-m,
-[data-theme="tj2"] #setup-page .setup-card{
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+[data-theme="tj2"] .panel-m{
+  background:rgba(255,255,255,0.55);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+[data-theme="tj2"] .q-half{
+  background:transparent;
 }
 [data-theme="tj2"] #setup-page{
-  background:rgba(255,255,255,0.20);
+  background:transparent;
 }
+[data-theme="tj2"] #setup-page .setup-card{
+  position:relative;
+  z-index:1;
+  background:rgba(255,255,255,0.22);
+  border-color:rgba(255,255,255,0.4);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+/* TJ2 — setup page text and inputs use team colors over tye-dye */
+[data-theme="tj2"] #setup-page .setup-wordmark{
+  color:#1a1a1a;
+}
+[data-theme="tj2"] #setup-page .setup-wordmark em{
+  color:var(--accent);
+}
+[data-theme="tj2"] #setup-page .setup-sub{
+  color:#3a3a3a;
+}
+[data-theme="tj2"] #setup-page .setup-label{
+  color:#2a2a2a;
+}
+[data-theme="tj2"] #setup-page .setup-hint{
+  color:#444444;
+}
+[data-theme="tj2"] #setup-page .setup-input,
+[data-theme="tj2"] #setup-page .setup-select{
+  background:rgba(255,255,255,0.75);
+  border-color:rgba(26,79,163,0.5);
+  color:#111827;
+}
+[data-theme="tj2"] #setup-page .setup-input:focus,
+[data-theme="tj2"] #setup-page .setup-select:focus{
+  border-color:var(--accent);
+}
+[data-theme="tj2"] #setup-page .setup-or{
+  color:#444444;
+}
+[data-theme="tj2"] #setup-page .setup-or::before,
+[data-theme="tj2"] #setup-page .setup-or::after{
+  background:rgba(26,79,163,0.3);
+}
+[data-theme="tj2"] #setup-page .theme-swatch-name{
+  color:#2a2a2a;
+}
+[data-theme="tj2"] #setup-page .theme-swatch.active .theme-swatch-name{
+  color:var(--accent);
+}
+[data-theme="tj2"] #setup-page .theme-swatch{
+  background:rgba(255,255,255,0.6);
+  border-color:rgba(26,79,163,0.3);
+}
+[data-theme="tj2"] #setup-page .theme-swatch.active{
+  border-color:var(--accent);
+  box-shadow:0 0 0 1px var(--accent);
+}
+[data-theme="tj2"] #setup-page .setup-btn{
+  background:var(--accent);
+  color:#ffffff;
+}
+
 /* TJ2 — countdown pill: opaque so yellow is readable over the tye-dye */
 [data-theme="tj2"] .cd-pill{
   background:rgba(255,255,255,0.92) !important;
@@ -749,6 +799,9 @@ body[data-theme="custom"].has-bg::before{
 [data-theme="light"] #setup-page{
   background:var(--bg);
 }
+[data-theme="custom"] #setup-page{
+  background:var(--bg);
+}
 
 /* THEME SWITCHER */
 .theme-switcher{display:flex;flex-direction:column;gap:6px}
@@ -865,7 +918,7 @@ body[data-theme="custom"].has-bg::before{
 
 <div id="lo" style="display:none"><div class="spinner"></div><div class="ltxt">Loading event data&hellip;</div></div>
 
-<div id="app">
+<div id="app" style="display:none">
   <div class="hdr">
     <div class="hdr-l">
       <div class="logo">Pit<em>Fusion</em></div>
@@ -1199,6 +1252,7 @@ function setupLaunch(){
   C.event = eventKey;
 
   document.getElementById('setup-page').classList.add('hidden');
+  document.getElementById('app').style.display = '';
   document.getElementById('lo').style.display = 'flex';
   init();
 }
