@@ -8,7 +8,7 @@
 const NEXUS_KEY = 'YOUR_NEXUS_API_KEY';
 const TBA_KEY   = 'YOUR_TBA_API_KEY';
 // ── Version ──────────────────────────────────────────────────
-const VERSION   = 'V1.1.4';
+const VERSION   = 'V1.2.0';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -263,10 +263,18 @@ body.custom-has-bg[data-theme="custom"] .tp{
 /* SIDEBAR */
 .sidebar{display:flex;flex-direction:column;background:var(--bg);overflow:hidden;min-height:0}
 .tab-bar{flex-shrink:0;display:flex;background:var(--surface);border-bottom:2px solid var(--border)}
-.tab-btn{flex:1;padding:12px 6px;background:transparent;border:none;border-bottom:3px solid transparent;margin-bottom:-2px;color:var(--text-dim);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;transition:all .15s}
+.tab-btn{flex:1;padding:8px 6px;background:transparent;border:none;border-bottom:3px solid transparent;margin-bottom:-2px;color:var(--text-dim);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;transition:all .15s;line-height:1.3}
 .tab-btn.act{color:var(--accent);border-bottom-color:var(--accent)}
 .tab-btn:hover:not(.act){color:var(--text-mid)}
 .nbadge{display:inline-block;background:var(--red);color:#fff;border-radius:8px;padding:0 5px;font-size:var(--fs-sm);font-weight:700;margin-left:4px;vertical-align:middle;line-height:1.5}
+.alert-icons{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:3px}
+.alert-icon-lbl{font-size:11px;line-height:1;transition:opacity .2s}
+.alert-icon-count{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;line-height:1;transition:color .2s}
+.alert-icon-ann{font-size:11px}
+.alert-icon-parts{font-size:11px}
+.alert-icon-lbl.dim,.alert-icon-count.dim{opacity:.2}
+.alert-count-ann{color:var(--accent)}
+.alert-count-parts{color:var(--yellow)}
 .tp{display:none;flex:1;overflow-y:auto;padding:var(--pad);min-height:0}
 .tp.act{display:block}
 .tp::-webkit-scrollbar{width:4px}
@@ -801,6 +809,14 @@ body.custom-has-bg[data-theme="custom"] .tp{
 /* TJ2 — bracket round column headers */
 
 
+/* TJ2 — alert icons */
+[data-theme="tj2"] .alert-count-ann{color:#7ec8ff}
+[data-theme="tj2"] .alert-count-parts{color:#ffeb3b}
+/* TJ2 — played W/L/T colors */
+[data-theme="tj2"] .played-w{color:var(--green)}
+[data-theme="tj2"] .played-l{color:#ffaaaa}
+[data-theme="tj2"] .played-t{color:rgba(255,255,255,0.4)}
+
 /* TJ2 — stream bar: opaque royal blue, readable text and controls */
 [data-theme="tj2"] .stream-bar{
   background:rgba(26,79,163,0.92);
@@ -845,8 +861,8 @@ body.custom-has-bg[data-theme="custom"] .tp{
 .theme-swatch.active .theme-swatch-name{color:var(--accent)}
 
 /* PLAYED MATCHES (My Team tab) */
-.played-hdr{display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:4px 0 5px;border-bottom:2px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)}
-.played-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700}
+.played-hdr{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;padding:4px 0 5px;border-bottom:2px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)}
+.played-row{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700}
 .played-match{color:var(--text)}
 .played-blue{color:#64b5f6}
 .played-sep{color:var(--text-dim)}
@@ -896,6 +912,10 @@ body.pit-xl .rp{ font-size:var(--fs-pit-xl) !important; }
 body.pit-xl .rt td{ padding:22px 0 !important; }
 body.pit-xl .rt td:not(:first-child){ font-size:var(--fs-pit) !important; }
 body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
+
+.played-w{color:var(--green);text-align:center;min-width:28px}
+.played-l{color:var(--red);text-align:center;min-width:28px}
+.played-t{color:var(--text-dim);text-align:center;min-width:28px}
 
 </style>
 </head>
@@ -1019,7 +1039,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <div class="tab-bar">
         <button class="tab-btn act" onclick="switchTab('rankings',this)">Rankings</button>
         <button class="tab-btn" onclick="switchTab('team',this)">My Team</button>
-        <button class="tab-btn" onclick="switchTab('alerts',this)">Alerts <span id="abadge" class="nbadge" style="display:none">0</span></button>
+        <button class="tab-btn" onclick="switchTab('alerts',this)">Alerts<div class="alert-icons"><span class="alert-icon-lbl alert-icon-ann dim" id="alert-icon-ann-1" style="font-size:11px">📢</span><span class="alert-icon-count alert-count-ann dim" id="alert-count-ann-1">0</span><span class="alert-icon-lbl alert-icon-parts dim" id="alert-icon-parts-1" style="font-size:11px">🔧</span><span class="alert-icon-count alert-count-parts dim" id="alert-count-parts-1">0</span></div></button>
       </div>
       <div class="tp act" id="tab-rankings">
         <div class="sbl" style="margin-top:0">Event Rankings</div>
@@ -1672,7 +1692,7 @@ function rTeam(){
     html+=`<div class="sbl">Played (${played.length})</div>`;
     // Header row
     html+=`<div class="played-hdr">
-      <span>Match</span><span style="text-align:right">Score</span><span style="text-align:right;min-width:42px">RP</span>
+      <span>Match</span><span style="text-align:center;min-width:28px">W/L</span><span style="text-align:right">Score</span><span style="text-align:right;min-width:42px">RP</span>
     </div>`;
     played.forEach(m=>{
       const sc=sm[nl(m.label)];
@@ -1687,8 +1707,18 @@ function rTeam(){
       const rpColor=myRp==null?'var(--text-dim)':myRp>=3?'var(--green)':myRp>=2?'var(--accent)':myRp>=1?'var(--text)':'var(--text-dim)';
       const rpDisplay=myRp!=null?myRp:'&mdash;';
 
+      // Determine W/L/T from score
+      let wlt='&mdash;', wltCls='played-t';
+      if(sc){
+        const myScore=isRed?sc.red:sc.blue;
+        const oppScore=isRed?sc.blue:sc.red;
+        if(myScore>oppScore){wlt='W';wltCls='played-w';}
+        else if(myScore<oppScore){wlt='L';wltCls='played-l';}
+        else{wlt='T';wltCls='played-t';}
+      }
       html+=`<div class="played-row">
         <span class="played-match">${e(m.label)}</span>
+        <span class="${wltCls}">${wlt}</span>
         <span style="text-align:right">${sc?`<span class="played-blue">${sc.blue}</span><span class="played-sep"> &ndash; </span><span class="played-red">${sc.red}</span>`:'<span class="played-dim">&mdash;</span>'}</span>
         <span class="played-rp" style="color:${rpColor}">${rpDisplay}</span>
       </div>`;
@@ -1701,7 +1731,32 @@ function rTeam(){
 // ALERTS
 function rAlerts(){
   const ann=nxData?.announcements||[],parts=nxData?.partsRequests||[],tot=ann.length+parts.length;
-  const b=document.getElementById('abadge');b.style.display=tot>0?'inline-block':'none';b.textContent=tot;
+  // Update icon-style alert counts
+  function setAlertCount(countSelectors, iconSelectors, count){
+    const active = count > 0;
+    countSelectors.forEach(sel=>{
+      document.querySelectorAll(sel).forEach(el=>{
+        el.textContent = count;
+        el.classList.toggle('dim', !active);
+      });
+    });
+    iconSelectors.forEach(sel=>{
+      document.querySelectorAll(sel).forEach(el=>{
+        el.classList.toggle('dim', !active);
+      });
+    });
+  }
+  setAlertCount(
+    ['#alert-count-ann-1','#alert-count-ann-dyn','.alert-count-ann'],
+    ['.alert-icon-ann'],
+    ann.length
+  );
+  setAlertCount(
+    ['#alert-count-parts-1','#alert-count-parts-dyn','.alert-count-parts-el'],
+    ['.alert-icon-parts'],
+    parts.length
+  );
+  document.querySelectorAll('#abadge').forEach(b=>b.style.display='none');
 
   document.getElementById('ann-content').innerHTML=ann.length===0
     ?'<div class="empty">No announcements</div>'
@@ -1992,12 +2047,12 @@ function rebuildTabBar(bracketMode){
   if(bracketMode){
     bar.innerHTML=`
       <button class="tab-btn act" onclick="switchTabById('tab-queuing',this)">Queuing</button>
-      <button class="tab-btn" onclick="switchTabById('tab-alerts',this)">Alerts <span id="abadge" class="nbadge" style="display:none">0</span></button>`;
+      <button class="tab-btn" onclick="switchTabById('tab-alerts',this)">Alerts<div class="alert-icons"><span class="alert-icon-lbl alert-icon-ann dim" style="font-size:11px">📢</span><span class="alert-icon-count alert-count-ann dim" id="alert-count-ann-dyn">0</span><span class="alert-icon-lbl alert-icon-parts dim" style="font-size:11px">🔧</span><span class="alert-icon-count alert-count-parts dim" id="alert-count-parts-dyn">0</span></div></button>`;
   } else {
     bar.innerHTML=`
       <button class="tab-btn act" onclick="switchTabById('tab-rankings',this)">Rankings</button>
       <button class="tab-btn" onclick="switchTabById('tab-team',this)">My Team</button>
-      <button class="tab-btn" onclick="switchTabById('tab-alerts',this)">Alerts <span id="abadge" class="nbadge" style="display:none">0</span></button>`;
+      <button class="tab-btn" onclick="switchTabById('tab-alerts',this)">Alerts<div class="alert-icons"><span class="alert-icon-lbl alert-icon-ann dim" style="font-size:11px">📢</span><span class="alert-icon-count alert-count-ann dim" id="alert-count-ann-dyn">0</span><span class="alert-icon-lbl alert-icon-parts dim" style="font-size:11px">🔧</span><span class="alert-icon-count alert-count-parts dim" id="alert-count-parts-dyn">0</span></div></button>`;
     // Re-apply alert badge count
     rAlerts();
   }
