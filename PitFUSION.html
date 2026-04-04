@@ -6,7 +6,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V1.3.8';
+const VERSION = 'V1.4.3';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -1847,17 +1847,25 @@ function rAlerts(){
   if(nexusPits){
     // Nexus pits may be an array of pit objects or an object keyed by team
     // Nexus pits response may be array at root, or {pits:[...]}, or {teams:{...}}
-    let pitsArr=[];
-    if(Array.isArray(nexusPits)) pitsArr=nexusPits;
-    else if(Array.isArray(nexusPits?.pits)) pitsArr=nexusPits.pits;
-    else if(Array.isArray(nexusPits?.teams)) pitsArr=nexusPits.teams;
-    else pitsArr=Object.values(nexusPits);
-    pitsArr.forEach(pit=>{
-      const t=String(pit.teamNumber||pit.team||pit.teamNum||pit.number||'');
-      // Nexus uses 'label' for the pit location string (e.g. "B4")
-      const addr=pit.label||pit.pitLocation||pit.location||pit.pitAddress||pit.address||pit.pit||pit.slot||'';
-      if(t&&addr) pitMap[t]=addr;
-    });
+    if(Array.isArray(nexusPits)){
+      // Array of pit objects: [{teamNumber:"88", label:"B4"}, ...]
+      nexusPits.forEach(pit=>{
+        const t=String(pit.teamNumber||pit.team||pit.teamNum||pit.number||'');
+        const addr=pit.label||pit.pitLocation||pit.location||pit.pitAddress||pit.address||pit.pit||pit.slot||'';
+        if(t&&addr) pitMap[t]=addr;
+      });
+    } else if(Array.isArray(nexusPits?.pits)){
+      nexusPits.pits.forEach(pit=>{
+        const t=String(pit.teamNumber||pit.team||pit.teamNum||pit.number||'');
+        const addr=pit.label||pit.pitLocation||pit.location||pit.address||'';
+        if(t&&addr) pitMap[t]=addr;
+      });
+    } else {
+      // Flat object keyed by team number: {"190":"I6","88":"B4",...}
+      Object.entries(nexusPits).forEach(([team,addr])=>{
+        if(team&&addr&&typeof addr==='string') pitMap[String(team)]=addr;
+      });
+    }
   }
 
   document.getElementById('parts-content').innerHTML=parts.length===0
@@ -2568,7 +2576,7 @@ async function openEpa(team){
 
   overlay.classList.add('show');
   teamDisp.textContent='Team '+team;
-  setEpaStatus('Loading EPA data…');
+  setEpaStatus('Connecting to Statbotics\u2026');
 
   const year     = new Date().getFullYear();
   const cacheKey = `${team}_${year}`;
@@ -2577,33 +2585,170 @@ async function openEpa(team){
     renderEpa(epaCache[cacheKey], team, year); return;
   }
 
-  // Fetch team_year first, show progress, then fetch matches
+  // ── Step 1: Fetch team_year summary ─────────────────────────────────────────
+  let teamYear;
   try {
-    setEpaStatus('Fetching team summary…');
-    const tyResp  = await fetchWithRetry(`https://api.statbotics.io/v3/team_year/${team}/${year}`);
-    const teamYear= await tyResp.json();
-
-    setEpaStatus('Fetching match history…');
-    let matches=[];
-    try {
-      const tmResp = await fetchWithRetry(`https://api.statbotics.io/v3/team_matches?team=${team}&year=${year}&limit=200`);
-      matches = await tmResp.json();
-    } catch(e){
-      // Match history optional — render what we have
-    }
-
-    const cached={teamYear, matches, ts:Date.now()};
-    epaCache[cacheKey]=cached;
-    renderEpa(cached, team, year);
+    setEpaStatus('Loading team summary\u2026');
+    const tyResp = await fetchWithRetry(`https://api.statbotics.io/v3/team_year/${team}/${year}`);
+    teamYear = await tyResp.json();
   } catch(err){
-    const isTimeout = err.name==='AbortError'||err.message.includes('abort');
+    const isTimeout = err.name==='AbortError'||err.message?.includes('abort');
     document.getElementById('epa-body').innerHTML=
-      `<div class="epa-err">${isTimeout?'Statbotics timed out.':'Could not load EPA data.'}<br>
+      `<div class="epa-err">${isTimeout?'Statbotics timed out — try again in a moment.':'Could not load EPA data.'}<br>
        <span style="font-size:var(--fs-sm);color:var(--text-dim)">${e(err.message||'')}</span><br>
        <button onclick="openEpa('${team}')" style="margin-top:12px;font-family:var(--fd);font-size:var(--fs-lbl);
          font-weight:700;padding:5px 16px;background:var(--surface2);border:2px solid var(--border2);
-         border-radius:var(--r);color:var(--text);cursor:pointer">↺ Retry</button></div>`;
+         border-radius:var(--r);color:var(--text);cursor:pointer">\u21ba Retry</button></div>`;
+    return;
   }
+
+  // ── Step 2: Render header + chart skeletons immediately ─────────────────────
+  // User sees the team card and labelled placeholders while match data loads
+  renderEpaShell(teamYear, team, year);
+
+  // ── Step 3: Fetch match history — render each chart as data arrives ──────────
+  let matches=[];
+  try {
+    const tmResp = await fetchWithRetry(
+      `https://api.statbotics.io/v3/team_matches?team=${team}&year=${year}&limit=200`, 12000, 3);
+    matches = await tmResp.json();
+  } catch(e){
+    // Timed out — charts stay as skeletons with current values, offer retry
+    const note=document.getElementById('epa-match-status');
+    if(note) note.innerHTML=`<span style="color:var(--text-dim);font-size:var(--fs-sm)">Match history timed out — </span>
+      <button onclick="openEpa('${team}')" style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;
+        padding:2px 10px;background:var(--surface2);border:1px solid var(--border2);
+        border-radius:4px;color:var(--text);cursor:pointer">↺ Retry</button>`;
+    // Show "no data" in each slot instead of endless skeleton
+    const cfgF=(typeof EPA_FIELDS!=='undefined')
+      ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
+      :null;
+    if(cfgF) cfgF.forEach((_,fi)=>{
+      const slot=document.getElementById('epa-slot-'+fi);
+      if(slot) slot.innerHTML='<div style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);padding:6px 0">Match history unavailable</div>';
+    });
+  }
+
+  // Sort matches chronologically
+  matches = (matches||[])
+    .filter(m=>m.epa!=null)
+    .sort((a,b)=>{
+      const ta=a.time||a.predicted_time||0;
+      const tb=b.time||b.predicted_time||0;
+      if(ta&&tb&&ta!==tb) return ta-tb;
+      const ek=(a.event||'').localeCompare(b.event||'');
+      if(ek!==0) return ek;
+      return (a.match_number||0)-(b.match_number||0);
+    });
+
+  const cached={teamYear, matches, ts:Date.now()};
+  epaCache[cacheKey]=cached;
+
+  // Fill in charts one at a time with a small delay so the browser paints each
+  const cfgFields=(typeof EPA_FIELDS!=='undefined')
+    ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
+    :null;
+
+  if(cfgFields && matches.length>=2){
+    // Build event bands once
+    const filteredMatches = epaShowCurrentOnly
+      ? matches.filter(m=>(m.event||m.event_key||'')===C.event)
+      : matches;
+    const filteredEventMap={};
+    filteredMatches.forEach((m,i)=>{
+      const ek=m.event||m.event_key||'unknown';
+      if(!filteredEventMap[ek]) filteredEventMap[ek]={key:ek,startX:i,endX:i,shortLabel:ek.replace(/^\d{4}/,'')};
+      filteredEventMap[ek].endX=i;
+    });
+    const eventBands=Object.values(filteredEventMap);
+
+    // Update event count badge
+    const evKeys=[...new Set(matches.map(m=>m.event||''))].filter(Boolean);
+    const evBadge=document.getElementById('epa-ev-badge');
+    if(evBadge) evBadge.textContent=evKeys.length>1?`${evKeys.length} events in ${year}`:'';
+
+    const note=document.getElementById('epa-match-status');
+    if(note) note.innerHTML='';
+
+    for(let fi=0; fi<cfgFields.length; fi++){
+      const f=cfgFields[fi];
+      const mRef = epaShowCurrentOnly ? filteredMatches : matches;
+      const pts=mRef.map((m,i)=>{
+        const val=getPath(m,f.key);
+        const ek=m.event||m.event_key||'';
+        const comp=m.comp_level||'qm';
+        const mn=m.match_number||'?';
+        const matchLabel=`${ek.replace(/^\d{4}/,'')} ${comp==='qm'?'Qual':comp==='sf'?'SF':comp==='f'?'Final':'Match'} ${mn}`;
+        return {x:i,val,matchLabel};
+      }).filter(p=>p.val!=null&&typeof p.val==='number'&&isFinite(p.val));
+
+      const curVal=getPath(teamYear,f.key);
+      const slot=document.getElementById(`epa-slot-${fi}`);
+      if(slot) slot.innerHTML=drawLineChart(`epa-chart-${fi}`,pts,f.color,curVal,eventBands);
+
+      // Yield to browser to paint before next chart
+      await new Promise(res=>setTimeout(res,30));
+    }
+  }
+}
+
+// Render the shell: header card + toggle + labelled skeleton placeholders
+function renderEpaShell(teamYear, team, year){
+  const body=document.getElementById('epa-body');
+  const cfgFields=(typeof EPA_FIELDS!=='undefined')
+    ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
+    :null;
+
+  const name   =teamYear.name||teamYear.team_name||'';
+  const record =teamYear.record?`${teamYear.record.wins}W \u2013 ${teamYear.record.losses}L \u2013 ${teamYear.record.ties}T`:'';
+  const normEpa=teamYear.norm_epa!=null?Number(teamYear.norm_epa).toFixed(0):null;
+
+  let html=`<div style="background:var(--surface);border:2px solid var(--border2);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <div>
+      <div style="font-family:var(--fd);font-size:var(--fs-big);font-weight:900;color:var(--accent)">#${e(String(team))}</div>
+      ${name?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text)">${e(name)}</div>`:''}
+    </div>
+    ${record?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text-mid)">${e(record)}</div>`:''}
+    ${normEpa?`<div style="margin-left:auto;text-align:right"><div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)">Norm EPA</div><div style="font-family:var(--fd);font-size:var(--fs-big);font-weight:900;color:var(--text)">${normEpa}</div></div>`:''}
+  </div>`;
+
+  html+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <button id="epa-toggle-btn" onclick="toggleEpaCurrentOnly()"
+      class="s-btn epa-toggle-btn-cls" data-active="${epaShowCurrentOnly?'1':'0'}"
+      style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;padding:5px 14px;cursor:pointer">
+      ${epaShowCurrentOnly?'Show All Events':'Show Current Event Only'}
+    </button>
+    <span id="epa-ev-badge" class="epa-ev-count"></span>
+    <span id="epa-match-status" style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)">Loading match history\u2026</span>
+  </div>`;
+
+  if(!cfgFields){
+    html+=`<div class="epa-err">No EPA_FIELDS config for ${year}. Check config.js.</div>`;
+    body.innerHTML=html; return;
+  }
+
+  // Skeleton placeholder for each chart
+  cfgFields.forEach((f,fi)=>{
+    const curVal=getPath(teamYear,f.key);
+    const curStr=curVal!=null?Number(curVal).toFixed(1):'\u2014';
+    html+=`<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ${f.color};border-radius:var(--r);padding:10px 14px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+        <span style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:${f.color}">${e(f.label)}</span>
+        <span style="font-family:var(--fd);font-size:var(--fs-big);font-weight:900;color:${f.color}">${curStr}</span>
+      </div>
+      <div id="epa-slot-${fi}">
+        <div style="height:40px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center">
+          <span style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)">Loading chart\u2026</span>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html+=`<div style="margin-top:4px;font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);text-align:center">
+    <a href="https://statbotics.io/team/${encodeURIComponent(String(team))}/${year}" target="_blank" style="color:var(--accent);text-decoration:none">View full profile on Statbotics \u2192</a>
+  </div>`;
+
+  body.innerHTML=html;
 }
 
 // Draw one SVG line chart for a single series of {x,val} points
@@ -2722,115 +2867,94 @@ function toggleEpaCurrentOnly(){
     btn.textContent=epaShowCurrentOnly?'Show All Events':'Show Current Event Only';
     btn.dataset.active=epaShowCurrentOnly?'1':'0';
   }
-  // Re-render with same cached data
+  // Refill charts with same cached data (shell already correct, just redo lines)
   const teamDisp=document.getElementById('epa-team-display');
   const team=teamDisp?.textContent.replace('Team ','').trim();
   if(!team) return;
   const year=new Date().getFullYear();
   const cached=epaCache[`${team}_${year}`];
-  if(cached) renderEpa(cached, team, year);
+  if(cached){
+    // Reset slots to skeleton
+    const cfgFields=(typeof EPA_FIELDS!=='undefined')
+      ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
+      :null;
+    if(cfgFields) cfgFields.forEach((_,fi)=>{
+      const slot=document.getElementById(`epa-slot-${fi}`);
+      if(slot) slot.innerHTML=`<div style="height:40px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)">Loading…</span></div>`;
+    });
+    _fillEpaCharts(cached, team, year);
+  }
 }
 
 function renderEpa(cached, team, year){
-  const body     = document.getElementById('epa-body');
-  const teamYear = cached.teamYear;
-  let   allMatches = (cached.matches||[])
+  // Render shell first (instant), then fill charts progressively
+  renderEpaShell(cached.teamYear, team, year);
+  _fillEpaCharts(cached, team, year);
+}
+
+async function _fillEpaCharts(cached, team, year){
+  const matches=(cached.matches||[])
     .filter(m=>m.epa!=null)
-    .sort((a,b)=>(a.match_number||0)-(b.match_number||0));
+    .sort((a,b)=>{
+      const ta=a.time||a.predicted_time||0;
+      const tb=b.time||b.predicted_time||0;
+      if(ta&&tb&&ta!==tb) return ta-tb;
+      const ek=(a.event||'').localeCompare(b.event||'');
+      if(ek!==0) return ek;
+      return (a.match_number||0)-(b.match_number||0);
+    });
 
   const cfgFields=(typeof EPA_FIELDS!=='undefined')
     ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
     :null;
+  if(!cfgFields) return;
 
-  // Build event info from matches
-  const eventMap={};
-  allMatches.forEach(m=>{
-    const ek=m.event||m.event_key||'';
-    if(!eventMap[ek]) eventMap[ek]={key:ek,indices:[]};
-    eventMap[ek].indices.push(allMatches.indexOf(m));
-  });
-  const eventKeys=Object.keys(eventMap);
+  const filteredMatches=epaShowCurrentOnly
+    ?matches.filter(m=>(m.event||m.event_key||'')===C.event)
+    :matches;
 
-  // Current event = the one matching C.event or the last event seen
-  const currentEventKey = C.event || eventKeys[eventKeys.length-1] || '';
-
-  // Filter if toggle is on
-  const matches = epaShowCurrentOnly
-    ? allMatches.filter(m=>(m.event||m.event_key||'')=== currentEventKey)
-    : allMatches;
-
-  // Re-index after filter
-  const reindexed = matches.map((m,i)=>({...m, _idx:i}));
-
-  // Build event bands for the (possibly filtered) set
+  // Event bands
   const filteredEventMap={};
-  reindexed.forEach((m,i)=>{
+  filteredMatches.forEach((m,i)=>{
     const ek=m.event||m.event_key||'unknown';
-    if(!filteredEventMap[ek]) filteredEventMap[ek]={key:ek,startX:i,endX:i,label:ek,shortLabel:ek.replace(/^\d{4}/,'')};
+    if(!filteredEventMap[ek]) filteredEventMap[ek]={key:ek,startX:i,endX:i,shortLabel:ek.replace(/^\d{4}/,'')};
     filteredEventMap[ek].endX=i;
   });
   const eventBands=Object.values(filteredEventMap);
 
-  const name   =teamYear.name||teamYear.team_name||'';
-  const record =teamYear.record?`${teamYear.record.wins}W \u2013 ${teamYear.record.losses}L \u2013 ${teamYear.record.ties}T`:'';
-  const normEpa=teamYear.norm_epa!=null?Number(teamYear.norm_epa).toFixed(0):null;
+  // Update event badge
+  const evKeys=[...new Set(matches.map(m=>m.event||''))].filter(Boolean);
+  const evBadge=document.getElementById('epa-ev-badge');
+  if(evBadge) evBadge.textContent=evKeys.length>1?`${evKeys.length} events in ${year}`:'';
+  const note=document.getElementById('epa-match-status');
+  if(note) note.innerHTML='';
 
-  let html=`<div style="background:var(--surface);border:2px solid var(--border2);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
-    <div>
-      <div style="font-family:var(--fd);font-size:var(--fs-big);font-weight:900;color:var(--accent)">#${e(String(team))}</div>
-      ${name?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text)">${e(name)}</div>`:''}
-    </div>
-    ${record?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text-mid)">${e(record)}</div>`:''}
-    ${normEpa?`<div style="margin-left:auto;text-align:right"><div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)">Norm EPA</div><div style="font-family:var(--fd);font-size:var(--fs-big);font-weight:900;color:var(--text)">${normEpa}</div></div>`:''}
-  </div>`;
-
-  // Toggle button
-  html+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <button id="epa-toggle-btn" onclick="toggleEpaCurrentOnly()"
-      class="s-btn epa-toggle-btn-cls" data-active="${epaShowCurrentOnly?'1':'0'}"
-      style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;padding:5px 14px;cursor:pointer">
-      ${epaShowCurrentOnly?'Show All Events':'Show Current Event Only'}
-    </button>
-    ${eventKeys.length>1?`<span class="epa-ev-count">${eventKeys.length} events in ${year}</span>`:''}
-  </div>`;
-
-  if(!cfgFields){
-    html+=`<div class="epa-err">No EPA_FIELDS config for ${year}. Check config.js.</div>`;
-    body.innerHTML=html; return;
+  if(filteredMatches.length<2){
+    cfgFields.forEach((_,fi)=>{
+      const slot=document.getElementById(`epa-slot-${fi}`);
+      if(slot) slot.innerHTML=`<div style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);padding:8px 0">Not enough match data yet</div>`;
+    });
+    return;
   }
 
-  if(reindexed.length===0){
-    html+=`<div style="font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text-dim);text-align:center;padding:20px">No match data available yet.</div>`;
-  }
-
-  // One chart per field
-  cfgFields.forEach((f,fi)=>{
-    const pts=reindexed.map((m,i)=>{
-      const val=getPath(m, f.key);
+  for(let fi=0;fi<cfgFields.length;fi++){
+    const f=cfgFields[fi];
+    const pts=filteredMatches.map((m,i)=>{
+      const val=getPath(m,f.key);
       const ek=m.event||m.event_key||'';
       const comp=m.comp_level||'qm';
       const mn=m.match_number||'?';
       const matchLabel=`${ek.replace(/^\d{4}/,'')} ${comp==='qm'?'Qual':comp==='sf'?'SF':comp==='f'?'Final':'Match'} ${mn}`;
-      return {x:i, val, matchLabel};
+      return {x:i,val,matchLabel};
     }).filter(p=>p.val!=null&&typeof p.val==='number'&&isFinite(p.val));
 
-    const curVal=getPath(teamYear, f.key);
-    const chartId=`epa-chart-${fi}`;
+    const curVal=getPath(cached.teamYear,f.key);
+    const slot=document.getElementById(`epa-slot-${fi}`);
+    if(slot) slot.innerHTML=drawLineChart(`epa-chart-${fi}`,pts,f.color,curVal,eventBands);
 
-    html+=`<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ${f.color};border-radius:var(--r);padding:10px 14px">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
-        <span style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:${f.color}">${e(f.label)}</span>
-        <span class="epa-year-lbl" style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)">${year} season</span>
-      </div>
-      ${drawLineChart(chartId, pts, f.color, curVal, eventBands)}
-    </div>`;
-  });
-
-  html+=`<div style="margin-top:4px;font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);text-align:center">
-    <a href="https://statbotics.io/team/${encodeURIComponent(String(team))}/${year}" target="_blank" style="color:var(--accent);text-decoration:none">View full profile on Statbotics \u2192</a>
-  </div>`;
-
-  body.innerHTML=html;
+    // Yield to paint between charts
+    await new Promise(res=>setTimeout(res,30));
+  }
 }
 
 function closeEpa(){
