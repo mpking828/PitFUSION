@@ -11,19 +11,20 @@ Created by Mike King — [Team 88 TJ²](https://www.tj2.org/)
 ## Features
 
 - 📺 **Livestream** — auto-detects all available streams for the event with a dropdown selector
-- ⏱ **Queuing Status** — live match queue with On Field / On Deck / Queuing indicators
+- ⏱ **Queuing Status** — live match queue with On Field / On Deck / Queuing indicators. Clicking any team number opens their EPA stats
 - 🚨 **Queue Countdown** — header countdown timer to your next match queue time, turns red under 5 minutes
 - 🎨 **Bumper Color** — prominently displays your alliance bumper color for your next match
-- 📋 **Match Schedule** — full qual and playoff schedule with scores, statuses, and auto-scroll to active match
+- ☕ **Break Mode** — shows your next upcoming match from TBA even when Nexus isn't actively queuing
+- 📋 **Match Schedule** — full qual and playoff schedule with scores, W/L/T result, and auto-scroll to active match
 - 🏆 **Playoff Bracket** — full double-elimination bracket view with connector lines and alliance legend
-- 📊 **Event Rankings** — live rankings table with your team highlighted, auto-scrolls to your position
-- 👕 **My Team** — team info, current ranking, record, RP, next match alliance breakdown, and played match history
-- 📢 **Alerts** — Nexus announcements and parts requests
+- 📊 **Event Rankings** — live rankings table with your team highlighted. Clicking any team number opens their EPA stats
+- 👕 **My Team** — team info, current ranking, record, RP, next match alliance breakdown, and played match history with W/L/T
+- 📢 **Alerts** — Nexus announcements (📢) and parts requests (🔧) with separate counts. Parts requests show pit location when available
+- 📈 **EPA Stats** — full-screen EPA overlay powered by Statbotics showing per-match line charts for every component across the season
 - 🖼 **Logo Support** — automatically loads `logo.png/jpg/jpeg/svg/webp` from the same folder as the HTML file
 - 🎨 **4 Themes** — Dark, Light, TJ² (Team 88 tye-dye), and fully customizable Custom theme
 - 💾 **Persistent Settings** — team number, event, theme, and font size remembered across reloads
 - 🔤 **Font Size Toggle** — footer button switches between readable and extra-large pit display sizes
-- ☕ **Break Mode** — shows your next upcoming match from TBA even when Nexus isn't actively queuing
 - 🔌 **No Install Required** — single HTML file, no framework, no build step, no dependencies
 
 ---
@@ -37,17 +38,16 @@ Created by Mike King — [Team 88 TJ²](https://www.tj2.org/)
 | **Nexus API Key** | [frc.nexus/api](https://frc.nexus/api) |
 | **The Blue Alliance API Key** | [thebluealliance.com/apidocs](https://www.thebluealliance.com/apidocs) |
 
-### 2. Configure PitFUSION.html
+### 2. Edit config.js
 
-Open `PitFUSION.html` in any text editor. At the **very top of the file** you'll find the configuration block:
+Open `config.js` in any text editor and add your API keys:
 
 ```js
-// ── API Keys ─────────────────────────────────────────────────
 const NEXUS_KEY = 'YOUR_NEXUS_KEY';
 const TBA_KEY   = 'YOUR_TBA_KEY';
 ```
 
-Replace `YOUR_NEXUS_KEY` and `YOUR_TBA_KEY` with your actual keys. That's the only code you need to touch.
+This is the only file you need to edit for initial setup. The version number lives in `PitFUSION.html` and updates automatically on each release.
 
 ### 3. Add a Logo (Optional)
 
@@ -77,6 +77,85 @@ Then open your browser to: **http://localhost:8080/PitFUSION.html**
 On first load the **setup screen** appears. Enter your team number, select your event from the dropdown (it automatically filters to events your team is registered at this week), choose a theme, and click **Launch PitFUSION**.
 
 Your team number, event code, theme, and font size are saved automatically and restored on the next reload.
+
+---
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `PitFUSION.html` | The entire application |
+| `config.js` | API keys and EPA field configuration — **edit this file** |
+| `logo.png` (optional) | Team logo shown on setup screen |
+| `FRC88Background.png` (optional) | Required only for the TJ² theme |
+| `[your-bg-image]` (optional) | Background image for the Custom theme |
+
+All files must be in the same folder.
+
+---
+
+## EPA Stats
+
+PitFUSION integrates with [Statbotics](https://statbotics.io) to display EPA (Expected Points Added) stats for any team at the event.
+
+### Opening EPA Stats
+
+There are three ways to open the EPA overlay:
+
+- Click **📈 EPA Stats** in the footer (opens for your own team)
+- Click any team number in the **Event Rankings** tab
+- Click any team number in the **Queuing Status** alliance grid
+
+### What's Shown
+
+The overlay displays a full-season line chart for each EPA component, with match number on the X axis and EPA value on the Y axis:
+
+| Chart | Field |
+|---|---|
+| Total EPA | Overall scoring contribution |
+| Auto EPA | Autonomous period contribution |
+| Teleop EPA | Teleoperated period contribution |
+| Endgame EPA | Endgame contribution |
+| Energized RP EPA | First ranking point contribution |
+| Supercharged RP EPA | Second ranking point contribution |
+
+**Tooltips** — hover any data point to see the event/match label and exact value.
+
+**Event dividers** — vertical dashed lines and alternating background shading mark where each event begins, so you can see how a team's EPA evolved across the season.
+
+**Current event toggle** — click **Show Current Event Only** to filter all charts to just the active event.
+
+The header remains visible while the overlay is open, so the queue countdown stays in view.
+
+### Caching
+
+Each team's data is cached for 30 minutes per session. Repeated clicks on the same team are instant. If Statbotics times out, a Retry button appears — the fetch uses an 8-second timeout with one automatic retry before giving up.
+
+### Updating EPA Fields for a New Season
+
+The EPA breakdown field names change each year. To update for a new season, add an entry to `config.js`:
+
+```js
+const EPA_FIELDS = {
+  2027: [
+    { key: 'epa.breakdown.total_points',    label: 'Total EPA',           color: '#00d4ff' },
+    { key: 'epa.breakdown.auto_points',     label: 'Auto EPA',            color: '#00e676' },
+    { key: 'epa.breakdown.teleop_points',   label: 'Teleop EPA',          color: '#ffd600' },
+    { key: 'epa.breakdown.endgame_points',  label: 'Endgame EPA',         color: '#ff6b35' },
+    { key: 'epa.breakdown.rp_1',            label: 'RP 1 EPA',            color: '#a78bfa' },
+    { key: 'epa.breakdown.rp_2',            label: 'RP 2 EPA',            color: '#f472b6' },
+  ],
+  // existing years...
+};
+```
+
+To find the correct field names for a new year, call the Statbotics API directly:
+
+```
+https://api.statbotics.io/v3/team_year/{team}/{year}
+```
+
+Look at the `epa.breakdown` object in the response — the keys there are the field names to use.
 
 ---
 
@@ -111,19 +190,6 @@ See the full [Custom Theme Guide](docs/PitFusion_Custom_Theme.md) for all variab
 
 ---
 
-## Files
-
-| File | Purpose |
-|---|---|
-| `PitFUSION.html` | The entire application — this is all you need |
-| `logo.png` (optional) | Team logo shown on setup screen |
-| `FRC88Background.png` (optional) | Required only for the TJ² theme |
-| `[your-bg-image]` (optional) | Background image for the Custom theme |
-
-All files should be in the same folder.
-
----
-
 ## Screenshots
 
 | | |
@@ -141,6 +207,7 @@ Built on the shoulders of these excellent tools and communities:
 
 - [Nexus](https://frc.nexus/) — real-time FRC event queuing data
 - [The Blue Alliance](https://thebluealliance.com/) — match schedules, rankings, and results
+- [Statbotics](https://statbotics.io) — EPA statistics and team performance data
 - [Pulse - Pit Display](https://pulsefrc.app/) — original inspiration
 - [Team 88 TJ²](https://www.tj2.org/) — home team
 
