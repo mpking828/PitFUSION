@@ -4,7 +4,7 @@
 
 Created by Mike King — [Team 88 TJ²](https://www.tj2.org/)
 
-!\[PitFUSION interface overview](docs/annotated.png)
+![PitFUSION interface overview](docs/annotated.png)
 
 \---
 
