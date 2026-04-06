@@ -97,6 +97,7 @@ Your team number, event code, theme, and font size are saved automatically and r
 |`logo.png` (optional)|Team logo shown on setup screen|
 |`FRC88Background.png` (optional)|Required only for the TJ² theme|
 |`\[your-bg-image]` (optional)|Background image for the Custom theme|
+|`check.html|Tests your API keys from config.js, and reports if they are working|
 
 All files must be in the same folder.
 
