@@ -6,7 +6,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V1.8.7';
+const VERSION = 'V1.8.8';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -285,6 +285,14 @@ body.custom-has-bg[data-theme="custom"] .tp{
 .tab-btn:hover:not(.act){color:var(--text-mid)}
 .nbadge{display:inline-block;background:var(--red);color:#fff;border-radius:8px;padding:0 5px;font-size:var(--fs-sm);font-weight:700;margin-left:4px;vertical-align:middle;line-height:1.5}
 .alert-icons{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:3px}
+@keyframes alert-pulse-dark{0%,100%{background:rgba(0,212,255,0);color:var(--accent)}50%{background:rgba(0,212,255,.22);color:#ffffff}}
+@keyframes alert-pulse-tj2{0%,100%{background:rgba(245,192,0,0);color:rgba(255,255,255,0.5)}50%{background:rgba(245,192,0,.25);color:#f5c000}}
+.tab-btn.alert-new{animation:alert-pulse-dark 1.4s ease-in-out infinite;border-bottom-color:var(--accent)}
+[data-theme="tj2"] .tab-btn.alert-new{animation:alert-pulse-tj2 1.4s ease-in-out infinite;border-bottom-color:#f5c000}
+.alert-dismiss{background:transparent;border:1px solid var(--border2);border-radius:3px;color:var(--text-dim);font-size:11px;cursor:pointer;padding:1px 6px;margin-left:6px;float:right;font-family:var(--fd);font-weight:700;line-height:1.6}
+.alert-dismiss:hover{border-color:var(--text-mid);color:var(--text)}
+.alert-dismiss-all{background:transparent;border:1px solid var(--border2);border-radius:4px;color:var(--text-dim);font-size:var(--fs-sm);cursor:pointer;padding:2px 10px;font-family:var(--fd);font-weight:700}
+.alert-dismiss-all:hover{border-color:var(--text-mid);color:var(--text)}
 .alert-icon-lbl{font-size:11px;line-height:1;transition:opacity .2s}
 .alert-icon-count{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;line-height:1;transition:color .2s}
 .alert-icon-ann{font-size:11px}
@@ -1525,6 +1533,21 @@ function setupLaunch(){
   document.getElementById(id).addEventListener('keydown', e=>{ if(e.key==='Enter') setupLaunch(); });
 });
 let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,nexusPits=null;
+// Dismissed alert IDs — persisted in localStorage
+const LS_DISMISSED='pitfusion_dismissed_alerts';
+function getDismissed(){try{return new Set(JSON.parse(localStorage.getItem(LS_DISMISSED)||'[]'));}catch{return new Set();}}
+function saveDismissed(set){try{localStorage.setItem(LS_DISMISSED,JSON.stringify([...set]));}catch{}}
+function dismissAlert(id){const d=getDismissed();d.add(id);saveDismissed(d);rAlerts();}
+function dismissAllAnn(){
+  const d=getDismissed();
+  (nxData?.announcements||[]).forEach(a=>{if(a.id)d.add(a.id);});
+  saveDismissed(d);rAlerts();
+}
+function dismissAllParts(){
+  const d=getDismissed();
+  (nxData?.partsRequests||[]).forEach(p=>{if(p.id)d.add(p.id);});
+  saveDismissed(d);rAlerts();
+}
 let stHidden=false,stIdx=0,stIdxManual=false,stReplayMode=false,stPreReplay={},cdTick=null,bracketView=false;
 
 // Clock
@@ -1636,7 +1659,8 @@ function rQ(){
 
   let html='';
   if(nowQ||myNextFinal){
-    const heading=myNextFinal?e(myNextFinal.label):'&mdash;';
+    const abbrevLabel=l=>l.replace(/^Qualification\s+/i,'Qual ');
+    const heading=myNextFinal?e(abbrevLabel(myNextFinal.label)):'&mdash;';
     const subline=myNextTimeStr
       ?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text);margin-top:8px">Est. Queue: ${myNextTimeStr}</div>`
       :'';
@@ -2012,42 +2036,42 @@ function rTeam(){
 
 // ALERTS
 function rAlerts(){
-  const ann=nxData?.announcements||[],parts=nxData?.partsRequests||[],tot=ann.length+parts.length;
-  // Update icon-style alert counts
+  const ann=nxData?.announcements||[],parts=nxData?.partsRequests||[];
+  const dismissed=getDismissed();
+  const newAnn=ann.filter(a=>a.id&&!dismissed.has(a.id));
+  const newParts=parts.filter(p=>p.id&&!dismissed.has(p.id));
+  const hasNew=newAnn.length>0||newParts.length>0;
+
+  // Update icon counts (only undismissed)
   function setAlertCount(countSelectors, iconSelectors, count){
-    const active = count > 0;
-    countSelectors.forEach(sel=>{
-      document.querySelectorAll(sel).forEach(el=>{
-        el.textContent = count;
-        el.classList.toggle('dim', !active);
-      });
-    });
-    iconSelectors.forEach(sel=>{
-      document.querySelectorAll(sel).forEach(el=>{
-        el.classList.toggle('dim', !active);
-      });
-    });
+    const active=count>0;
+    countSelectors.forEach(sel=>{document.querySelectorAll(sel).forEach(el=>{el.textContent=count;el.classList.toggle('dim',!active);});});
+    iconSelectors.forEach(sel=>{document.querySelectorAll(sel).forEach(el=>{el.classList.toggle('dim',!active);});});
   }
-  setAlertCount(
-    ['#alert-count-ann-1','#alert-count-ann-dyn','.alert-count-ann'],
-    ['.alert-icon-ann'],
-    ann.length
-  );
-  setAlertCount(
-    ['#alert-count-parts-1','#alert-count-parts-dyn','.alert-count-parts-el'],
-    ['.alert-icon-parts'],
-    parts.length
-  );
+  setAlertCount(['#alert-count-ann-1','#alert-count-ann-dyn','.alert-count-ann'],['.alert-icon-ann'],newAnn.length);
+  setAlertCount(['#alert-count-parts-1','#alert-count-parts-dyn','.alert-count-parts-el'],['.alert-icon-parts'],newParts.length);
+
+  // Pulse the Alerts tab button when there are undismissed items
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    if(btn.textContent.includes('Alerts')||btn.onclick?.toString().includes('alerts')){
+      btn.classList.toggle('alert-new', hasNew);
+    }
+  });
   document.querySelectorAll('#abadge').forEach(b=>b.style.display='none');
 
+  const annHdr=newAnn.length>0?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="alert-dismiss-all" onclick="dismissAllAnn()" title="Dismiss all announcements">Dismiss all</button></div>`:'';;
   document.getElementById('ann-content').innerHTML=ann.length===0
     ?'<div class="empty">No announcements</div>'
-    :ann.map(a=>{
-        // Nexus may use any of these field names for the body text
+    :annHdr+ann.map(a=>{
         const body=a.body||a.text||a.message||a.content||a.announcement||JSON.stringify(a);
         const t=a.postedTime?ft(new Date(a.postedTime)):(a.time?ft(new Date(a.time)):'');
-        return`<div style="background:var(--surface2);border:2px solid rgba(255,107,53,.3);border-left:4px solid var(--accent2);border-radius:var(--r);padding:9px 11px;margin-bottom:7px;line-height:1.5">
-          <div style="font-size:var(--fs-body);color:var(--text);margin-bottom:${t?'4px':'0'}">${e(body)}</div>
+        const isDismissed=a.id&&dismissed.has(a.id);
+        const dismissBtn=a.id?`<button class="alert-dismiss" onclick="dismissAlert('${a.id}')" title="Dismiss">✕</button>`:'';
+        return`<div style="background:var(--surface2);border:2px solid ${isDismissed?'var(--border)':'rgba(255,107,53,.3)'};border-left:4px solid ${isDismissed?'var(--border2)':'var(--accent2)'};border-radius:var(--r);padding:9px 11px;margin-bottom:7px;line-height:1.5;opacity:${isDismissed?'0.45':'1'}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between">
+            <div style="font-size:var(--fs-body);color:var(--text);margin-bottom:${t?'4px':'0'};flex:1">${e(body)}</div>
+            ${dismissBtn}
+          </div>
           ${t?`<div style="font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim)">${t}</div>`:''}
         </div>`;
       }).join('');
@@ -2078,17 +2102,23 @@ function rAlerts(){
     }
   }
 
+  const partsHdr=newParts.length>0?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="alert-dismiss-all" onclick="dismissAllParts()" title="Dismiss all parts requests">Dismiss all</button></div>`:'';
   document.getElementById('parts-content').innerHTML=parts.length===0
     ?'<div class="empty">No active parts requests</div>'
-    :parts.map(p=>{
+    :partsHdr+parts.map(p=>{
         const team=p.requestedByTeam||p.teamNumber||p.team||p.teamNum||'?';
         const body=p.parts||p.request||p.body||p.text||p.message||p.content||p.part||p.item||JSON.stringify(p);
         const t=p.postedTime?ft(new Date(p.postedTime)):(p.time?ft(new Date(p.time)):'');
         const pitAddr=pitMap[String(team)]||'';
-        return`<div style="background:var(--surface2);border:2px solid rgba(255,214,0,.3);border-left:4px solid var(--yellow);border-radius:var(--r);padding:9px 11px;margin-bottom:7px;line-height:1.5">
+        const isDismissed=p.id&&dismissed.has(p.id);
+        const dismissBtn=p.id?`<button class="alert-dismiss" onclick="dismissAlert('${p.id}')" title="Dismiss">✕</button>`:'';
+        return`<div style="background:var(--surface2);border:2px solid ${isDismissed?'var(--border)':'rgba(255,214,0,.3)'};border-left:4px solid ${isDismissed?'var(--border2)':'var(--yellow)'};border-radius:var(--r);padding:9px 11px;margin-bottom:7px;line-height:1.5;opacity:${isDismissed?'0.45':'1'}">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-            <div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--yellow)">Team ${e(String(team))}</div>
-            ${pitAddr?`<div onclick="openPitMap('${team}')" style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;background:rgba(255,214,0,.15);border:1px solid rgba(255,214,0,.4);border-radius:4px;padding:2px 8px;color:var(--yellow);cursor:pointer" title="View pit map">&#128205; Pit ${e(pitAddr)}</div>`:''}
+            <div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:${isDismissed?'var(--text-dim)':'var(--yellow)'}">Team ${e(String(team))}</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              ${pitAddr?`<div onclick="openPitMap('${team}')" style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;background:rgba(255,214,0,.15);border:1px solid rgba(255,214,0,.4);border-radius:4px;padding:2px 8px;color:var(--yellow);cursor:pointer" title="View pit map">&#128205; Pit ${e(pitAddr)}</div>`:''}
+              ${dismissBtn}
+            </div>
           </div>
           <div style="font-size:var(--fs-body);color:var(--text);margin-bottom:${t?'4px':'0'}">${e(body)}</div>
           ${t?`<div style="font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim)">${t}</div>`:''}
