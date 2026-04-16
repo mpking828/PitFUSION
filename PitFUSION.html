@@ -6,7 +6,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V1.8.8';
+const VERSION = 'V1.8.9';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -352,6 +352,33 @@ body.custom-has-bg[data-theme="custom"] .tp{
 
 /* FOOTER */
 .footer{height:var(--ftr-h);background:var(--surface);border-top:3px solid var(--border);display:flex;align-items:center;padding:0 var(--pad);gap:20px;overflow:hidden}
+#schedule-overlay{position:fixed;inset:0;z-index:7000;background:var(--bg);display:none;flex-direction:column}
+#schedule-overlay.show{display:flex}
+.sched-hdr{height:var(--hdr-h);background:var(--surface);border-bottom:3px solid var(--border);display:flex;align-items:center;padding:0 var(--pad);gap:16px;flex-shrink:0}
+.sched-title{font-family:var(--fd);font-size:var(--fs-hdr);font-weight:900;color:var(--accent);letter-spacing:.04em}
+.sched-body{flex:1;overflow-y:auto;padding:var(--pad)}
+.sched-table{width:100%;border-collapse:collapse}
+.sched-table th{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);padding:0 10px 10px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap}
+.sched-table th.right{text-align:right}
+.sched-table td{padding:8px 10px;border-bottom:1px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);vertical-align:middle}
+.sched-table tr.played{opacity:1}
+.sched-table tr.upcoming td{background:rgba(0,212,255,.03)}
+.sched-chip{display:inline-block;font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;padding:2px 7px;border-radius:3px;margin:1px 2px}
+.sched-chip.red{background:rgba(198,40,40,.25);color:#ef9a9a}
+.sched-chip.blue{background:rgba(25,118,210,.25);color:#90caf9}
+.sched-chip.me{background:var(--accent);color:#000;font-weight:900}
+.sched-lbl{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--text);white-space:nowrap}
+.sched-wlt{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;white-space:nowrap}
+.sched-wlt.w{color:var(--green)}
+.sched-wlt.l{color:var(--red-a)}
+.sched-wlt.t{color:var(--yellow)}
+.sched-rp{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--accent);text-align:right}
+.sched-time{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;text-align:right}
+.sched-break{background:rgba(255,214,0,.07);border-left:3px solid rgba(255,214,0,.5)}
+.sched-break td{color:var(--yellow);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px}
+[data-theme="tj2"] .sched-table tr.upcoming td{background:rgba(245,192,0,.04)}
+[data-theme="tj2"] .sched-chip.me{background:#f5c000;color:#000}
+[data-theme="tj2"] .sched-title{color:#f5c000}
 .ftr-stamp{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap}
 .ftr-note{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;letter-spacing:.06em}
 
@@ -1275,6 +1302,27 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     </div>
   </div>
 
+  <!-- SCHEDULE OVERLAY -->
+  <div id="schedule-overlay">
+    <div class="sched-hdr">
+      <span class="sched-title">📋 My Schedule</span>
+      <span id="sched-team-lbl" style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text-dim)"></span>
+      <button class="epa-close" onclick="closeSchedule()" style="margin-left:auto">✕ Close</button>
+    </div>
+    <div class="sched-body">
+      <table class="sched-table">
+        <thead><tr>
+          <th>Match</th>
+          <th>Blue Alliance</th>
+          <th>Red Alliance</th>
+          <th class="right">Result / Time</th>
+          <th class="right">RP</th>
+        </tr></thead>
+        <tbody id="sched-body"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="footer">
     <div class="ftr-note"><span id="version-display" style="color:var(--accent);font-weight:700;margin-right:8px"></span><a id="update-badge" href="https://github.com/mpking828/PitFusion/releases/latest" target="_blank" style="display:none;font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;color:#2ecc71;border:1px solid rgba(46,204,113,.4);background:rgba(46,204,113,.1);border-radius:4px;padding:1px 8px;margin-right:8px;text-decoration:none;cursor:pointer"></a>Nexus refreshes every 15s &middot; TBA refreshes every 30s</div>
     <div style="flex:1"></div>
@@ -1282,6 +1330,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     <button class="s-btn" id="font-size-btn" onclick="togglePitFont()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">🔤 Bigger Text</button>
     <button class="s-btn" id="stream-toggle-btn" onclick="toggleStreamVisibility()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">📺 Hide Stream</button>
     <button class="s-btn" id="bracket-toggle-btn" onclick="toggleBracket()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">🏆 Playoff Bracket</button>
+    <button class="s-btn" onclick="openSchedule()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">📋 My Schedule</button>
     <div class="ftr-stamp" id="tk-stamp">&mdash;</div>
   </div>
 </div>
@@ -3140,6 +3189,73 @@ async function openAllianceEpa(blueTeams, redTeams, matchLabel){
   });
 
   body.innerHTML = `<div>${leftHtml}</div><div>${rightHtml}</div>`;
+}
+
+function openSchedule(){
+  const myT=C.team;
+  document.getElementById('sched-team-lbl').textContent='Team #'+myT;
+  const sm=scoreMap();
+  const nxMx=(nxData?.matches||[]).filter(m=>!/^practice/i.test(m.label));
+  // All my matches from Nexus
+  const myMx=nxMx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
+  const SKIP=new Set(['Completed','On field']);
+  // Build RP map from TBA
+  const rpMap={};
+  (tbaMx||[]).filter(m=>m.comp_level==='qm'&&m.score_breakdown).forEach(m=>{
+    const key=`qual_${m.match_number}`;
+    const rp={red:m.score_breakdown.red?.rp??null,blue:m.score_breakdown.blue?.rp??null};
+    if(rp.red!=null||rp.blue!=null) rpMap[key]=rp;
+  });
+
+  let rows='';
+  myMx.forEach(m=>{
+    const isDone=!SKIP.has(m.status);
+    const sc=sm[nl(m.label)];
+    const isPlayed=!!sc||(m.status==='Completed');
+    const red=m.redTeams||[], blue=m.blueTeams||[];
+    const iAmRed=red.includes(myT);
+    const mkChip=(t,side)=>`<span class="sched-chip ${t===myT?'me':side}">${e(t)}</span>`;
+    const blueChips=blue.map(t=>mkChip(t,'blue')).join('');
+    const redChips=red.map(t=>mkChip(t,'red')).join('');
+
+    let resultCell='', rpCell='';
+    if(isPlayed&&sc){
+      const myScore=iAmRed?sc.red:sc.blue, oppScore=iAmRed?sc.blue:sc.red;
+      const wlt=myScore>oppScore?'W':myScore<oppScore?'L':'T';
+      const wltCls=wlt==='W'?'w':wlt==='L'?'l':'t';
+      resultCell=`<span class="sched-wlt ${wltCls}">${wlt} ${myScore}&ndash;${oppScore}</span>`;
+      const rpKey=nl(m.label);
+      const rp=rpMap[rpKey];
+      if(rp) rpCell=(iAmRed?rp.red:rp.blue)??'&mdash;';
+    } else {
+      // Upcoming — show time
+      const t=m.times?.estimatedQueueTime||m.times?.estimatedStartTime;
+      resultCell=t?`<span class="sched-time">${ft(new Date(t))}</span>`:'<span class="sched-time">&mdash;</span>';
+    }
+
+    const rowCls=isPlayed?'played':'upcoming';
+    rows+=`<tr class="${rowCls}">
+      <td class="sched-lbl">${e(m.label.replace(/^Qualification\s+/i,'Qual '))}</td>
+      <td>${blueChips}</td>
+      <td>${redChips}</td>
+      <td style="text-align:right">${resultCell}</td>
+      <td class="sched-rp">${rpCell||'&mdash;'}</td>
+    </tr>`;
+
+    // Break after this match?
+    if(m.breakAfter){
+      const icon=m.breakAfter==='Lunch'?'🍽':m.breakAfter==='End of day'?'🌙':m.breakAfter==='Awards break'?'🏆':m.breakAfter==='Alliance selection'?'🤝':'⏸';
+      rows+=`<tr class="sched-break"><td colspan="5">${icon} ${e(m.breakAfter)}</td></tr>`;
+    }
+  });
+
+  if(!rows) rows=`<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:20px">No matches scheduled</td></tr>`;
+  document.getElementById('sched-body').innerHTML=rows;
+  document.getElementById('schedule-overlay').classList.add('show');
+}
+
+function closeSchedule(){
+  document.getElementById('schedule-overlay').classList.remove('show');
 }
 
 function closeAllianceEpa(){
