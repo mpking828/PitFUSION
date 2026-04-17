@@ -6,7 +6,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V1.9.0';
+const VERSION = 'V1.9.1';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -285,10 +285,10 @@ body.custom-has-bg[data-theme="custom"] .tp{
 .tab-btn:hover:not(.act){color:var(--text-mid)}
 .nbadge{display:inline-block;background:var(--red);color:#fff;border-radius:8px;padding:0 5px;font-size:var(--fs-sm);font-weight:700;margin-left:4px;vertical-align:middle;line-height:1.5}
 .alert-icons{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:3px}
-@keyframes alert-pulse-dark{0%,100%{background:rgba(0,212,255,0);color:var(--accent)}50%{background:rgba(0,212,255,.22);color:#ffffff}}
-@keyframes alert-pulse-tj2{0%,100%{background:rgba(245,192,0,0);color:rgba(255,255,255,0.5)}50%{background:rgba(245,192,0,.25);color:#f5c000}}
-.tab-btn.alert-new{animation:alert-pulse-dark 1.4s ease-in-out infinite;border-bottom-color:var(--accent)}
-[data-theme="tj2"] .tab-btn.alert-new{animation:alert-pulse-tj2 1.4s ease-in-out infinite;border-bottom-color:#f5c000}
+@keyframes alert-pulse-dark{0%,100%{background:rgba(0,212,255,0);color:var(--accent);border-bottom-color:transparent}40%{background:rgba(0,212,255,.45);color:#ffffff;border-bottom-color:rgba(0,212,255,.9)}60%{background:rgba(0,212,255,.45);color:#ffffff;border-bottom-color:rgba(0,212,255,.9)}}
+@keyframes alert-pulse-tj2{0%,100%{background:rgba(245,192,0,0);color:rgba(255,255,255,0.5);border-bottom-color:transparent}40%{background:rgba(245,192,0,.45);color:#000000;border-bottom-color:#f5c000}60%{background:rgba(245,192,0,.45);color:#000000;border-bottom-color:#f5c000}}
+.tab-btn.alert-new{animation:alert-pulse-dark 1.1s ease-in-out infinite;border-bottom-width:3px}
+[data-theme="tj2"] .tab-btn.alert-new{animation:alert-pulse-tj2 1.1s ease-in-out infinite;border-bottom-width:3px}
 .alert-dismiss{background:transparent;border:1px solid var(--border2);border-radius:3px;color:var(--text-dim);font-size:11px;cursor:pointer;padding:1px 6px;margin-left:6px;float:right;font-family:var(--fd);font-weight:700;line-height:1.6}
 .alert-dismiss:hover{border-color:var(--text-mid);color:var(--text)}
 .alert-dismiss-all{background:transparent;border:1px solid var(--border2);border-radius:4px;color:var(--text-dim);font-size:var(--fs-sm);cursor:pointer;padding:2px 10px;font-family:var(--fd);font-weight:700}
@@ -376,7 +376,7 @@ body.custom-has-bg[data-theme="custom"] .tp{
 .sched-wlt.l{color:var(--red-a)}
 .sched-wlt.t{color:var(--yellow)}
 .sched-rp{font-family:var(--fd);font-size:var(--fs-pit);font-weight:700;color:var(--accent);text-align:right}
-.sched-time{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;text-align:right}
+.sched-time{font-family:var(--fd);font-size:var(--fs-pit);font-weight:700;color:var(--text-mid);white-space:nowrap;text-align:right}
 .sched-break{background:rgba(255,214,0,.07);border-left:3px solid rgba(255,214,0,.5)}
 .sched-break td{color:var(--yellow);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px}
 [data-theme="tj2"] .sched-table tr.upcoming td{background:rgba(245,192,0,.04)}
@@ -2123,7 +2123,7 @@ function rAlerts(){
   const annHdr=newAnn.length>0?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="alert-dismiss-all" onclick="dismissAllAnn()" title="Dismiss all announcements">Dismiss all</button></div>`:'';;
   document.getElementById('ann-content').innerHTML=ann.length===0
     ?'<div class="empty">No announcements</div>'
-    :annHdr+ann.map(a=>{
+    :annHdr+[...ann].sort((a,b)=>(b.postedTime||0)-(a.postedTime||0)).map(a=>{
         const body=a.body||a.text||a.message||a.content||a.announcement||JSON.stringify(a);
         const t=a.postedTime?ft(new Date(a.postedTime)):(a.time?ft(new Date(a.time)):'');
         const isDismissed=a.id&&dismissed.has(a.id);
@@ -2164,9 +2164,10 @@ function rAlerts(){
   }
 
   const partsHdr=newParts.length>0?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="alert-dismiss-all" onclick="dismissAllParts()" title="Dismiss all parts requests">Dismiss all</button></div>`:'';
+  const partsSorted=[...parts].sort((a,b)=>(b.postedTime||0)-(a.postedTime||0));
   document.getElementById('parts-content').innerHTML=parts.length===0
     ?'<div class="empty">No active parts requests</div>'
-    :partsHdr+parts.map(p=>{
+    :partsHdr+partsSorted.map(p=>{
         const team=p.requestedByTeam||p.teamNumber||p.team||p.teamNum||'?';
         const body=p.parts||p.request||p.body||p.text||p.message||p.content||p.part||p.item||JSON.stringify(p);
         const t=p.postedTime?ft(new Date(p.postedTime)):(p.time?ft(new Date(p.time)):'');
