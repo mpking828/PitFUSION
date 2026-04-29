@@ -6,7 +6,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V1.9.6';
+const VERSION = 'V1.9.7';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -1279,7 +1279,6 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     <div class="epa-hdr">
       <span class="epa-title">Alliance EPA &mdash;</span>
       <span class="epa-team-num" id="alliance-match-display">&mdash;</span>
-      <div id="hdr-cd-alliance" style="flex:1;display:flex;justify-content:center"></div>
       <button class="epa-close" onclick="closeAllianceEpa()">✕ Close</button>
     </div>
     <div id="alliance-body" style="flex:1;overflow-y:auto;padding:var(--pad);display:grid;grid-template-columns:1fr 1fr;gap:16px;align-content:start">
@@ -1292,7 +1291,6 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     <div class="epa-hdr">
       <span class="epa-title">EPA Stats &mdash;</span>
       <span class="epa-team-num" id="epa-team-display">&mdash;</span>
-      <div id="hdr-cd-epa" style="flex:1;display:flex;justify-content:center"></div>
       <button class="epa-close" onclick="closeEpa()">✕ Close</button>
     </div>
     <div class="epa-body" id="epa-body">
@@ -3115,8 +3113,6 @@ async function openAllianceEpa(blueTeams, redTeams, matchLabel){
   const matchDisp= document.getElementById('alliance-match-display');
   const body     = document.getElementById('alliance-body');
   const cdSrc    = document.getElementById('hdr-cd');
-  const cdDst    = document.getElementById('hdr-cd-alliance');
-  if(cdSrc&&cdDst) cdDst.innerHTML=cdSrc.innerHTML;
 
   overlay.classList.add('show');
   matchDisp.textContent = matchLabel || 'Queuing Match';
@@ -3341,7 +3337,7 @@ function closeAllianceEpa(){
 setInterval(()=>{
   const ov=document.getElementById('alliance-overlay');
   if(!ov?.classList.contains('show')) return;
-  const s=document.getElementById('hdr-cd'), d=document.getElementById('hdr-cd-alliance');
+  const s=document.getElementById('hdr-cd');
   if(s&&d) d.innerHTML=s.innerHTML;
 },1000);
 
@@ -3383,8 +3379,6 @@ async function openEpa(team, forceReload=false){
   const overlay  = document.getElementById('epa-overlay');
   const teamDisp = document.getElementById('epa-team-display');
   const cdSrc    = document.getElementById('hdr-cd');
-  const cdDst    = document.getElementById('hdr-cd-epa');
-  if(cdSrc&&cdDst) cdDst.innerHTML=cdSrc.innerHTML;
 
   overlay.classList.add('show');
   teamDisp.textContent='Team '+team;
@@ -3840,8 +3834,6 @@ setInterval(()=>{
   const overlay=document.getElementById('epa-overlay');
   if(!overlay?.classList.contains('show')) return;
   const cdSrc=document.getElementById('hdr-cd');
-  const cdDst=document.getElementById('hdr-cd-epa');
-  if(cdSrc&&cdDst) cdDst.innerHTML=cdSrc.innerHTML;
 }, 1000);
 
 // init() is called by setupLaunch() — not auto-invoked here
