@@ -6,7 +6,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V1.9.5';
+const VERSION = 'V1.9.6';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -1616,8 +1616,60 @@ const hn=k=>({'Nexus-Api-Key':k});
 const ht=k=>({'X-TBA-Auth-Key':k});
 async function get(url,h){const r=await fetch(url,{headers:h});if(!r.ok)throw r.status;return r.json();}
 
-async function fNexus(){try{nxData=await get(`https://frc.nexus/api/v1/event/${C.event}`,hn(C.nexus));setLive(true);return true;}catch{setLive(false);return false;}}
-async function fPits(){try{nexusPits=await get(`https://frc.nexus/api/v1/event/${C.event}/pits`,hn(C.nexus));}catch{nexusPits=null;}}
+async function nexusGet(key){return get(`https://frc.nexus/api/v1/event/${key}`,hn(C.nexus));}
+function nxKey(){return C.nexusEvent||C.event;}
+
+function deriveNexusKeys(tbaKey, tbaName){
+  // tbaKey e.g. "2026new", tbaName e.g. "Newton Division" or "New England District Championship"
+  const year=tbaKey.match(/^(\d{4})/)?.[1]||'';
+  const candidates=new Set([tbaKey]); // always try original first
+
+  if(tbaName){
+    const words=tbaName.toLowerCase()
+      .replace(/division|district|regional|championship|event/g,'')
+      .trim().split(/\s+/).filter(Boolean);
+    // Try full first word (e.g. "newton", "curie", "galileo")
+    if(words[0]) candidates.add(year+words[0]);
+    // Try first two words joined (e.g. "newengland")
+    if(words[1]) candidates.add(year+words[0]+words[1]);
+    // Try abbreviated (first 3 chars of first word)
+    if(words[0]?.length>=3) candidates.add(year+words[0].slice(0,3));
+  }
+  return [...candidates];
+}
+
+async function fNexus(){
+  // Try direct key first
+  try{
+    nxData=await nexusGet(C.event);
+    setLive(true); return true;
+  } catch(e){
+    if(e!==404&&e!==400){setLive(false);return false;}
+  }
+
+  // If key already resolved from a previous call, use it directly
+  if(C.nexusEvent){
+    try{nxData=await nexusGet(C.nexusEvent);setLive(true);return true;}catch{setLive(false);return false;}
+  }
+
+  // 404 — try to derive Nexus key from TBA event name
+  try{
+    const tbaEv=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}`,ht(C.tba));
+    const aliases=deriveNexusKeys(C.event, tbaEv?.name||'');
+    for(const key of aliases){
+      if(key===C.event) continue; // already tried
+      try{
+        nxData=await nexusGet(key);
+        C.nexusEvent=key; // store resolved key for pits API
+        console.log(`[PitFUSION] Nexus alias resolved: ${C.event} → ${key}`);
+        setLive(true); return true;
+      } catch{}
+    }
+  } catch{}
+
+  setLive(false); return false;
+}
+async function fPits(){try{const k=C.nexusEvent||C.event;nexusPits=await get(`https://frc.nexus/api/v1/event/${k}/pits`,hn(C.nexus));}catch{nexusPits=null;}}
 async function fMx(){try{tbaMx=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/matches`,ht(C.tba));return true;}catch{return false;}}
 async function fRk(){try{tbaRk=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/rankings`,ht(C.tba));return true;}catch{return false;}}
 async function fAlliances(){try{tbaAlliances=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/alliances`,ht(C.tba));return true;}catch{return false;}}
