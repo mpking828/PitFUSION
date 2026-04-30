@@ -6,7 +6,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V1.9.7';
+const VERSION = 'V1.9.8';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -1637,17 +1637,17 @@ function deriveNexusKeys(tbaKey, tbaName){
 }
 
 async function fNexus(){
+  // If alias already resolved, use it directly — skip the 404 attempt
+  if(C.nexusEvent){
+    try{nxData=await nexusGet(C.nexusEvent);setLive(true);return true;}catch{setLive(false);return false;}
+  }
+
   // Try direct key first
   try{
     nxData=await nexusGet(C.event);
     setLive(true); return true;
   } catch(e){
     if(e!==404&&e!==400){setLive(false);return false;}
-  }
-
-  // If key already resolved from a previous call, use it directly
-  if(C.nexusEvent){
-    try{nxData=await nexusGet(C.nexusEvent);setLive(true);return true;}catch{setLive(false);return false;}
   }
 
   // 404 — try to derive Nexus key from TBA event name
@@ -1677,7 +1677,8 @@ async function fEv(){try{const ev=await get(`https://www.thebluealliance.com/api
 async function init(){
   document.getElementById('hdr-team').textContent='#'+C.team;
   resetPitMap();
-  await Promise.all([fNexus(),fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv()]);
+  await fNexus(); // resolve Nexus alias first so fPits uses correct key
+  await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv()]);
   document.getElementById('lo').style.display='none';
   renderAll(); startCd();
   setInterval(async()=>{await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();},15000);
@@ -2959,7 +2960,7 @@ async function openPitMap(team){
     try {
       // Use get() so Nexus-Api-Key header is included
       nexusPitMap = await get(
-        `https://frc.nexus/api/v1/event/${C.event}/map`,
+        `https://frc.nexus/api/v1/event/${C.nexusEvent||C.event}/map`,
         hn(C.nexus));
     } catch(err){
       nexusPitMap = null;
