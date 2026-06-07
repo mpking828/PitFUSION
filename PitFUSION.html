@@ -6,7 +6,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V1.9.8';
+const VERSION = 'V2.0.0';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -1049,6 +1049,11 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 #epa-overlay .epa-title{font-family:var(--fd);font-size:var(--fs-hdr);font-weight:900;color:var(--text)}
 #epa-overlay .epa-team-num{font-family:var(--fd);font-size:var(--fs-hdr);font-weight:900;color:var(--accent)}
 #epa-overlay .epa-close,#alliance-overlay .epa-close,#pitmap-overlay .epa-close,#schedule-overlay .epa-close{margin-left:auto;background:var(--surface2);border:2px solid var(--border2);border-radius:var(--r);color:var(--text-dim);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;padding:4px 14px;cursor:pointer;transition:all .15s}
+.epa-pit-btn{background:var(--surface2);border:2px solid var(--border2);border-radius:var(--r);color:var(--text-dim);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;padding:4px 14px;cursor:pointer;transition:all .15s;margin-left:8px}
+.epa-pit-btn:hover:not(:disabled){color:var(--accent);border-color:var(--accent)}
+.epa-pit-btn:disabled{opacity:.35;cursor:not-allowed}
+[data-theme="tj2"] .epa-pit-btn{background:#1a2f50;border-color:rgba(255,255,255,0.3);color:#ffffff}
+[data-theme="tj2"] .epa-pit-btn:hover:not(:disabled){border-color:#f5c000;color:#f5c000}
 #epa-overlay .epa-close:hover,#alliance-overlay .epa-close:hover,#pitmap-overlay .epa-close:hover,#schedule-overlay .epa-close:hover{color:var(--text);border-color:var(--text-mid)}
 #epa-overlay .epa-body{flex:1;overflow-y:auto;padding:var(--pad);display:flex;flex-direction:column;gap:16px}
 .epa-bar-row{display:grid;grid-template-columns:180px 1fr 60px;align-items:center;gap:12px}
@@ -1291,6 +1296,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     <div class="epa-hdr">
       <span class="epa-title">EPA Stats &mdash;</span>
       <span class="epa-team-num" id="epa-team-display">&mdash;</span>
+      <button id="epa-pit-btn" class="epa-pit-btn" onclick="openPitMapFromEpa()" title="View pit location">📍 Pit Map</button>
       <button class="epa-close" onclick="closeEpa()">✕ Close</button>
     </div>
     <div class="epa-body" id="epa-body">
@@ -1588,7 +1594,7 @@ function setupLaunch(){
 ['setup-team','setup-event-manual'].forEach(id=>{
   document.getElementById(id).addEventListener('keydown', e=>{ if(e.key==='Enter') setupLaunch(); });
 });
-let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,nexusPits=null;
+let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,nexusPits=null,nexusPitsUnavailable=false;
 // Dismissed alert IDs — persisted in localStorage
 const LS_DISMISSED='pitfusion_dismissed_alerts';
 function getDismissed(){try{return new Set(JSON.parse(localStorage.getItem(LS_DISMISSED)||'[]'));}catch{return new Set();}}
@@ -1617,24 +1623,6 @@ async function get(url,h){const r=await fetch(url,{headers:h});if(!r.ok)throw r.
 async function nexusGet(key){return get(`https://frc.nexus/api/v1/event/${key}`,hn(C.nexus));}
 function nxKey(){return C.nexusEvent||C.event;}
 
-function deriveNexusKeys(tbaKey, tbaName){
-  // tbaKey e.g. "2026new", tbaName e.g. "Newton Division" or "New England District Championship"
-  const year=tbaKey.match(/^(\d{4})/)?.[1]||'';
-  const candidates=new Set([tbaKey]); // always try original first
-
-  if(tbaName){
-    const words=tbaName.toLowerCase()
-      .replace(/division|district|regional|championship|event/g,'')
-      .trim().split(/\s+/).filter(Boolean);
-    // Try full first word (e.g. "newton", "curie", "galileo")
-    if(words[0]) candidates.add(year+words[0]);
-    // Try first two words joined (e.g. "newengland")
-    if(words[1]) candidates.add(year+words[0]+words[1]);
-    // Try abbreviated (first 3 chars of first word)
-    if(words[0]?.length>=3) candidates.add(year+words[0].slice(0,3));
-  }
-  return [...candidates];
-}
 
 async function fNexus(){
   // If alias already resolved, use it directly — skip the 404 attempt
@@ -1650,24 +1638,28 @@ async function fNexus(){
     if(e!==404&&e!==400){setLive(false);return false;}
   }
 
-  // 404 — try to derive Nexus key from TBA event name
+  // 404 — derive Nexus key from TBA first_event_code
+  // e.g. TBA "2026bc2" has first_event_code "MAWOR2" → Nexus key "2026mawor2"
   try{
     const tbaEv=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}`,ht(C.tba));
-    const aliases=deriveNexusKeys(C.event, tbaEv?.name||'');
-    for(const key of aliases){
-      if(key===C.event) continue; // already tried
-      try{
-        nxData=await nexusGet(key);
-        C.nexusEvent=key; // store resolved key for pits API
-        console.log(`[PitFUSION] Nexus alias resolved: ${C.event} → ${key}`);
-        setLive(true); return true;
-      } catch{}
+    const fec=tbaEv?.first_event_code;
+    if(fec){
+      const year=(C.event.match(/^(\d{4})/)||[])[1]||'';
+      const derived=year+fec.toLowerCase();
+      if(derived!==C.event){
+        try{
+          nxData=await nexusGet(derived);
+          C.nexusEvent=derived;
+          console.log(`[PitFUSION] Nexus key resolved via FIRST code: ${C.event} → ${derived}`);
+          setLive(true); return true;
+        } catch{}
+      }
     }
   } catch{}
 
   setLive(false); return false;
 }
-async function fPits(){try{const k=C.nexusEvent||C.event;nexusPits=await get(`https://frc.nexus/api/v1/event/${k}/pits`,hn(C.nexus));}catch{nexusPits=null;}}
+async function fPits(){if(nexusPitsUnavailable)return;try{const k=C.nexusEvent||C.event;nexusPits=await get(`https://frc.nexus/api/v1/event/${k}/pits`,hn(C.nexus));}catch(e){nexusPits=null;if(e===404)nexusPitsUnavailable=true;}}
 async function fMx(){try{tbaMx=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/matches`,ht(C.tba));return true;}catch{return false;}}
 async function fRk(){try{tbaRk=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/rankings`,ht(C.tba));return true;}catch{return false;}}
 async function fAlliances(){try{tbaAlliances=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/alliances`,ht(C.tba));return true;}catch{return false;}}
@@ -2945,7 +2937,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
 let nexusPitMap = null;         // cached map data for current event
 let nexusPitMapFetched = false; // have we tried fetching yet this session
 
-async function openPitMap(team){
+function openPitMapFromEpa(){
+  const overlay=document.getElementById('epa-overlay');
+  const viewedTeam=overlay?.dataset.viewedTeam;
+  if(!viewedTeam) return;
+  overlay.classList.remove('show');
+  openPitMap(viewedTeam, C.team); // pass both viewed and my team
+}
+
+async function openPitMap(team, secondTeam){
   const overlay  = document.getElementById('pitmap-overlay');
   const wrap     = document.getElementById('pitmap-svg-wrap');
   const teamDisp = document.getElementById('pitmap-team-display');
@@ -2983,7 +2983,7 @@ async function openPitMap(team){
 
   // Defer render until after overlay is visible so clientWidth is accurate
   requestAnimationFrame(()=>{
-    wrap.innerHTML = renderPitMapSvg(nexusPitMap, String(team));
+    wrap.innerHTML = renderPitMapSvg(nexusPitMap, String(team), secondTeam?String(secondTeam):null);
   });
 }
 
@@ -2991,7 +2991,7 @@ function closePitMap(){
   document.getElementById('pitmap-overlay').classList.remove('show');
 }
 
-function renderPitMapSvg(map, highlightTeam){
+function renderPitMapSvg(map, highlightTeam, secondTeam){
   // Compute true bounding box from all elements, not just map.size
   // (some events have elements that extend beyond map.size)
   let maxX = map.size?.x || 800;
@@ -3047,17 +3047,17 @@ function renderPitMapSvg(map, highlightTeam){
   if(map.pits) Object.entries(map.pits).forEach(([pitId, pit])=>{
     const {x,y}=pit.position, {x:pw,y:ph}=pit.size;
     const team=String(pit.team||'');
-    const isHL  = team === highlightTeam;
     const isMe  = team === myTeam;
-    const fill  = isHL ? hlFill : isMe ? myPitFill : pitCol;
-    const border= isHL ? hlBorder : isMe ? myPitBdr : pitBorder;
-    const bw    = isHL ? 2.5 : isMe ? 2 : 0.5;
+    const isHL  = !isMe && (team === highlightTeam || (secondTeam && team === secondTeam));
+    const fill  = isMe ? myPitFill : isHL ? hlFill : pitCol;
+    const border= isMe ? myPitBdr : isHL ? hlBorder : pitBorder;
+    const bw    = isMe ? 2 : isHL ? 2.5 : 0.5;
     svg+=`<rect x="${x}" y="${y}" width="${pw}" height="${ph}" fill="${fill}" stroke="${border}" stroke-width="${bw}" rx="3"/>`;
     // Pit label (team number if assigned, otherwise pit ID)
     const lbl = team || pitId;
     // Font size is in SVG coordinate units — scale relative to pit size
     const fontSize = Math.max(Math.min(pw * 0.22, ph * 0.22), 8);
-    const lblColor = isHL ? (isDark?'#00d4ff':'#0077aa') : isMe ? '#ffd600' : labelCol;
+    const lblColor = isMe ? '#f5c000' : isHL ? (isDark?'#00d4ff':'#0077aa') : labelCol;
     const lblWeight = (isHL || isMe) ? '700' : '400';
     svg+=`<text x="${x+pw/2}" y="${y+ph/2+4}" font-family="var(--fd)" font-size="${fontSize}" font-weight="${lblWeight}" fill="${lblColor}" text-anchor="middle">${e(lbl)}</text>`;
   });
@@ -3083,8 +3083,12 @@ function renderPitMapSvg(map, highlightTeam){
   const legendHtml = `<div style="display:flex;align-items:center;gap:20px;padding:8px 0;flex-shrink:0">
     <div style="display:flex;align-items:center;gap:6px">
       <div style="width:18px;height:18px;background:${hlFill};border:2px solid ${hlBorder};border-radius:3px;flex-shrink:0"></div>
-      <span style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:${hlBorder}">Requested team (${highlightTeam})</span>
+      <span style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:${hlBorder}">Team ${highlightTeam}</span>
     </div>
+    ${secondTeam&&secondTeam!==highlightTeam&&secondTeam!==myTeam?`<div style="display:flex;align-items:center;gap:6px">
+      <div style="width:18px;height:18px;background:${hlFill};border:2px solid ${hlBorder};border-radius:3px;flex-shrink:0"></div>
+      <span style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:${hlBorder}">Team ${secondTeam}</span>
+    </div>`:''}
     ${myTeam!==highlightTeam?`<div style="display:flex;align-items:center;gap:6px">
       <div style="width:18px;height:18px;background:${myPitFill};border:2px solid ${myPitBdr};border-radius:3px;flex-shrink:0"></div>
       <span style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:${myPitBdr}">Your pit (${myTeam})</span>
@@ -3113,7 +3117,6 @@ async function openAllianceEpa(blueTeams, redTeams, matchLabel){
   const overlay  = document.getElementById('alliance-overlay');
   const matchDisp= document.getElementById('alliance-match-display');
   const body     = document.getElementById('alliance-body');
-  const cdSrc    = document.getElementById('hdr-cd');
 
   overlay.classList.add('show');
   matchDisp.textContent = matchLabel || 'Queuing Match';
@@ -3334,13 +3337,7 @@ function closeAllianceEpa(){
   document.getElementById('alliance-overlay').classList.remove('show');
 }
 
-// Sync alliance overlay countdown
-setInterval(()=>{
-  const ov=document.getElementById('alliance-overlay');
-  if(!ov?.classList.contains('show')) return;
-  const s=document.getElementById('hdr-cd');
-  if(s&&d) d.innerHTML=s.innerHTML;
-},1000);
+// Alliance overlay countdown sync removed (countdown now in main header only)
 
 // ── EPA STATS OVERLAY ────────────────────────────────────────────────────────
 const epaCache   = {};
@@ -3379,7 +3376,13 @@ async function openEpa(team, forceReload=false){
   team = String(team);
   const overlay  = document.getElementById('epa-overlay');
   const teamDisp = document.getElementById('epa-team-display');
-  const cdSrc    = document.getElementById('hdr-cd');
+  overlay.dataset.viewedTeam = String(team);
+  // Update pit map button state
+  const pitBtn=document.getElementById('epa-pit-btn');
+  if(pitBtn){
+    pitBtn.disabled=nexusPitsUnavailable;
+    pitBtn.title=nexusPitsUnavailable?'No pit map available for this event':'View pit location';
+  }
 
   overlay.classList.add('show');
   teamDisp.textContent='Team '+team;
@@ -3834,7 +3837,6 @@ const _origTickCd = typeof tickCd === 'function' ? tickCd : null;
 setInterval(()=>{
   const overlay=document.getElementById('epa-overlay');
   if(!overlay?.classList.contains('show')) return;
-  const cdSrc=document.getElementById('hdr-cd');
 }, 1000);
 
 // init() is called by setupLaunch() — not auto-invoked here
