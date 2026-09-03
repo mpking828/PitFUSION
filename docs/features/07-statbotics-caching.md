@@ -4,7 +4,7 @@ Status: **designing**. Size: S–M.
 
 ## Current implementation
 
-`public/PitFUSION.html`:
+`public/index.html`:
 - `epaCache = {}` — plain in-memory object, **session-only** (lost on reload).
 - `EPA_CACHE_MS = 30 * 60 * 1000` — 30-minute TTL.
 - Keyed per team+scope, e.g. `88` and `88_current`.

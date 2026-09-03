@@ -1,14 +1,18 @@
 # PitFusion hosting migration — plan (V3.0.0)
 
-Status: **implemented** in the `feat/v3-cloudflare` PR (V3.0.0). Last updated 2026-09-03.
+Status: **implemented** in V3.0.0 (`feat/v3-cloudflare`). `PitFUSION.html` was
+renamed to `public/index.html` shortly after (`fix/index-rename`) — Workers
+Static Assets strips `.html`, so a named file caused a `/ → /PitFUSION` redirect
+hop; `index.html` is served at `/` natively and `public/_redirects` was removed.
+Last updated 2026-09-03. References to `PitFUSION.html` below are historical.
 
 What shipped vs. this plan:
 - Cloudflare **retired Pages for new accounts** (folded into Workers), so this
   uses **Workers Static Assets** instead: `wrangler.toml` `[assets]` serves
   `public/`, and `run_worker_first = ["/api/*"]` routes only the API paths to a
   single `worker.js` (the four planned Function files collapsed into one).
-  `_headers` / `_redirects` in `public/` are still honored.
-- `local/` + `hosted/` → `public/` + `worker.js`.
+  `public/_headers` is honored by Workers static assets.
+- `local/` + `hosted/` → `public/index.html` + `worker.js`.
 - Single codebase, runtime `MODE` detection (`pitfusion.com` / `*.workers.dev` /
   `*.pages.dev` → hosted; else self-hosted; `?forceMode=` and `config.js`
   `FORCE_MODE` override).

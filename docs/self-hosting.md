@@ -51,7 +51,7 @@ holds non-secret config only.
 
 ### 2\. Add a Logo (Optional)
 
-Place any of these files in the **same folder** as `PitFUSION.html` and it will appear automatically on the setup screen above the wordmark:
+Place any of these files in the **same folder** as `index.html` and it will appear automatically on the setup screen above the wordmark:
 
 `logo.png` · `logo.jpg` · `logo.jpeg` · `logo.svg` · `logo.webp`
 
@@ -70,7 +70,7 @@ Place `Start PitFUSION.bat` in the same folder and double-click it. It starts th
 python -m http.server 8080
 ```
 
-Then open your browser to: **http://localhost:8080/PitFUSION.html**
+Then open your browser to: **http://localhost:8080/** (the server serves `index.html` automatically)
 
 > \*\*Don't have Python?\*\*
 > Download from \[python.org/downloads](https://www.python.org/downloads/) and run the installer with default settings.
@@ -98,7 +98,7 @@ on the next reload. Keys are stored separately, also in this browser.
 
 |File|Purpose|
 |-|-|
-|`PitFUSION.html`|The entire application|
+|`index.html`|The entire application|
 |`config.js`|Non-secret config only — EPA field definitions and an optional `FORCE_MODE` override. **No API keys.**|
 |`version.json`|Version pointer used by the self-hosted update check|
 |`Start PitFUSION.bat`|Windows launcher — double-click to start|

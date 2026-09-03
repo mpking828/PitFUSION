@@ -1,6 +1,6 @@
 // ============================================================
 //  PitFUSION Configuration — non-secret settings only.
-//  Place this file in the same folder as PitFUSION.html
+//  Place this file in the same folder as index.html
 //
 //  API keys are NOT set here. Enter them in the app's Settings
 //  panel (the gear icon) when self-hosting; hosted deployments

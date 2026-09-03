@@ -9,7 +9,7 @@ it's undiscoverable on a 5px handle. Rather than add a reset button, turn the ex
 "?" button's overlay into a small **Help** document that explains it (and is a home for
 future help topics).
 
-## Changes (`public/PitFUSION.html`)
+## Changes (`public/index.html`)
 
 - `#help-overlay` card title: `<h2>Data Integrity</h2>` → `<h2>Help</h2>`.
 - "Data Integrity" becomes an `<h3>` heading; its three existing paragraphs stay under it.
