@@ -21,7 +21,7 @@ const MODE = (function(){
   } catch(e){}
   if (typeof FORCE_MODE === 'string' && FORCE_MODE) return FORCE_MODE;
   const h = location.hostname;
-  if (h === 'pitfusion.com' || h.endsWith('.pitfusion.com') || h.endsWith('.pages.dev')) return 'hosted';
+  if (h === 'pitfusion.com' || h.endsWith('.pitfusion.com') || h.endsWith('.workers.dev') || h.endsWith('.pages.dev')) return 'hosted';
   return 'selfhosted';
 })();
 

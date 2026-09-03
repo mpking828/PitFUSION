@@ -111,10 +111,10 @@ panel's *Run connection check* inside the app.
 
 ### Hosted vs self-hosted mode
 
-The app auto-detects: **hosted** on `pitfusion.com` / `*.pages.dev` (API calls go through
-server-side proxies, keys never reach the browser), **self-hosted** everywhere else (direct
-API calls with your keys from the Settings panel). Force it with `FORCE_MODE` in `config.js`
-or `?forceMode=hosted|selfhosted` in the URL.
+The app auto-detects: **hosted** on `pitfusion.com` / `*.workers.dev` / `*.pages.dev` (API
+calls go through a server-side proxy, keys never reach the browser), **self-hosted**
+everywhere else (direct API calls with your keys from the Settings panel). Force it with
+`FORCE_MODE` in `config.js` or `?forceMode=hosted|selfhosted` in the URL.
 
 \---
 

@@ -8,8 +8,8 @@ Single HTML file, no framework, no build step.
 
 ## Use it
 
-**[pitfusion.com](https://pitfusion.com)** — nothing to install or configure. API keys
-are held server-side, so nothing sensitive is in the page.
+**[pitfusion.com](https://pitfusion.com)** — nothing to install or configure. Runs on a
+Cloudflare Worker; API keys are held server-side, so nothing sensitive is in the page.
 
 ## Run your own copy
 
@@ -24,13 +24,13 @@ Full guide: **[docs/self-hosting.md](docs/self-hosting.md)**.
 
 | Path | What it is |
 |------|------------|
-| `public/` | The site Cloudflare Pages serves — `PitFUSION.html`, `config.js` (non-secret config only), assets, `_headers`, `_redirects`. |
-| `functions/api/` | Cloudflare Pages Functions that proxy `/api/nexus/*`, `/api/tba/*`, `/api/youtube/*` to the real APIs, injecting keys from server-side env vars. |
-| `wrangler.toml`, `.dev.vars.example` | Cloudflare project config; the three env vars are `NEXUS_API_KEY`, `TBA_API_KEY`, `YOUTUBE_API_KEY`. |
+| `public/` | Static assets served directly by the Worker — `PitFUSION.html`, `config.js` (non-secret config only), images, `_headers`, `_redirects`. |
+| `worker.js` | The Cloudflare Worker. Runs only for `/api/*` (`run_worker_first`); proxies `/api/nexus/*`, `/api/tba/*`, `/api/youtube/*` to the real APIs, injecting keys from secrets. |
+| `wrangler.toml`, `.dev.vars.example` | Worker config; the three secrets are `NEXUS_API_KEY`, `TBA_API_KEY`, `YOUTUBE_API_KEY`. |
 | `docs/` | Self-hosting guide, custom-theme guide, the hosting-migration design doc. |
 
-One codebase runs both ways: it detects **hosted** mode on `pitfusion.com` / `*.pages.dev`
-(calls go through the proxies) and **self-hosted** mode everywhere else (calls go direct
+One codebase runs both ways: it detects **hosted** mode on `pitfusion.com` / `*.workers.dev`
+(calls go through the proxy) and **self-hosted** mode everywhere else (calls go direct
 with your keys).
 
 ## Credits

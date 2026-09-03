@@ -1,9 +1,16 @@
 name = "pitfusion"
-pages_build_output_dir = "public"
+main = "worker.js"
 compatibility_date = "2026-09-01"
 
-# Secrets are NOT defined here. Set them in the Cloudflare Pages project
-# (Settings -> Environment variables, encrypted, for Production and Preview):
+[assets]
+directory = "public"
+binding = "ASSETS"
+# Everything except /api/* is served straight from public/ (honors
+# public/_headers and public/_redirects). /api/* runs worker.js.
+run_worker_first = ["/api/*"]
+
+# Secrets are NOT defined here. Set them on the Worker
+# (Settings -> Variables and Secrets, type "Secret"):
 #   NEXUS_API_KEY, TBA_API_KEY, YOUTUBE_API_KEY
-# For local `wrangler pages dev`, put them in a gitignored .dev.vars file
+# For local `wrangler dev`, put them in a gitignored .dev.vars file
 # (see .dev.vars.example).

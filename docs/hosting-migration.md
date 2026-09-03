@@ -3,10 +3,15 @@
 Status: **implemented** in the `feat/v3-cloudflare` PR (V3.0.0). Last updated 2026-09-03.
 
 What shipped vs. this plan:
-- `local/` + `hosted/` → `public/` (Pages) + `functions/api/` (proxy Functions:
-  `_proxy.js` + `nexus|tba|youtube/[[path]].js`).
-- Single codebase, runtime `MODE` detection (`pitfusion.com` / `*.pages.dev` →
-  hosted; else self-hosted; `?forceMode=` and `config.js` `FORCE_MODE` override).
+- Cloudflare **retired Pages for new accounts** (folded into Workers), so this
+  uses **Workers Static Assets** instead: `wrangler.toml` `[assets]` serves
+  `public/`, and `run_worker_first = ["/api/*"]` routes only the API paths to a
+  single `worker.js` (the four planned Function files collapsed into one).
+  `_headers` / `_redirects` in `public/` are still honored.
+- `local/` + `hosted/` → `public/` + `worker.js`.
+- Single codebase, runtime `MODE` detection (`pitfusion.com` / `*.workers.dev` /
+  `*.pages.dev` → hosted; else self-hosted; `?forceMode=` and `config.js`
+  `FORCE_MODE` override).
 - Keys: **settings panel only** in self-hosted mode (localStorage `pitfusion_keys`);
   server-side env vars (`NEXUS_API_KEY` / `TBA_API_KEY` / `YOUTUBE_API_KEY`) in hosted.
   `config.js` keeps EPA field defs + optional `FORCE_MODE` — no keys.
@@ -18,7 +23,8 @@ What shipped vs. this plan:
   auto-deploys `main`.
 
 Still outstanding (see "Manual steps" below): rotate the disclosed YouTube key,
-create the Cloudflare Pages project + env vars + custom domain + `/api/*` WAF rule.
+create the Cloudflare Worker (Import a repository) + secrets + custom domain +
+`/api/*` WAF rule.
 
 ## Context
 
@@ -98,22 +104,28 @@ config change).
   source. No proxy needed now; candidate for a caching passthrough later if
   rate-limited.
 
-## Cloudflare Pages setup (do this when implementing)
+## Cloudflare Worker setup (do this when implementing)
 
-1. Connect the GitHub repo. Build output dir `public/`, root `/`, **no build
-   command**.
-2. Add encrypted env vars for **Production and Preview**:
-   `NEXUS_API_KEY`, `TBA_API_KEY`, `YOUTUBE_API_KEY`.
-3. Add `pitfusion.com` as a custom domain (Cloudflare handles DNS + cert since
-   the domain is already on the account).
-4. Add a WAF rate-limit rule scoped to `/api/*`.
-5. Local dev: `wrangler pages dev` with a gitignored `.dev.vars`.
+Pages is gone for new accounts — this deploys as a **Worker with static assets**.
 
-Deploy model: Claude edits `public/` + `functions/` → user reviews diff →
-commit + push → Cloudflare CI auto-deploys (`main` = production, branches =
-preview URLs). Claude needs **no** Cloudflare credentials for this path. A scoped
-`CLOUDFLARE_API_TOKEN` would enable `wrangler deploy` directly but the
-git-integration path is the default.
+1. Workers & Pages → **Import a repository** → pick `mpking828/PitFUSION`.
+   Wrangler config is committed (`wrangler.toml`), so build/deploy is automatic
+   (`npx wrangler deploy`). The dashboard Worker name **must be `pitfusion`**
+   (matches `wrangler.toml`).
+2. Worker → Settings → **Variables and Secrets** → add three, type **Secret**:
+   `NEXUS_API_KEY`, `TBA_API_KEY`, `YOUTUBE_API_KEY`. Non-production branch builds
+   deploy as preview versions of the same Worker and share these secrets.
+3. Worker → Settings → Builds → enable **non-production branch builds** and
+   **preview URLs** so the PR branch gets a testable `*.workers.dev` URL.
+4. After merge: Worker → Settings → **Domains & Routes** → add `pitfusion.com`
+   (Cloudflare handles DNS + cert since the domain is on the account).
+5. Zone `pitfusion.com` → Security → WAF → **Rate limiting rules** → one rule,
+   URI path starts with `/api/`, ~60 req/min per IP, block 1 min.
+6. Local dev (optional, needs Node): `wrangler dev` with a gitignored `.dev.vars`.
+
+Deploy model: edit `public/` + `worker.js` → review diff → commit + push →
+Workers Builds deploys (`main` = production, other branches = preview versions).
+No Cloudflare credentials needed locally.
 
 ## Cost
 
