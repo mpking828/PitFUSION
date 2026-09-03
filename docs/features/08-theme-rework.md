@@ -84,3 +84,22 @@ move into the base rules. That needs a full running-app visual regression pass
   mode-gated. localStorage disabled → app still loads, editor shows a "can't save"
   notice.
 - Single `public/index.html`, no build step, no new network origins.
+
+## Follow-up #8b — TJ² CSS collapse (`feat/tj2-css-collapse`)
+
+Separate PR against `main` after V3.1.0. Reduces the hand-written
+`[data-theme="tj2"]` overrides **197 → 166** with zero visual change:
+
+- **`--overlay-bg` / `--overlay-hdr-bg` / `--overlay-hdr-border` tokens** — the
+  EPA / schedule / alliance / pit-map overlays hard-coded `#0a1628` / `#0d1e38`
+  per-theme (TJ²'s `--bg` is transparent). Now three tokens. Removes 8 rules + a
+  `[data-theme="dark/light/custom"]` compound rule.
+- **23 provably-redundant rules deleted** — each set a value already equal to the
+  TJ² token the base rule resolves to (`.rn`/`.ml-lbl`/`.a-team` `{color:#fff}`
+  vs `--text`; `.tab-btn` vs `--text-dim`; `.bkt-row-*` vs `--text-mid/-dim`;
+  `.sched-title`/`.drag-handle:hover` vs `--accent`; `.bd`/`.bf` identical to
+  base; the `.epa-title` white overrides).
+
+Verified byte-identical for dark / light / TJ² via computed-style diff (synthetic
+DOM, transitions disabled). The remaining ~165 rules are deliberate per-component
+tuning, not duplication — see [../roadmap.md](../roadmap.md).

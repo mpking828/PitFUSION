@@ -13,18 +13,21 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 5 | Multi-event support (district playoffs, Worlds divisions → merged playoffs) | designing | L | [features/05-multi-event.md](features/05-multi-event.md) |
 | 6 | Help overlay (repurpose the "?" button) — documents panel resizing | done | XS | [features/06-help-overlay.md](features/06-help-overlay.md) |
 | 7 | Better Statbotics caching (persist + revalidate) | designing | S–M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
-| 8 | Theme rework — generalised tokens, in-app Custom theme editor, theme picker in Settings | built (PR open) | M–L | [features/08-theme-rework.md](features/08-theme-rework.md) |
+| 8 | Theme rework — generalised tokens, in-app Custom theme editor, theme picker in Settings | shipped (V3.1.0, #20) | M–L | [features/08-theme-rework.md](features/08-theme-rework.md) |
+| 8b | TJ² CSS collapse — fold hand-written `[data-theme="tj2"]` overrides into tokens | building (PR open) | S | [features/08-theme-rework.md](features/08-theme-rework.md) |
 
 Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, may split.
 
 ## Deferred / follow-up
 
-- **#8 follow-up — aggressive TJ² CSS collapse.** Part A generalised the theme
-  *tokens*; the ~195 fine-grained `[data-theme="tj2"]` text/pill re-tint rules are
-  still hand-written. Fold the ones that map cleanly onto `--text` / `--text-mid` /
-  `--text-dim` / `--glass-*` into the base rules and delete them. Needs a full
-  running-app visual regression pass (Nexus + TBA keys, every tab + overlay), so it's
-  its own PR — **not** part of the #8 editor work.
+- **#8b — deeper TJ² CSS collapse.** The first PR removed 31 rules that were
+  either structural (overlay backgrounds → `--overlay-*` tokens) or provably
+  redundant (value already equalled the TJ² token). ~165 remain; most are
+  deliberate per-component tuning for contrast over the tye-dye photo (alliance
+  chips, bracket cards, match rows) or values intentionally a hair off the token
+  (`0.6` vs `0.5`). Going further means editing shared base rules and accepting
+  small TJ²-only visual shifts — needs a full running-app visual regression pass
+  (Nexus + TBA keys, every tab + overlay). Low priority: pure cleanup, no user value.
 
 ## Suggested build order
 
