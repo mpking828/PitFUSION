@@ -36,9 +36,11 @@ Impact: the EPA **per-match line charts are already broken on production** — e
 "Match history unavailable" message is this, not an offseason data gap. The EPA
 *summary* numbers, ranks, and records (all from `team_year`) are unaffected.
 
-Migration (its own PR): point `getTeamMatches` at `/v3/matches`, rewrite the chart
-data extraction + `EPA_FIELDS` in `config.js` for the new field names, adjust
-match filtering/sorting/labels. Pairs naturally with feature #1.
+**Migrated in 7b** (`feat/statbotics-matches`): `getTeamMatches` now hits
+`/v3/matches`; new helpers `matchEpa` / `curEpa` / `matchHasEpa` / `matchLabelOf`;
+`EPA_FIELDS` keys are the new per-match field names (now year-agnostic). The
+`pred` object rides the same response and is cached in `_sb.matches` — feature #1
+(predictions) just needs to read it.
 
 ## Original design notes (kept for reference)
 
