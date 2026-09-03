@@ -37,8 +37,68 @@ function saveKeys(k){ KEYS = k || {}; try { localStorage.setItem(LS_KEYS, JSON.s
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PitFUSION &mdash; FRC Pit Display</title>
 <script>
-// Apply theme before first paint to avoid flash
-(function(){var t=localStorage.getItem('pitfusion_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();
+// ── Custom-theme CSS builder (shared: used here for the pre-paint inject and
+//    later by the in-app editor) ──────────────────────────────────────────────
+const LS_CUSTOM_THEME = 'pitfusion_custom_theme';
+const CUSTOM_COLOR_KEYS = ['--bg','--surface','--surface2','--border','--border2',
+  '--accent','--accent2','--on-accent','--green','--yellow','--red',
+  '--blue-a','--red-a','--text','--text-dim','--text-mid'];
+function _hexToRgb(h){
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(h||'').trim());
+  if(!m) return null;
+  let s = m[1];
+  if(s.length === 3) s = s[0]+s[0]+s[1]+s[1]+s[2]+s[2];
+  return [parseInt(s.slice(0,2),16), parseInt(s.slice(2,4),16), parseInt(s.slice(4,6),16)];
+}
+function _rgba(hex, a){
+  const rgb = _hexToRgb(hex);
+  a = (a==null || isNaN(a)) ? 1 : Math.max(0, Math.min(1, +a));
+  return rgb ? `rgba(${rgb.join(',')},${a})` : String(hex||'');
+}
+function _rgbTriplet(hex){ const c = _hexToRgb(hex); return c ? c.join(',') : '0,0,0'; }
+function buildCustomThemeCss(cfg, sel){
+  // Default selector beats the static [data-theme="custom"] block (higher
+  // specificity) and covers both <html> and <body> (applyTheme sets both).
+  sel = sel || 'html[data-theme="custom"],body[data-theme="custom"]';
+  if(!cfg || typeof cfg !== 'object') return '';
+  const L = [], c = cfg.colors || {};
+  CUSTOM_COLOR_KEYS.forEach(k => {
+    const v = c[k];
+    if(typeof v === 'string' && v.trim()) L.push(k + ':' + v.trim());
+  });
+  const g = cfg.glass || {};
+  if(g.bg)     L.push('--glass-bg:' + _rgba(g.bg, g.bgAlpha));
+  if(g.border) L.push('--glass-border:' + _rgba(g.border, g.borderAlpha));
+  if(g.blur != null) L.push('--glass-blur:' + (Math.max(0, +g.blur) || 0) + 'px');
+  const b = cfg.bg || {};
+  const img = (b.image || '').trim();
+  L.push('--page-bg-image:' + (img ? `url("${img.replace(/"/g,'\\"')}")` : 'none'));
+  if(b.pos) L.push('--page-bg-pos:' + b.pos);
+  L.push('--page-bg-washout:' + (b.washout != null ? +b.washout : 0));
+  if(b.washoutColor) L.push('--page-bg-washout-color:' + _rgbTriplet(b.washoutColor));
+  return sel + '{' + L.join(';') + '}';
+}
+function injectCustomThemeStyle(css){
+  let el = document.getElementById('custom-theme-style');
+  if(!el){
+    el = document.createElement('style');
+    el.id = 'custom-theme-style';
+    (document.head || document.documentElement).appendChild(el);
+  }
+  el.textContent = css || '';
+}
+// Apply theme (and any saved Custom overrides) before first paint to avoid flash
+(function(){
+  let t = 'dark';
+  try { t = localStorage.getItem('pitfusion_theme') || 'dark'; } catch(e){}
+  document.documentElement.setAttribute('data-theme', t);
+  if(t === 'custom'){
+    try {
+      const cfg = JSON.parse(localStorage.getItem(LS_CUSTOM_THEME) || 'null');
+      if(cfg) injectCustomThemeStyle(buildCustomThemeCss(cfg));
+    } catch(e){}
+  }
+})();
 // Set version in footer once DOM is ready
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('version-display');
@@ -1027,6 +1087,23 @@ body.page-has-bg .tp{
 .theme-swatch-name{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);text-align:center;white-space:nowrap}
 .theme-swatch.active .theme-swatch-name{color:var(--accent)}
 
+/* CUSTOM THEME EDITOR (Settings ▸ Appearance) */
+#custom-theme-editor{border-top:1px solid var(--border);padding-top:12px}
+.cte-group-hdr{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin:14px 0 6px}
+.cte-group-hdr:first-child{margin-top:0}
+.cte-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
+@media(max-width:520px){.cte-grid{grid-template-columns:1fr}}
+.cte-row{display:flex;align-items:center;gap:8px;min-height:26px}
+.cte-lbl{flex:1;font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cte-sw{width:34px;height:24px;padding:0;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;flex-shrink:0}
+.cte-hex{width:96px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--fm);font-size:var(--fs-sm)}
+.cte-range{width:110px;flex-shrink:0;accent-color:var(--accent)}
+.cte-file{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-mid);min-width:0}
+.cte-thumb{width:60px;height:38px;object-fit:cover;border:1px solid var(--border2);border-radius:4px;flex-shrink:0}
+.cte-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px}
+.cte-dirty{font-family:var(--fd);font-size:var(--fs-sm);color:var(--yellow)}
+.cte-msg{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);margin-top:8px;min-height:1.2em}
+
 /* PLAYED MATCHES (My Team tab) */
 .played-hdr{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;padding:4px 0 5px;border-bottom:2px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)}
 .played-row{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;transition:background .15s}
@@ -1465,6 +1542,44 @@ function applyTheme(t){
   if(!VALID_THEMES.includes(t)) t = 'dark';
   document.documentElement.setAttribute('data-theme', t);
   document.body.setAttribute('data-theme', t);
+  if(t === 'custom'){
+    const c = customThemeConfig();
+    injectCustomThemeStyle(c ? buildCustomThemeCss(mergedCustomTheme(c)) : '');
+  }
+  applyPageBg();
+}
+
+// ── Custom theme config (localStorage['pitfusion_custom_theme']) ────────────
+const DEFAULT_CUSTOM_THEME = {
+  v: 1,
+  colors: {
+    '--bg':'#0d0d0d','--surface':'#141414','--surface2':'#1c1c1c','--border':'#2a2a2a','--border2':'#3a3a3a',
+    '--accent':'#ff9900','--accent2':'#cc3300','--on-accent':'#000000',
+    '--green':'#00cc44','--yellow':'#ffcc00','--red':'#ff2244','--blue-a':'#1976d2','--red-a':'#c62828',
+    '--text':'#f0f0f0','--text-dim':'#707070','--text-mid':'#a0a0a0',
+  },
+  glass: { bg:'#141414', bgAlpha:0.72, border:'#ffffff', borderAlpha:0.14, blur:12 },
+  bg:    { image:'', pos:'center', washout:0, washoutColor:'#000000' },
+};
+
+function customThemeConfig(){
+  try {
+    const cfg = JSON.parse(localStorage.getItem(LS_CUSTOM_THEME) || 'null');
+    return (cfg && typeof cfg === 'object') ? cfg : null;
+  } catch(e){ return null; }
+}
+function mergedCustomTheme(cfg){
+  cfg = cfg || {};
+  const d = DEFAULT_CUSTOM_THEME;
+  return {
+    v: 1,
+    colors: Object.assign({}, d.colors, cfg.colors || {}),
+    glass:  Object.assign({}, d.glass,  cfg.glass  || {}),
+    bg:     Object.assign({}, d.bg,     cfg.bg     || {}),
+  };
+}
+function applyCustomTheme(cfg){
+  injectCustomThemeStyle(buildCustomThemeCss(mergedCustomTheme(cfg)));
   applyPageBg();
 }
 
@@ -1754,18 +1869,201 @@ function openSettings(){
 }
 function closeSettings(){ document.getElementById('settings-overlay').classList.remove('show'); }
 
-// Custom theme editor — full UI lands in Part C; for now, jump to the Custom
-// theme and point at the editable CSS block.
+// ── Custom theme editor ────────────────────────────────────────────────────
+let _cteDraft = null;
+let _cteDirty = false;
+let _cteTimer = null;
+
+const CTE_COLOR_GROUPS = [
+  ['Base',     [['--bg','Page background'],['--surface','Panel'],['--surface2','Panel — inner'],['--border','Divider'],['--border2','Border — strong']]],
+  ['Text',     [['--text','Text'],['--text-mid','Text — mid'],['--text-dim','Text — dim']]],
+  ['Accent',   [['--accent','Accent'],['--accent2','Accent 2'],['--on-accent','Text on accent']]],
+  ['Status',   [['--green','Good / win'],['--yellow','Your team'],['--red','Alert']]],
+  ['Alliance', [['--blue-a','Blue alliance'],['--red-a','Red alliance']]],
+];
+
+function _lsWritable(){
+  try { localStorage.setItem('__pf_probe','1'); localStorage.removeItem('__pf_probe'); return true; }
+  catch(e){ return false; }
+}
+function _cteMsg(text, isErr){
+  const el = document.getElementById('cte-msg');
+  if(!el) return;
+  el.textContent = text || '';
+  el.style.color = isErr ? 'var(--red)' : 'var(--text-dim)';
+}
+function _cteMarkDirty(){
+  _cteDirty = true;
+  const d = document.getElementById('cte-dirty');
+  if(d) d.hidden = false;
+  _cteMsg('Changes preview live. Press Save to keep them.');
+}
+function _cteLiveApply(){
+  clearTimeout(_cteTimer);
+  _cteTimer = setTimeout(() => applyCustomTheme(_cteDraft), 40);
+}
+
 function openCustomThemeEditor(){
+  const box = document.getElementById('custom-theme-editor');
+  const btn = document.getElementById('edit-custom-btn');
+  if(box && !box.hidden){                       // open → collapse
+    box.hidden = true;
+    if(btn) btn.textContent = 'Edit Custom theme…';
+    return;
+  }
   selectTheme('custom');
   renderThemeSwatches(document.getElementById('settings-theme-swatches'));
+  if(!_cteDraft || !_cteDirty) _cteDraft = mergedCustomTheme(customThemeConfig());
+  if(box){ box.hidden = false; renderCustomEditor(); box.scrollIntoView({block:'nearest'}); }
+  if(btn) btn.textContent = 'Hide editor';
+}
+
+function renderCustomEditor(){
   const box = document.getElementById('custom-theme-editor');
   if(!box) return;
-  box.hidden = false;
-  box.innerHTML = '<p style="color:var(--text-dim);font-size:var(--fs-lbl);line-height:1.6">'
-    + 'Visual editor coming in the next update. Until then, edit the '
-    + '<code>[data-theme=&quot;custom&quot;]</code> block near the top of '
-    + '<code>index.html</code> &mdash; see <code>docs/custom-theme.md</code>.</p>';
+  box.textContent = '';
+  const canSave = _lsWritable();
+
+  const h = (tag, props, kids) => {
+    const el = document.createElement(tag);
+    if(props) for(const k in props){
+      if(k === 'class') el.className = props[k];
+      else if(k === 'text') el.textContent = props[k];
+      else if(k in el) el[k] = props[k];
+      else el.setAttribute(k, props[k]);
+    }
+    (kids || []).forEach(c => c != null && el.append(c));
+    return el;
+  };
+
+  // ── colours ──
+  const isHex = v => /^#[0-9a-f]{6}$/i.test(String(v||'').trim());
+  const colorRow = (key, label) => {
+    const val = _cteDraft.colors[key] || '';
+    const sw  = h('input', { type:'color', class:'cte-sw', value: isHex(val) ? val : '#000000' });
+    const hex = h('input', { type:'text', class:'cte-hex', value: val, spellcheck:false, 'aria-label':label });
+    sw.addEventListener('input', () => {
+      _cteDraft.colors[key] = sw.value; hex.value = sw.value;
+      _cteMarkDirty(); _cteLiveApply();
+    });
+    hex.addEventListener('input', () => {
+      _cteDraft.colors[key] = hex.value.trim();
+      if(isHex(hex.value)) sw.value = hex.value.trim();
+      _cteMarkDirty(); _cteLiveApply();
+    });
+    return h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:label }), sw, hex ]);
+  };
+  CTE_COLOR_GROUPS.forEach(([group, items]) => {
+    box.append(h('div', { class:'cte-group-hdr', text:group }));
+    box.append(h('div', { class:'cte-grid' }, items.map(([k,l]) => colorRow(k,l))));
+  });
+
+  // ── frosted panels ──
+  box.append(h('div', { class:'cte-group-hdr', text:'Frosted panels (shown when a background image is set)' }));
+  const gTint = h('input', { type:'color', class:'cte-sw', value: isHex(_cteDraft.glass.bg) ? _cteDraft.glass.bg : '#141414' });
+  gTint.addEventListener('input', () => { _cteDraft.glass.bg = gTint.value; _cteMarkDirty(); _cteLiveApply(); });
+  const gOp = h('input', { type:'range', class:'cte-range', min:'0.3', max:'1', step:'0.02', value:String(_cteDraft.glass.bgAlpha) });
+  gOp.addEventListener('input', () => { _cteDraft.glass.bgAlpha = +gOp.value; _cteMarkDirty(); _cteLiveApply(); });
+  const gBlur = h('input', { type:'range', class:'cte-range', min:'0', max:'24', step:'1', value:String(_cteDraft.glass.blur) });
+  gBlur.addEventListener('input', () => { _cteDraft.glass.blur = +gBlur.value; _cteMarkDirty(); _cteLiveApply(); });
+  box.append(h('div', { class:'cte-grid' }, [
+    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Panel tint' }), gTint ]),
+    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Panel opacity' }), gOp ]),
+    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Panel blur' }), gBlur ]),
+  ]));
+
+  // ── background image ──
+  box.append(h('div', { class:'cte-group-hdr', text:'Background image' }));
+  const img = _cteDraft.bg.image || '';
+  const isData = img.startsWith('data:');
+  const urlIn = h('input', { type:'text', class:'cte-hex', style:'flex:1', placeholder:'https://… or a filename in this folder',
+                             value: isData ? '' : img, spellcheck:false, disabled: isData });
+  urlIn.addEventListener('input', () => { _cteDraft.bg.image = urlIn.value.trim(); _cteMarkDirty(); _cteLiveApply(); });
+  const fileIn = h('input', { type:'file', accept:'image/*', class:'cte-file' });
+  fileIn.addEventListener('change', () => _cteHandleFile(fileIn.files && fileIn.files[0]));
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Image URL' }), urlIn ]));
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'…or upload' }), fileIn ]));
+  if(img){
+    const thumb = h('img', { src:img, class:'cte-thumb', alt:'' });
+    const rm = h('button', { class:'s-btn', type:'button', text:'Remove image' });
+    rm.addEventListener('click', () => { _cteDraft.bg.image = ''; _cteMarkDirty(); applyCustomTheme(_cteDraft); renderCustomEditor(); _cteMsg('Background image removed.'); });
+    box.append(h('div', { class:'cte-row', style:'margin-top:4px' }, [ thumb, rm ]));
+  }
+  const posSel = h('select', { class:'cte-hex' });
+  ['center','top','bottom','left','right','center top','center bottom'].forEach(p => {
+    const o = h('option', { value:p, text:p }); if(_cteDraft.bg.pos === p) o.selected = true; posSel.append(o);
+  });
+  posSel.addEventListener('change', () => { _cteDraft.bg.pos = posSel.value; _cteMarkDirty(); _cteLiveApply(); });
+  const wOp = h('input', { type:'range', class:'cte-range', min:'0', max:'1', step:'0.02', value:String(_cteDraft.bg.washout) });
+  wOp.addEventListener('input', () => { _cteDraft.bg.washout = +wOp.value; _cteMarkDirty(); _cteLiveApply(); });
+  const wCol = h('input', { type:'color', class:'cte-sw', value: isHex(_cteDraft.bg.washoutColor) ? _cteDraft.bg.washoutColor : '#000000' });
+  wCol.addEventListener('input', () => { _cteDraft.bg.washoutColor = wCol.value; _cteMarkDirty(); _cteLiveApply(); });
+  box.append(h('div', { class:'cte-grid' }, [
+    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Position' }), posSel ]),
+    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Wash strength' }), wOp ]),
+    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Wash colour' }), wCol ]),
+  ]));
+
+  // ── actions ──
+  const mkBtn = (label, fn) => { const b = h('button', { class:'s-btn', type:'button', text:label }); b.addEventListener('click', fn); return b; };
+  const saveBtn = mkBtn('Save', _cteSave);
+  if(!canSave){ saveBtn.disabled = true; saveBtn.title = 'Browser storage is disabled'; }
+  const actions = h('div', { class:'cte-actions' }, [
+    saveBtn,
+    mkBtn('Reset to defaults', _cteReset),
+    mkBtn('Copy CSS', _cteCopyCss),
+    h('span', { id:'cte-dirty', class:'cte-dirty', text:'• unsaved changes', hidden: !_cteDirty }),
+  ]);
+  box.append(actions);
+  box.append(h('div', { id:'cte-msg', class:'cte-msg' }));
+  if(!canSave) _cteMsg('Browser storage is off — changes preview live but can’t be saved. Use “Copy CSS”.', true);
+  else _cteMsg('Changes preview live. Press Save to keep them.');
+}
+
+function _cteHandleFile(file){
+  if(!file) return;
+  if(!/^image\//.test(file.type)){ _cteMsg('That file is not an image.', true); return; }
+  if(file.size > 2 * 1024 * 1024){ _cteMsg('Image is larger than 2 MB — use a smaller file or an image URL.', true); return; }
+  const rd = new FileReader();
+  rd.onload = () => {
+    _cteDraft.bg.image = String(rd.result || '');
+    _cteMarkDirty();
+    applyCustomTheme(_cteDraft);
+    renderCustomEditor();
+    _cteMsg('Image loaded (' + Math.round(file.size / 1024) + ' KB). Save to keep it.');
+  };
+  rd.onerror = () => _cteMsg('Could not read that file.', true);
+  rd.readAsDataURL(file);
+}
+function _cteSave(){
+  clearTimeout(_cteTimer);
+  applyCustomTheme(_cteDraft);           // flush any pending debounced preview
+  try {
+    localStorage.setItem(LS_CUSTOM_THEME, JSON.stringify(_cteDraft));
+    localStorage.setItem(LS_THEME, 'custom');
+    _cteDirty = false;
+    const d = document.getElementById('cte-dirty'); if(d) d.hidden = true;
+    _cteMsg('Saved.');
+  } catch(e){
+    _cteMsg('Could not save — storage is full or disabled. Try a smaller image, or use “Copy CSS”.', true);
+  }
+}
+function _cteReset(){
+  _cteDraft = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_THEME));
+  try { localStorage.removeItem(LS_CUSTOM_THEME); } catch(e){}
+  _cteDirty = false;
+  applyCustomTheme(_cteDraft);
+  renderCustomEditor();
+  _cteMsg('Reset to the built-in Custom defaults.');
+}
+function _cteCopyCss(){
+  const css = buildCustomThemeCss(mergedCustomTheme(_cteDraft), '[data-theme="custom"]');
+  const ok = () => _cteMsg('CSS copied — paste it over the [data-theme="custom"] block in index.html.');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(css).then(ok, () => window.prompt('Copy this CSS:', css));
+  } else {
+    window.prompt('Copy this CSS:', css);
+  }
 }
 
 function saveSettings(){
