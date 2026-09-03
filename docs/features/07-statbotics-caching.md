@@ -1,6 +1,46 @@
 # Feature 7 — Better Statbotics caching
 
-Status: **designing**. Size: S–M.
+Status: **built** (PR open — `feat/statbotics-cache`). Size: S–M.
+
+## Shipped
+
+Persisted stale-while-revalidate store replacing the in-memory `epaCache` + the
+one-shot `sbMyYear` fetch:
+
+- `_sb = {year, matches}` → `localStorage['pitfusion_sb_<year>']` (year-namespaced;
+  last season self-evicts). LRU cap 40 per sub-store, debounced save, all guarded.
+- `_sbGet()` — fresh hit returns; **stale hit returns instantly and revalidates in
+  the background** (`onFresh` callback); cold awaits. A failed revalidate keeps the
+  stale entry (never poisons).
+- `getTeamYear(team)` / `getTeamMatches(team, scope)` — every Statbotics caller now
+  routes through these (EPA overlay, alliance EPA ×6, current-event toggle, My Team
+  rank row). `bustTeamCache(team)` backs the ↻ Reload button.
+- `fMyYear()` added to the 30 s loop — a no-network hit until the 2 h `team_year`
+  TTL, then one background revalidate + `rTeam()` re-render. Fixes the My Team rank
+  row going stale for the whole session, with **no** new polling.
+
+Verified: warm EPA-overlay open ≈ 5 ms (paints from `localStorage`); `team_year`
+is not re-fetched after a reload or on refresh ticks while fresh.
+
+## ⚠️ Discovered during this work — `team_matches` endpoint removed
+
+Statbotics has **removed `/v3/team_matches`** (404 for every team/year). The new
+endpoint is `/v3/matches?team=<t>&year=<y>` with a different shape:
+- per-match team EPA is now `m.epas[<teamNumber>]` — `{epa, auto_epa, teleop_epa,
+  endgame_epa, comp_0_epa … comp_9_epa, rp_1_epa …}` (was `m.epa.breakdown.*`).
+- `m.pred` (`red_win_prob`, `red_score`, `blue_score`) is included — this is the
+  data **feature #1 (match predictions)** needs.
+- `alliances.{red,blue}.team_keys` are bare ints; `m.key`, `m.match_name`.
+
+Impact: the EPA **per-match line charts are already broken on production** — every
+"Match history unavailable" message is this, not an offseason data gap. The EPA
+*summary* numbers, ranks, and records (all from `team_year`) are unaffected.
+
+Migration (its own PR): point `getTeamMatches` at `/v3/matches`, rewrite the chart
+data extraction + `EPA_FIELDS` in `config.js` for the new field names, adjust
+match filtering/sorting/labels. Pairs naturally with feature #1.
+
+## Original design notes (kept for reference)
 
 ## Current implementation
 
