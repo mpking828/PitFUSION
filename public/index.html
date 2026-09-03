@@ -345,8 +345,6 @@ body.page-has-bg .tp{
 .drag-handle-v:hover,.drag-handle-v.dragging{background:var(--accent)}
 .drag-handle-h{height:5px;background:var(--border);cursor:row-resize;flex-shrink:0;transition:background .15s;z-index:10}
 .drag-handle-h:hover,.drag-handle-h.dragging{background:var(--accent)}
-[data-theme="tj2"] .drag-handle-v:hover,[data-theme="tj2"] .drag-handle-v.dragging{background:#f5c000}
-[data-theme="tj2"] .drag-handle-h:hover,[data-theme="tj2"] .drag-handle-h.dragging{background:#f5c000}
 .col-l{display:flex;flex-direction:column;border-right:2px solid var(--border);overflow:hidden;min-height:0}
 
 /* TOP ROW: stream + queuing side by side Change width of split here */
@@ -470,8 +468,6 @@ body.page-has-bg .tp{
 [data-theme="tj2"] .up-row:nth-child(odd){background:rgba(8,20,48,0.8)}
 [data-theme="tj2"] .up-chip.red{background:rgba(180,30,20,.4);color:#ffaaaa}
 [data-theme="tj2"] .up-chip.blue{background:rgba(20,80,180,.4);color:#aaccff}
-[data-theme="tj2"] .up-lbl{color:#ffffff}
-[data-theme="tj2"] .upcoming-hdr{color:rgba(255,255,255,0.5)}
 .ic{background:var(--surface2);border:2px solid var(--border2);border-radius:var(--r);padding:11px 13px;margin-bottom:9px}
 .it{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--text);margin-bottom:2px}
 .is{font-size:var(--fs-sm);color:var(--text-dim);margin-bottom:7px}
@@ -513,7 +509,6 @@ body.page-has-bg .tp{
 .sched-break{background:rgba(255,214,0,.07);border-left:3px solid rgba(255,214,0,.5)}
 .sched-break td{color:var(--yellow);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px}
 [data-theme="tj2"] .sched-table tr.upcoming td{background:rgba(245,192,0,.04)}
-[data-theme="tj2"] .sched-title{color:#f5c000}
 .ftr-stamp{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap}
 .ftr-note{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;letter-spacing:.06em}
 
@@ -765,9 +760,6 @@ body.page-has-bg .tp{
   color:rgba(255,255,255,0.9);
   border-color:rgba(255,255,255,0.3);
 }
-[data-theme="tj2"] .ml-lbl{
-  color:#ffffff;
-}
 [data-theme="tj2"] .mtime,
 [data-theme="tj2"] .mscore .scs{
   color:rgba(255,255,255,0.7);
@@ -794,9 +786,6 @@ body.page-has-bg .tp{
 }
 [data-theme="tj2"] .bkt-card-score{color:rgba(255,255,255,0.7)}
 [data-theme="tj2"] .bkt-row{border-color:rgba(255,255,255,0.1)}
-[data-theme="tj2"] .bkt-row-alliance{color:#ffffff}
-[data-theme="tj2"] .bkt-row-teams{color:rgba(255,255,255,0.5)}
-[data-theme="tj2"] .bkt-row-pts{color:rgba(255,255,255,0.75)}
 [data-theme="tj2"] .bkt-row-winner .bkt-row-pts{color:#6fffaa}
 [data-theme="tj2"] .bkt-round-hdr{color:rgba(255,255,255,0.75);border-color:rgba(255,255,255,0.25)}
 
@@ -814,9 +803,6 @@ body.page-has-bg .tp{
 }
 [data-theme="tj2"] .rp{
   color:rgba(255,255,255,0.6);
-}
-[data-theme="tj2"] .rn{
-  color:#ffffff;
 }
 [data-theme="tj2"] .rme{
   background:rgba(26,79,163,0.75);
@@ -865,9 +851,6 @@ body.page-has-bg .tp{
   background:rgba(20,60,130,0.80);
   border-color:rgba(255,255,255,0.2);
 }
-[data-theme="tj2"] .stv{
-  color:#ffffff;
-}
 [data-theme="tj2"] .stl{
   color:rgba(255,255,255,0.6);
 }
@@ -886,9 +869,6 @@ body.page-has-bg .tp{
 }
 [data-theme="tj2"] .a-blk.rd .a-label{
   color:#ffbbaa;
-}
-[data-theme="tj2"] .a-team{
-  color:#ffffff;
 }
 [data-theme="tj2"] .a-team.me{
   background:rgba(26,79,163,0.85);
@@ -972,9 +952,6 @@ body.page-has-bg .tp{
 [data-theme="tj2"] .badge{
   color:#ffffff;
 }
-[data-theme="tj2"] .bq{color:#ffffff}
-[data-theme="tj2"] .bd{color:var(--yellow)}
-[data-theme="tj2"] .bf{color:var(--green)}
 
 /* TJ2 — Next Match card */
 [data-theme="tj2"] .nm-card{
@@ -988,9 +965,6 @@ body.page-has-bg .tp{
 [data-theme="tj2"] .nm-card.nm-red{
   background:rgba(160,30,30,0.75);
   border-color:rgba(255,140,120,0.6);
-}
-[data-theme="tj2"] .nm-label{
-  color:#ffffff;
 }
 [data-theme="tj2"] .nm-card.nm-blue .nm-alliance{
   color:#aad4ff;
@@ -1014,9 +988,6 @@ body.page-has-bg .tp{
 [data-theme="tj2"] .played-row{
   border-color:rgba(255,255,255,0.12);
 }
-[data-theme="tj2"] .played-match{
-  color:#ffffff;
-}
 [data-theme="tj2"] .played-blue{
   color:#7ec8ff;
 }
@@ -1038,9 +1009,7 @@ body.page-has-bg .tp{
 
 
 /* TJ2 — tab bar text on dark navy background */
-[data-theme="tj2"] .tab-btn{color:rgba(255,255,255,0.5)}
 [data-theme="tj2"] .tab-btn.act{color:#ffffff;border-bottom-color:rgba(255,255,255,0.9)}
-[data-theme="tj2"] .tab-btn:hover:not(.act){color:rgba(255,255,255,0.75)}
 /* TJ2 — alert icons: bright on dark tab bar */
 [data-theme="tj2"] .alert-count-ann{color:#7ec8ff}
 [data-theme="tj2"] .alert-count-parts{color:#ffeb3b}
@@ -1180,7 +1149,6 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 .alliance-col-hdr.blue{background:rgba(25,118,210,.15);color:#64b5f6;border:2px solid rgba(25,118,210,.4)}
 .alliance-col-hdr.red{background:rgba(198,40,40,.15);color:#ef9a9a;border:2px solid rgba(198,40,40,.4)}
 .alliance-section-hdr{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--text-dim);padding-bottom:5px;border-bottom:2px solid var(--border);margin:8px 0 4px}
-[data-theme="tj2"] #alliance-overlay .epa-title,[data-theme="tj2"] #alliance-overlay .epa-close{color:#ffffff}
 [data-theme="tj2"] #alliance-overlay .epa-team-num{color:#7ec8ff}
 #epa-overlay.show{display:flex}
 #epa-overlay .epa-hdr,#alliance-overlay .epa-hdr,#pitmap-overlay .epa-hdr{height:var(--hdr-h);background:var(--overlay-hdr-bg);border-bottom:3px solid var(--overlay-hdr-border);display:flex;align-items:center;padding:0 var(--pad);gap:16px;flex-shrink:0}
@@ -1203,8 +1171,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 .epa-loading{font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text-dim);text-align:center;padding:40px}
 .epa-err{font-family:var(--fd);font-size:var(--fs-lbl);color:var(--red);text-align:center;padding:40px}
 /* TJ2 EPA overlay — fully opaque dark navy, no bleed-through */
-/* Header text readable on dark navy */
-[data-theme="tj2"] #epa-overlay .epa-title{color:#ffffff}
+/* Header team-num accent → light blue, not gold */
 [data-theme="tj2"] #epa-overlay .epa-team-num{color:#7ec8ff}
 [data-theme="tj2"] #epa-overlay .epa-close,[data-theme="tj2"] #alliance-overlay .epa-close,[data-theme="tj2"] #pitmap-overlay .epa-close,[data-theme="tj2"] #schedule-overlay .epa-close{background:#1a2f50;border-color:rgba(255,255,255,0.3);color:#ffffff}
 [data-theme="tj2"] #epa-overlay .epa-close:hover{background:#243f68;color:#ffffff;border-color:rgba(255,255,255,0.6)}
@@ -1231,7 +1198,6 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 /* TJ2 overrides */
 [data-theme="tj2"] .epa-toggle-btn-cls[data-active="0"]{background:#1a2f50;border-color:rgba(255,255,255,0.3);color:#eef0f8}
 [data-theme="tj2"] .epa-toggle-btn-cls[data-active="1"]{background:rgba(126,200,255,0.15);border-color:#7ec8ff;color:#7ec8ff}
-[data-theme="tj2"] .epa-ev-count{color:rgba(255,255,255,0.5)}
 [data-theme="tj2"] .epa-stat-pill{background:#1a2f50;border-color:rgba(255,255,255,0.3)}
 [data-theme="tj2"] .epa-stat-pill .esp-v{color:#fff}
 [data-theme="tj2"] .epa-stat-pill .esp-l{color:rgba(255,255,255,0.6)}
@@ -1242,7 +1208,6 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 #pitmap-overlay.show{display:flex}
 #pitmap-overlay .epa-hdr,#pitmap-overlay .epa-close{font-family:var(--fd)}
 #pitmap-svg-wrap{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:16px;min-height:0;box-sizing:border-box}
-[data-theme="tj2"] #pitmap-overlay .epa-title{color:#ffffff}
 [data-theme="tj2"] #pitmap-overlay .epa-team-num{color:#7ec8ff}
 
 </style>
