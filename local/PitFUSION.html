@@ -6,7 +6,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V2.0.0';
+const VERSION = 'V2.0.1';
 // ─────────────────────────────────────────────────────────────
 </script>
 <html lang="en">
@@ -1337,7 +1337,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   </div>
 
   <div class="footer">
-    <div class="ftr-note"><span id="version-display" style="color:var(--accent);font-weight:700;margin-right:8px"></span><a id="update-badge" href="https://github.com/mpking828/PitFusion/releases/latest" target="_blank" style="display:none;font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;color:#2ecc71;border:1px solid rgba(46,204,113,.4);background:rgba(46,204,113,.1);border-radius:4px;padding:1px 8px;margin-right:8px;text-decoration:none;cursor:pointer"></a>Nexus refreshes every 15s &middot; TBA refreshes every 30s</div>
+    <div class="ftr-note"><span id="version-display" style="color:var(--accent);font-weight:700;margin-right:8px"></span><a id="update-badge" href="https://github.com/mpking828/PitFUSION/releases/latest" target="_blank" style="display:none;font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;color:#2ecc71;border:1px solid rgba(46,204,113,.4);background:rgba(46,204,113,.1);border-radius:4px;padding:1px 8px;margin-right:8px;text-decoration:none;cursor:pointer"></a>Nexus refreshes every 15s &middot; TBA refreshes every 30s</div>
     <div style="flex:1"></div>
     <button class="s-btn" id="epa-btn" onclick="openEpa(C.team)" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">📈 EPA Stats</button>
     <button class="s-btn" id="font-size-btn" onclick="togglePitFont()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">🔤 Bigger Text</button>
@@ -3841,18 +3841,20 @@ setInterval(()=>{
 
 // init() is called by setupLaunch() — not auto-invoked here
 
-// ── VERSION CHECK ──────────────────────────────────────────────────────────
-// Compares running version against latest release on GitHub.
-// Shows a badge in the footer if a newer version is available.
+// ── VERSION CHECK (self-hosted build only) ─────────────────────────────────
+// Compares the running version against local/version.json on the `stable`
+// branch. That branch is fast-forwarded only when a new self-hosted release
+// is ready, so it acts as the update channel for this build — independent of
+// `main` and of the hosted (Cloudflare) deployment, which has no update check.
+// Shows a badge in the footer when a newer version is available.
 async function checkForUpdate(){
   try {
-    // Use GitHub API to get latest release tag
     const resp = await fetch(
-      'https://api.github.com/repos/mpking828/PitFusion/releases/latest',
-      {headers:{'Accept':'application/vnd.github.v3+json'}, cache:'no-store'});
+      'https://raw.githubusercontent.com/mpking828/PitFUSION/stable/local/version.json',
+      {cache:'no-store'});
     if(!resp.ok) return;
     const data = await resp.json();
-    const latest = (data.tag_name||'').replace(/^v/i,'').toUpperCase(); // normalize e.g. "v1.7.0" → "V1.7.0"
+    const latest = (data.version||'').toUpperCase();
     const current = (typeof VERSION!=='undefined'?VERSION:'').toUpperCase();
     if(!latest||!current) return;
     // Simple semver-style comparison: parse V1.6.9 → [1,6,9]
@@ -3863,13 +3865,14 @@ async function checkForUpdate(){
     if(newer){
       const badge=document.getElementById('update-badge');
       if(badge){
-        badge.textContent=`⬆ ${latest} available`;
-        badge.title=`You have ${current}. Click to download ${latest} from GitHub.`;
+        badge.textContent=`⬆ ${data.version} available`;
+        if(data.url) badge.href=data.url;
+        badge.title=`You have ${current}. Click to download ${data.version} from GitHub.`;
         badge.style.display='inline';
       }
     }
   } catch(e){
-    // Network error or rate limited — silently ignore
+    // Network error or malformed response — silently ignore
   }
 }
 
