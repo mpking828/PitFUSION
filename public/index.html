@@ -4339,10 +4339,10 @@ async function getAdvancement(team){
   try{
     const yr=new Date().getFullYear();
     let rows=null,label=null;
-    // Fast path: at a district event, that district's rankings already hold every
-    // home-district team — reuse before a per-team /districts lookup.
+    // Fast path: at a *current-year* district event, that district's rankings already
+    // hold every home-district team — reuse before a per-team /districts lookup.
     const evDk=tbaEvent?.district?.key;
-    if(evDk){
+    if(evDk && evDk.startsWith(String(yr))){
       const evRows=await advRankings(`https://www.thebluealliance.com/api/v3/district/${evDk}/rankings`);
       if(evRows.find(r=>r.team_key===`frc${team}`)){
         rows=evRows; label=`${(tbaEvent.district.abbreviation||'').toUpperCase()} District`;
