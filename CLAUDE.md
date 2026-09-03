@@ -42,3 +42,7 @@ pitfusion.com — Cloudflare managed
 
 ## Team config
 Default team: 88, event key format: e.g. 2025cthar
+
+## Roadmap
+Future features: docs/roadmap.md (index) + docs/features/*.md (per-feature design).
+Build one feature per PR against main.
