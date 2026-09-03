@@ -11,7 +11,7 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 3 | Fold "My Team" into the EPA overlay + rename it + add multi-scope ranks | designing | M | [features/03-team-profile.md](features/03-team-profile.md) |
 | 4 | Replacement tab for the freed "My Team" slot | designing | S–M | covered in #3 doc |
 | 5 | Multi-event support (district playoffs, Worlds divisions → merged playoffs) | designing | L | [features/05-multi-event.md](features/05-multi-event.md) |
-| 6 | Discoverable "reset panel layout" control | idea | XS | this doc, below |
+| 6 | Help overlay (repurpose the "?" button) — documents panel resizing | building | XS | [features/06-help-overlay.md](features/06-help-overlay.md) |
 | 7 | Better Statbotics caching (persist + revalidate) | designing | S–M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
 
 Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, may split.
@@ -28,12 +28,4 @@ Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, m
 6. **#5 (multi-event)** — largest, most invasive to the data model; do it last and
    probably split into its own mini-roadmap.
 
-## #6 — Discoverable "reset panel layout"
-
-The resizable handles (`drag-v`, `drag-v2`, `drag-h`) **already reset on double-click**
-(PitFUSION.html, the RESIZABLE PANELS IIFE) — nobody discovers it on a 5px handle.
-
-Just surface it: a small "Reset layout" button in the ⚙ Settings panel (and/or the
-footer) that clears `localStorage['pitfusion_layout_sizes']` and re-applies `DEFAULTS`
-without a reload. Also worth a one-line tooltip on the handles ("drag to resize ·
-double-click to reset"). No design doc needed — do it in whatever PR is convenient.
+See [features/06-help-overlay.md](features/06-help-overlay.md).

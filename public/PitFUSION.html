@@ -220,8 +220,10 @@ body.custom-has-bg[data-theme="custom"] .tp{
 [data-theme="tj2"] .help-btn:hover{border-color:#f5c000;color:#f5c000}
 .help-overlay{position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center}
 .help-overlay.show{display:flex}
-.help-card{background:var(--surface);border:2px solid var(--border2);border-radius:var(--r);padding:28px 32px;max-width:520px;width:90%;position:relative}
+.help-card{background:var(--surface);border:2px solid var(--border2);border-radius:var(--r);padding:28px 32px;max-width:520px;width:90%;position:relative;max-height:85vh;overflow-y:auto}
 .help-card h2{font-family:var(--fd);font-size:var(--fs-hdr);font-weight:900;color:var(--accent);margin-bottom:14px;letter-spacing:.04em}
+.help-card h3{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--text);letter-spacing:.06em;text-transform:uppercase;margin:20px 0 8px}
+.help-card h3:first-of-type{margin-top:0}
 .help-card p{font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text);line-height:1.65;margin-bottom:10px}
 .help-card .help-close{position:absolute;top:12px;right:14px;background:transparent;border:none;color:var(--text-dim);font-size:1.3rem;cursor:pointer;line-height:1;padding:2px 6px}
 .help-card .help-close:hover{color:var(--text)}
@@ -1218,7 +1220,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     </div>
     <div class="hdr-cd" id="hdr-cd"></div>
     <div class="hdr-r">
-      <button class="help-btn" onclick="document.getElementById('help-overlay').classList.add('show')" title="Data integrity info">?</button>
+      <button class="help-btn" onclick="document.getElementById('help-overlay').classList.add('show')" title="Help">?</button>
       <button class="help-btn" onclick="openSettings()" title="API keys &amp; connection check" style="font-size:12px">&#9881;</button>
       <div class="hdr-clk" id="hdr-clk">&mdash;</div>
       <div id="hdr-delay"></div>
@@ -1339,10 +1341,15 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   <div class="help-overlay" id="help-overlay" onclick="if(event.target===this)this.classList.remove('show')">
     <div class="help-card">
       <button class="help-close" onclick="document.getElementById('help-overlay').classList.remove('show')">&#10005;</button>
-      <h2>Data Integrity</h2>
+      <h2>Help</h2>
+
+      <h3>Data Integrity</h3>
       <p>PitFUSION fuses data from two independent sources — The Blue Alliance and Nexus FRC — each with its own update schedule, data model, and definition of "current." We reconcile these as best we can, but they don't always agree.</p>
       <p>Queuing status, bumper colors, and next-match predictions are most likely to drift during Playoffs and Finals, where bracket assignments change in real time and Nexus may briefly stop reporting while a match is in progress.</p>
       <p>PitFUSION is a situational awareness tool. Always confirm match assignments and bumper colors with your drive coach or the queuing staff at the field.</p>
+
+      <h3>Resizing panels</h3>
+      <p>Drag the divider bars between panels to resize them on the fly — the sidebar, the stream, and the match list all adjust. Double-click any divider to snap the layout back to its default.</p>
     </div>
   </div>
 
