@@ -268,7 +268,9 @@ body.page-has-bg .col-l,
 body.page-has-bg .sidebar,
 body.page-has-bg .stream-bar,
 body.page-has-bg .tab-bar,
-body.page-has-bg .panel-m{
+body.page-has-bg .panel-m,
+body.page-has-bg .q-half,
+body.page-has-bg .upcoming-panel{
   background:var(--glass-bg);
   border-color:var(--glass-border);
   backdrop-filter:blur(var(--glass-blur));
@@ -1097,7 +1099,9 @@ body.page-has-bg .tp{
 .cte-lbl{flex:1;font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cte-sw{width:34px;height:24px;padding:0;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;flex-shrink:0}
 .cte-hex{width:96px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--fm);font-size:var(--fs-sm)}
-.cte-range{width:110px;flex-shrink:0;accent-color:var(--accent)}
+.cte-range{flex:1;min-width:90px;accent-color:var(--accent)}
+.cte-num{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-mid);min-width:44px;text-align:right;flex-shrink:0}
+.cte-hint{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);line-height:1.5;margin:2px 0 8px}
 .cte-file{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-mid);min-width:0}
 .cte-thumb{width:60px;height:38px;object-fit:cover;border:1px solid var(--border2);border-radius:4px;flex-shrink:0}
 .cte-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px}
@@ -1962,22 +1966,28 @@ function renderCustomEditor(){
     box.append(h('div', { class:'cte-grid' }, items.map(([k,l]) => colorRow(k,l))));
   });
 
+  // slider row with a live numeric readout
+  const slider = (label, min, max, step, val, onInput, fmt) => {
+    fmt = fmt || (v => String(v));
+    const rng = h('input', { type:'range', class:'cte-range', min:String(min), max:String(max), step:String(step), value:String(val) });
+    const out = h('span', { class:'cte-num', text:fmt(+val) });
+    rng.addEventListener('input', () => { out.textContent = fmt(+rng.value); onInput(+rng.value); _cteMarkDirty(); _cteLiveApply(); });
+    return h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:label }), rng, out ]);
+  };
+  const pct = v => Math.round(v * 100) + '%';
+
   // ── frosted panels ──
-  box.append(h('div', { class:'cte-group-hdr', text:'Frosted panels (shown when a background image is set)' }));
+  box.append(h('div', { class:'cte-group-hdr', text:'Frosted panels' }));
+  box.append(h('div', { class:'cte-hint', text:'Only visible when a background image is set. Lower the panel opacity to let more of the image show through.' }));
   const gTint = h('input', { type:'color', class:'cte-sw', value: isHex(_cteDraft.glass.bg) ? _cteDraft.glass.bg : '#141414' });
   gTint.addEventListener('input', () => { _cteDraft.glass.bg = gTint.value; _cteMarkDirty(); _cteLiveApply(); });
-  const gOp = h('input', { type:'range', class:'cte-range', min:'0.3', max:'1', step:'0.02', value:String(_cteDraft.glass.bgAlpha) });
-  gOp.addEventListener('input', () => { _cteDraft.glass.bgAlpha = +gOp.value; _cteMarkDirty(); _cteLiveApply(); });
-  const gBlur = h('input', { type:'range', class:'cte-range', min:'0', max:'24', step:'1', value:String(_cteDraft.glass.blur) });
-  gBlur.addEventListener('input', () => { _cteDraft.glass.blur = +gBlur.value; _cteMarkDirty(); _cteLiveApply(); });
-  box.append(h('div', { class:'cte-grid' }, [
-    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Panel tint' }), gTint ]),
-    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Panel opacity' }), gOp ]),
-    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Panel blur' }), gBlur ]),
-  ]));
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Panel tint' }), gTint ]));
+  box.append(slider('Panel opacity', 0.2, 1, 0.02, _cteDraft.glass.bgAlpha, v => { _cteDraft.glass.bgAlpha = v; }, pct));
+  box.append(slider('Panel blur', 0, 24, 1, _cteDraft.glass.blur, v => { _cteDraft.glass.blur = v; }, v => v + 'px'));
 
   // ── background image ──
   box.append(h('div', { class:'cte-group-hdr', text:'Background image' }));
+  box.append(h('div', { class:'cte-hint', text:'Shows behind the panels while the app is running (not on this setup screen). Wash strength dims it so text stays readable — turn it down to make the image bolder.' }));
   const img = _cteDraft.bg.image || '';
   const isData = img.startsWith('data:');
   const urlIn = h('input', { type:'text', class:'cte-hex', style:'flex:1', placeholder:'https://… or a filename in this folder',
@@ -1998,15 +2008,11 @@ function renderCustomEditor(){
     const o = h('option', { value:p, text:p }); if(_cteDraft.bg.pos === p) o.selected = true; posSel.append(o);
   });
   posSel.addEventListener('change', () => { _cteDraft.bg.pos = posSel.value; _cteMarkDirty(); _cteLiveApply(); });
-  const wOp = h('input', { type:'range', class:'cte-range', min:'0', max:'1', step:'0.02', value:String(_cteDraft.bg.washout) });
-  wOp.addEventListener('input', () => { _cteDraft.bg.washout = +wOp.value; _cteMarkDirty(); _cteLiveApply(); });
   const wCol = h('input', { type:'color', class:'cte-sw', value: isHex(_cteDraft.bg.washoutColor) ? _cteDraft.bg.washoutColor : '#000000' });
   wCol.addEventListener('input', () => { _cteDraft.bg.washoutColor = wCol.value; _cteMarkDirty(); _cteLiveApply(); });
-  box.append(h('div', { class:'cte-grid' }, [
-    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Position' }), posSel ]),
-    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Wash strength' }), wOp ]),
-    h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Wash colour' }), wCol ]),
-  ]));
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Position' }), posSel ]));
+  box.append(slider('Wash strength', 0, 1, 0.02, _cteDraft.bg.washout, v => { _cteDraft.bg.washout = v; }, pct));
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Wash colour' }), wCol ]));
 
   // ── actions ──
   const mkBtn = (label, fn) => { const b = h('button', { class:'s-btn', type:'button', text:label }); b.addEventListener('click', fn); return b; };
