@@ -2136,7 +2136,12 @@ async function runChecks(){
 let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,nexusPits=null,nexusPitsUnavailable=false;
 let tbaEvent=null;   // full TBA event object (for event.district etc.)
 let sbMyYear=null;   // Statbotics team_year for our own team (world/country/district/state EPA ranks)
-const districtRankCache={};   // districtKey -> TBA /district/<key>/rankings array
+let sbMyAdv=null;    // { label, rank, points } — our team's FRC district OR regional-pool standing
+// FRC advancement caches. These values only change when an event ends, so each is
+// fetched at most once per session and NEVER placed on a refresh loop.
+const teamDistrictCache={};   // team -> {key, abbreviation} | null   (current year only)
+const advRankingsCache={};    // rankings-endpoint URL -> array (district or regional-pool)
+const advCache={};            // team -> { label, rank, points } | null
 // Dismissed alert IDs — persisted in localStorage
 const LS_DISMISSED='pitfusion_dismissed_alerts';
 function getDismissed(){try{return new Set(JSON.parse(localStorage.getItem(LS_DISMISSED)||'[]'));}catch{return new Set();}}
@@ -2226,6 +2231,9 @@ async function fMyYear(){
     sbMyYear=await r.json();
   }catch{ sbMyYear=null; }
 }
+// Our team's FRC district / regional-pool standing. Fetched once, after fEv() so the
+// district fast-path can use tbaEvent; re-renders the My Team tab when it lands.
+async function fMyAdv(){ sbMyAdv=await getAdvancement(C.team); }
 
 async function init(){
   document.getElementById('hdr-team').textContent='#'+C.team;
@@ -2234,6 +2242,7 @@ async function init(){
   await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv(),fMyYear()]);
   document.getElementById('lo').style.display='none';
   renderAll(); startCd();
+  fMyAdv().then(()=>rTeam());   // once, non-blocking; updates the My Team tab when ready
   setInterval(async()=>{await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();},15000);
   setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi()]);rMl();rRank();rTeam();if(bracketView)rBracket();updateBumperBox();stamp();},30000);
 }
@@ -2651,11 +2660,16 @@ function rTeam(){
       const cells=[['World',rk.total?.rank]];
       if(sbMyYear.country) cells.push([e(sbMyYear.country),rk.country?.rank]);
       if(sbMyYear.state)   cells.push([e(sbMyYear.state),rk.state?.rank]);
-      if(hasRealDistrict(sbMyYear)) cells.push([e(String(sbMyYear.district).toUpperCase()),rk.district?.rank]);
+      if(epaDistrictMeaningful(sbMyYear)) cells.push([e(String(sbMyYear.district).toUpperCase()),rk.district?.rank]);
       html+=`<div class="sbl">EPA Ranks</div><div class="str" style="grid-template-columns:repeat(${cells.length},1fr)">`
         +cells.map(([lbl,v])=>`<div class="stc"><div class="stv" style="font-size:var(--fs-lbl)">${v!=null?'#'+v:'&mdash;'}</div><div class="stl">${lbl}</div></div>`).join('')
         +`</div>`;
     }
+  }
+  if(sbMyAdv){
+    html+=`<div class="sbl">FRC Advancement</div><div class="str" style="grid-template-columns:1fr">`
+      +`<div class="stc"><div class="stv" style="font-size:var(--fs-lbl)">#${sbMyAdv.rank} &middot; ${sbMyAdv.points} pts</div><div class="stl">${e(sbMyAdv.label)}</div></div>`
+      +`</div>`;
   }
   if(nxt){
     const r=nxt.redTeams||[],bl=nxt.blueTeams||[],isR=r.includes(myT),ac=isR?'var(--red-a)':'var(--blue-a)',al=isR?'Red Alliance':'Blue Alliance';
@@ -4117,8 +4131,11 @@ function renderEpaShell(teamYear, team, year){
     if(rk?.total?.rank!=null)       pills.push(['World','#'+rk.total.rank]);
     if(rk?.country?.rank!=null && teamYear.country) pills.push([e(teamYear.country),'#'+rk.country.rank]);
     if(rk?.state?.rank!=null && teamYear.state)     pills.push([e(teamYear.state),'#'+rk.state.rank]);
-    if(rk?.district?.rank!=null && hasRealDistrict(teamYear)) pills.push([e(String(teamYear.district).toUpperCase()),'#'+rk.district.rank]);
-    if(tbaEvent?.district?.key)     pills.push(['District Pts','<span id="epa-dpts">…</span>']);
+    if(rk?.district?.rank!=null && epaDistrictMeaningful(teamYear)) pills.push([e(String(teamYear.district).toUpperCase()),'#'+rk.district.rank]);
+    // FRC district / regional-pool standing (points) — filled async, label set then;
+    // self-removes if the team is in neither pool. The " pts" value distinguishes it
+    // from the Statbotics EPA rank pills above.
+    pills.push(['FRC Advancement','<span id="epa-adv">…</span>']);
     if(pills.length){
       html+=`<div class="epa-stats">`+pills.map(([l,v])=>
         `<div class="epa-stat-pill"><span class="esp-l">${l}</span><span class="esp-v">${v}</span></div>`).join('')+`</div>`;
@@ -4141,7 +4158,7 @@ function renderEpaShell(teamYear, team, year){
 
   if(!cfgFields){
     html+=`<div class="epa-err">No EPA_FIELDS config for ${year}. Check config.js.</div>`;
-    body.innerHTML=html; fillDistrictPoints(team); return;
+    body.innerHTML=html; fillAdvancement(team); return;
   }
 
   // Skeleton placeholder for each chart
@@ -4166,39 +4183,91 @@ function renderEpaShell(teamYear, team, year){
   </div>`;
 
   body.innerHTML=html;
-  fillDistrictPoints(team);
+  fillAdvancement(team);
 }
 
 // A Statbotics team_year has a real FRC district only when `district` differs from the
 // state code. Since ~2026 Statbotics fills `district` with the state abbreviation (and
 // duplicates the state rank) for non-district teams — we don't want to show that.
-function hasRealDistrict(ty){
+// The Statbotics EPA "district rank" is only worth showing when it isn't just the state
+// rank under another name (Statbotics ~2026 fills `district` with the state code for
+// state-named districts / non-district teams and duplicates the state rank).
+function epaDistrictMeaningful(ty){
   const d=ty&&ty.district;
   if(!d) return false;
   return String(d).toLowerCase() !== String(ty.state||'').toLowerCase();
 }
 
-// Fill the "District Pts" pill in the EPA overlay stat strip (district events only).
-// One /district/<key>/rankings call covers every team at the event; cached per key.
-async function fillDistrictPoints(team){
-  const el=document.getElementById('epa-dpts');
-  if(!el) return;
-  const dk=tbaEvent?.district?.key;
-  if(!dk){ el.closest('.epa-stat-pill')?.remove(); return; }
+// ── FRC advancement points (district or regional pool) ──────────────────────
+// Values only change when an event ends -> fetched at most once per team per session,
+// never from a refresh loop.
+
+// Current-year district for a team, or null (-> team is in the regional pool).
+async function getTeamDistrict(team){
+  if(team in teamDistrictCache) return teamDistrictCache[team];
+  let out=null;
   try{
-    if(!districtRankCache[dk]){
-      districtRankCache[dk]=await get(`https://www.thebluealliance.com/api/v3/district/${dk}/rankings`,ht(C.tba));
+    const yr=new Date().getFullYear();
+    const list=await get(`https://www.thebluealliance.com/api/v3/team/frc${team}/districts`,ht(C.tba));
+    const cur=(list||[]).find(d=>d.year===yr);
+    if(cur) out={key:cur.key,abbreviation:cur.abbreviation};
+  }catch{}
+  teamDistrictCache[team]=out;
+  return out;
+}
+
+async function advRankings(url){
+  if(!advRankingsCache[url]) advRankingsCache[url]=await get(url,ht(C.tba));
+  return advRankingsCache[url]||[];
+}
+
+// { label, rank, points } for a team's FRC district OR regional-pool standing, or null.
+async function getAdvancement(team){
+  if(team in advCache) return advCache[team];
+  let out=null;
+  try{
+    const yr=new Date().getFullYear();
+    let rows=null,label=null;
+    // Fast path: at a district event, that district's rankings already hold every
+    // home-district team — reuse before a per-team /districts lookup.
+    const evDk=tbaEvent?.district?.key;
+    if(evDk){
+      const evRows=await advRankings(`https://www.thebluealliance.com/api/v3/district/${evDk}/rankings`);
+      if(evRows.find(r=>r.team_key===`frc${team}`)){
+        rows=evRows; label=`${(tbaEvent.district.abbreviation||'').toUpperCase()} District`;
+      }
     }
-    const row=(districtRankCache[dk]||[]).find(r=>r.team_key===`frc${team}`);
-    if(row&&row.point_total!=null){
-      el.textContent=`${row.point_total} \u00b7 #${row.rank}`;
-    }else{
-      el.closest('.epa-stat-pill')?.remove();
+    if(!rows){
+      const dist=await getTeamDistrict(team);
+      if(dist){
+        rows=await advRankings(`https://www.thebluealliance.com/api/v3/district/${dist.key}/rankings`);
+        label=`${dist.abbreviation.toUpperCase()} District`;
+      }else{
+        rows=await advRankings(`https://www.thebluealliance.com/api/v3/regional_advancement/${yr}/rankings`);
+        label='Regional Pool';
+      }
     }
-  }catch{
-    el.closest('.epa-stat-pill')?.remove();
+    const row=(rows||[]).find(r=>r.team_key===`frc${team}`);
+    if(row&&row.point_total!=null) out={label,rank:row.rank,points:row.point_total};
+  }catch{}
+  advCache[team]=out;
+  return out;
+}
+
+// Fill (or remove) the FRC advancement pill in the EPA overlay stat strip.
+async function fillAdvancement(team){
+  const el=document.getElementById('epa-adv');
+  if(!el) return;
+  const pill=el.closest('.epa-stat-pill');
+  const adv=await getAdvancement(team);
+  if(adv){
+    el.textContent=`#${adv.rank} · ${adv.points} pts`;
+    const l=pill&&pill.querySelector('.esp-l'); if(l) l.textContent=adv.label;
+  }else if(pill){
+    pill.remove();
   }
 }
+
 
 // Draw one SVG line chart for a single series of {x,val} points
 // Draw one interactive line chart as an HTML div (not pure SVG)
