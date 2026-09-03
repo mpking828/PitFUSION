@@ -1,13 +1,35 @@
 <!-- PitFUSION Created by Mike King on Team 88 -->
 <!-- ============================================================
-     Configuration is in config.js — edit that file for API keys
+     config.js holds non-secret config only (EPA field defs, optional
+     FORCE_MODE). API keys are entered in the app's Settings panel
+     (self-hosted mode) or set as Cloudflare env vars (hosted mode).
      ============================================================ -->
 <!DOCTYPE html>
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V2.0.1';
+const VERSION = 'V3.0.0';
 // ─────────────────────────────────────────────────────────────
+
+// ── Hosting mode ─────────────────────────────────────────────
+// 'hosted'     → data requests go through same-origin /api/* proxies; keys live server-side
+// 'selfhosted' → data requests go direct to Nexus/TBA/YouTube using keys from the Settings panel
+const MODE = (function(){
+  try {
+    const q = new URLSearchParams(location.search).get('forceMode');
+    if (q === 'hosted' || q === 'selfhosted') return q;
+  } catch(e){}
+  if (typeof FORCE_MODE === 'string' && FORCE_MODE) return FORCE_MODE;
+  const h = location.hostname;
+  if (h === 'pitfusion.com' || h.endsWith('.pitfusion.com') || h.endsWith('.pages.dev')) return 'hosted';
+  return 'selfhosted';
+})();
+
+// ── API key store (self-hosted only) ─────────────────────────
+const LS_KEYS = 'pitfusion_keys';
+function getKeys(){ try { return JSON.parse(localStorage.getItem(LS_KEYS) || '{}') || {}; } catch(e){ return {}; } }
+let KEYS = MODE === 'hosted' ? {} : getKeys();
+function saveKeys(k){ KEYS = k || {}; try { localStorage.setItem(LS_KEYS, JSON.stringify(KEYS)); } catch(e){} }
 </script>
 <html lang="en">
 <head>
@@ -21,8 +43,13 @@ const VERSION = 'V2.0.1';
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('version-display');
   if(el) el.textContent=typeof VERSION!=='undefined'?VERSION:'';
-  // Check GitHub for newer version — silent, non-blocking
+  // Check for a newer release — silent, non-blocking (self-hosted only)
   checkForUpdate();
+  // Self-hosted: surface the API-keys entry point on the setup screen
+  if(MODE!=='hosted'){
+    const kr=document.getElementById('setup-keys-row');
+    if(kr) kr.style.display='block';
+  }
 });
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -1169,6 +1196,9 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     </div>
 
     <button class="setup-btn" id="setup-go" onclick="setupLaunch()">Launch PitFUSION &rarr;</button>
+    <div id="setup-keys-row" style="display:none;text-align:center;margin-top:12px">
+      <button class="s-btn" onclick="openSettings()" style="padding:6px 16px">&#9881; API Keys &amp; Connection Check</button>
+    </div>
   </div>
 </div>
 
@@ -1189,6 +1219,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     <div class="hdr-cd" id="hdr-cd"></div>
     <div class="hdr-r">
       <button class="help-btn" onclick="document.getElementById('help-overlay').classList.add('show')" title="Data integrity info">?</button>
+      <button class="help-btn" onclick="openSettings()" title="API keys &amp; connection check" style="font-size:12px">&#9881;</button>
       <div class="hdr-clk" id="hdr-clk">&mdash;</div>
       <div id="hdr-delay"></div>
       <div class="hdr-team" id="hdr-team">&mdash;</div>
@@ -1315,6 +1346,41 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     </div>
   </div>
 
+  <!-- SETTINGS OVERLAY -->
+  <div class="help-overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
+    <div class="help-card" style="max-width:560px">
+      <button class="help-close" onclick="closeSettings()">&#10005;</button>
+      <h2>Settings</h2>
+      <p style="margin-bottom:10px"><span style="color:var(--text-dim)">Mode:</span> <span id="set-mode-label"></span></p>
+
+      <div id="set-hosted-note" style="display:none">
+        <p>API keys are managed on the server for this deployment &mdash; nothing to configure here. Use the connection check below to confirm the proxy is healthy.</p>
+      </div>
+
+      <div id="set-selfhosted" style="display:none">
+        <p style="margin-bottom:12px">Keys are stored only in this browser. <b>Nexus</b> and <b>The Blue Alliance</b> are required; <b>YouTube</b> is optional (used only to auto-detect a live webcast).</p>
+
+        <label class="setup-label" style="display:block;margin-bottom:3px">Nexus API key
+          <a href="https://frc.nexus/" target="_blank" rel="noopener" style="float:right;font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent);text-decoration:none">get a key &rarr;</a></label>
+        <input id="set-nexus" type="password" autocomplete="off" spellcheck="false" style="width:100%;margin-bottom:11px;padding:7px 10px;background:var(--surface2);border:2px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--fm)">
+
+        <label class="setup-label" style="display:block;margin-bottom:3px">The Blue Alliance API key
+          <a href="https://www.thebluealliance.com/account" target="_blank" rel="noopener" style="float:right;font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent);text-decoration:none">get a key &rarr;</a></label>
+        <input id="set-tba" type="password" autocomplete="off" spellcheck="false" style="width:100%;margin-bottom:11px;padding:7px 10px;background:var(--surface2);border:2px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--fm)">
+
+        <label class="setup-label" style="display:block;margin-bottom:3px">YouTube Data API key <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)">(optional)</span>
+          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style="float:right;font-weight:400;text-transform:none;letter-spacing:0;color:var(--accent);text-decoration:none">get a key &rarr;</a></label>
+        <input id="set-youtube" type="password" autocomplete="off" spellcheck="false" style="width:100%;margin-bottom:14px;padding:7px 10px;background:var(--surface2);border:2px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--fm)">
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="s-btn" onclick="runChecks()" style="padding:6px 16px">Run connection check</button>
+        <button class="s-btn" id="set-save-btn" onclick="saveSettings()" style="padding:6px 16px;display:none">Save &amp; reload</button>
+      </div>
+      <div id="set-results" style="font-family:var(--fd);font-size:var(--fs-lbl)"></div>
+    </div>
+  </div>
+
   <!-- SCHEDULE OVERLAY -->
   <div id="schedule-overlay">
     <div class="sched-hdr">
@@ -1338,6 +1404,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 
   <div class="footer">
     <div class="ftr-note"><span id="version-display" style="color:var(--accent);font-weight:700;margin-right:8px"></span><a id="update-badge" href="https://github.com/mpking828/PitFUSION/releases/latest" target="_blank" style="display:none;font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;color:#2ecc71;border:1px solid rgba(46,204,113,.4);background:rgba(46,204,113,.1);border-radius:4px;padding:1px 8px;margin-right:8px;text-decoration:none;cursor:pointer"></a>Nexus refreshes every 15s &middot; TBA refreshes every 30s</div>
+    <div class="ftr-credit" style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);margin-left:12px">Powered by <a href="https://www.thebluealliance.com/" target="_blank" rel="noopener" style="color:var(--text-mid);text-decoration:none">The Blue Alliance</a> &middot; Data from <a href="https://frc.nexus/" target="_blank" rel="noopener" style="color:var(--text-mid);text-decoration:none">Nexus</a> &middot; EPA by <a href="https://www.statbotics.io/" target="_blank" rel="noopener" style="color:var(--text-mid);text-decoration:none">Statbotics</a></div>
     <div style="flex:1"></div>
     <button class="s-btn" id="epa-btn" onclick="openEpa(C.team)" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">📈 EPA Stats</button>
     <button class="s-btn" id="font-size-btn" onclick="togglePitFont()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">🔤 Bigger Text</button>
@@ -1350,10 +1417,11 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 
 <script>
 // ============================================================
-// API KEYS — defined at the top of the file (line 7-8)
+// API KEYS — self-hosted: from the Settings panel (localStorage, KEYS).
+//            hosted: empty here; injected server-side by the /api proxy.
 // ============================================================
 
-const C={team:'',event:'',nexus:NEXUS_KEY,tba:TBA_KEY};
+const C={team:'',event:'',nexus:KEYS.nexus||'',tba:KEYS.tba||'',youtube:KEYS.youtube||''};
 
 // ── SETUP PAGE ───────────────────────────────────────────────────────────────
 
@@ -1437,8 +1505,8 @@ let _teamFilterTimer = null;
   try {
     const now  = new Date();
     const year = now.getFullYear();
-    const res  = await fetch(`https://www.thebluealliance.com/api/v3/events/${year}/simple`,
-      { headers:{ 'X-TBA-Auth-Key': TBA_KEY } });
+    const res  = await fetch(apiUrl(`https://www.thebluealliance.com/api/v3/events/${year}/simple`),
+      { headers: ht(C.tba) });
     if(!res.ok) throw new Error('TBA error');
     const events = await res.json();
 
@@ -1522,8 +1590,8 @@ async function filterDropdownForTeam(teamNum){
   try {
     const year = new Date().getFullYear();
     const res  = await fetch(
-      `https://www.thebluealliance.com/api/v3/team/frc${teamNum}/events/${year}/simple`,
-      { headers:{ 'X-TBA-Auth-Key': TBA_KEY } }
+      apiUrl(`https://www.thebluealliance.com/api/v3/team/frc${teamNum}/events/${year}/simple`),
+      { headers: ht(C.tba) }
     );
 
     if(!res.ok) throw new Error('not found');
@@ -1576,6 +1644,16 @@ function setupLaunch(){
     return;
   }
 
+  if(MODE!=='hosted'){
+    const k = getKeys();
+    if(!k.nexus || !k.tba){
+      errEl.textContent = 'Add your Nexus and Blue Alliance API keys in Settings first.';
+      errEl.style.display = 'block';
+      openSettings();
+      return;
+    }
+  }
+
   errEl.style.display = 'none';
 
   localStorage.setItem(LS_TEAM,  teamInput);
@@ -1594,6 +1672,79 @@ function setupLaunch(){
 ['setup-team','setup-event-manual'].forEach(id=>{
   document.getElementById(id).addEventListener('keydown', e=>{ if(e.key==='Enter') setupLaunch(); });
 });
+
+// ── SETTINGS PANEL (API keys + connection check) ─────────────────────────────
+function openSettings(){
+  const sh = MODE !== 'hosted';
+  document.getElementById('set-mode-label').textContent = sh
+    ? 'Self-hosted — keys stored in this browser'
+    : 'Hosted — keys managed server-side';
+  document.getElementById('set-selfhosted').style.display  = sh ? 'block' : 'none';
+  document.getElementById('set-hosted-note').style.display = sh ? 'none'  : 'block';
+  document.getElementById('set-save-btn').style.display    = sh ? 'inline-block' : 'none';
+  if(sh){
+    document.getElementById('set-nexus').value   = KEYS.nexus   || '';
+    document.getElementById('set-tba').value     = KEYS.tba     || '';
+    document.getElementById('set-youtube').value = KEYS.youtube  || '';
+  }
+  document.getElementById('set-results').innerHTML = '';
+  document.getElementById('settings-overlay').classList.add('show');
+}
+function closeSettings(){ document.getElementById('settings-overlay').classList.remove('show'); }
+
+function saveSettings(){
+  saveKeys({
+    nexus:   document.getElementById('set-nexus').value.trim(),
+    tba:     document.getElementById('set-tba').value.trim(),
+    youtube: document.getElementById('set-youtube').value.trim(),
+  });
+  location.reload();
+}
+
+async function _probe(url, headers){
+  const t0 = Date.now();
+  try {
+    const r = await fetch(apiUrl(url), { headers: headers || {}, cache:'no-store' });
+    return { ok:r.ok, status:r.status, ms: Date.now()-t0 };
+  } catch(e){
+    return { ok:false, status:0, ms: Date.now()-t0, err:e.message };
+  }
+}
+
+async function runChecks(){
+  const box = document.getElementById('set-results');
+  box.innerHTML = '<div style="color:var(--text-dim)">Running checks&hellip;</div>';
+  const hosted = MODE === 'hosted';
+  const kb = hosted ? {} : {
+    nexus:   document.getElementById('set-nexus').value.trim(),
+    tba:     document.getElementById('set-tba').value.trim(),
+    youtube: document.getElementById('set-youtube').value.trim(),
+  };
+  const yr = new Date().getFullYear();
+  const tests = [
+    ['The Blue Alliance', `https://www.thebluealliance.com/api/v3/events/${yr}/simple`,
+      hosted ? {} : { 'X-TBA-Auth-Key': kb.tba }],
+    ['Nexus', 'https://frc.nexus/api/v1/events',
+      hosted ? {} : { 'Nexus-Api-Key': kb.nexus }],
+  ];
+  if(hosted || kb.youtube){
+    tests.push(['YouTube', 'https://www.googleapis.com/youtube/v3/videos?part=id&id=dQw4w9WgXcQ'
+      + (hosted ? '' : `&key=${encodeURIComponent(kb.youtube)}`), {}]);
+  }
+  const rows = [];
+  for(const [label, url, h] of tests){
+    const r = await _probe(url, h);
+    const icon = r.ok ? '✅' : (r.status===401||r.status===403) ? '🔑' : '❌';
+    const detail = r.ok ? `HTTP ${r.status} · ${r.ms}ms`
+      : r.status===0 ? `Network error${r.err ? ': ' + r.err : ''}`
+      : `HTTP ${r.status} · ${r.ms}ms`;
+    rows.push(`<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span>${icon}</span><span style="flex:1">${label}</span>
+      <span style="font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim)">${detail}</span></div>`);
+  }
+  box.innerHTML = rows.join('');
+}
+
 let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,nexusPits=null,nexusPitsUnavailable=false;
 // Dismissed alert IDs — persisted in localStorage
 const LS_DISMISSED='pitfusion_dismissed_alerts';
@@ -1616,9 +1767,18 @@ let stHidden=false,stIdx=0,stIdxManual=false,stReplayMode=false,stPreReplay={},c
 setInterval(()=>{document.getElementById('hdr-clk').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});},1000);
 
 // API
-const hn=k=>({'Nexus-Api-Key':k});
-const ht=k=>({'X-TBA-Auth-Key':k});
-async function get(url,h){const r=await fetch(url,{headers:h});if(!r.ok)throw r.status;return r.json();}
+// In hosted mode, requests to the real API hosts are rewritten to same-origin
+// /api/* proxy paths and auth headers are dropped (the proxy injects the key).
+// In self-hosted mode, requests go direct with the header key from Settings.
+const hn=k=>MODE==='hosted'?{}:{'Nexus-Api-Key':k};
+const ht=k=>MODE==='hosted'?{}:{'X-TBA-Auth-Key':k};
+function apiUrl(u){
+  if(MODE!=='hosted') return u;
+  return u.replace('https://frc.nexus/api/v1','/api/nexus')
+          .replace('https://www.thebluealliance.com/api/v3','/api/tba')
+          .replace('https://www.googleapis.com/youtube/v3','/api/youtube');
+}
+async function get(url,h){const r=await fetch(apiUrl(url),{headers:h});if(!r.ok)throw r.status;return r.json();}
 
 async function nexusGet(key){return get(`https://frc.nexus/api/v1/event/${key}`,hn(C.nexus));}
 function nxKey(){return C.nexusEvent||C.event;}
@@ -2239,13 +2399,16 @@ function rAlerts(){
 
 
 // STREAM
-const YT_KEY = 'AIzaSyDOSE2OGy1Lx9TRXS_qXfLn-BSSwlphVyo';
-
+// YouTube key is never in this file. Hosted mode: the /api/youtube proxy injects it.
+// Self-hosted: it comes from the Settings panel (C.youtube); if unset we skip the
+// live-probe and just show the first webcast.
 async function isYouTubeLive(videoId) {
+  if (MODE !== 'hosted' && !C.youtube) return false;
   try {
-    const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${videoId}&key=${YT_KEY}`,
-      {cache:'no-store'});
+    const url = MODE === 'hosted'
+      ? `/api/youtube/videos?part=liveStreamingDetails&id=${videoId}`
+      : `https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${videoId}&key=${encodeURIComponent(C.youtube)}`;
+    const res = await fetch(url, {cache:'no-store'});
     if (!res.ok) return false;
     const data = await res.json();
     const details = data.items?.[0]?.liveStreamingDetails;
@@ -3841,16 +4004,15 @@ setInterval(()=>{
 
 // init() is called by setupLaunch() — not auto-invoked here
 
-// ── VERSION CHECK (self-hosted build only) ─────────────────────────────────
-// Compares the running version against local/version.json on the `stable`
-// branch. That branch is fast-forwarded only when a new self-hosted release
-// is ready, so it acts as the update channel for this build — independent of
-// `main` and of the hosted (Cloudflare) deployment, which has no update check.
-// Shows a badge in the footer when a newer version is available.
+// ── VERSION CHECK (self-hosted only) ──────────────────────────────────────
+// Compares the running version against https://pitfusion.com/version.json
+// (the current hosted release). Shows a footer badge when a newer version is
+// available. Hosted mode skips this — it always serves the latest deploy.
 async function checkForUpdate(){
+  if (MODE === 'hosted') return;
   try {
     const resp = await fetch(
-      'https://raw.githubusercontent.com/mpking828/PitFUSION/stable/local/version.json',
+      'https://pitfusion.com/version.json',
       {cache:'no-store'});
     if(!resp.ok) return;
     const data = await resp.json();

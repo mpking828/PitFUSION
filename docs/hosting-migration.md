@@ -1,6 +1,24 @@
 # PitFusion hosting migration — plan (V3.0.0)
 
-Status: **planning / not started**. Last updated 2026-09-02.
+Status: **implemented** in the `feat/v3-cloudflare` PR (V3.0.0). Last updated 2026-09-03.
+
+What shipped vs. this plan:
+- `local/` + `hosted/` → `public/` (Pages) + `functions/api/` (proxy Functions:
+  `_proxy.js` + `nexus|tba|youtube/[[path]].js`).
+- Single codebase, runtime `MODE` detection (`pitfusion.com` / `*.pages.dev` →
+  hosted; else self-hosted; `?forceMode=` and `config.js` `FORCE_MODE` override).
+- Keys: **settings panel only** in self-hosted mode (localStorage `pitfusion_keys`);
+  server-side env vars (`NEXUS_API_KEY` / `TBA_API_KEY` / `YOUTUBE_API_KEY`) in hosted.
+  `config.js` keeps EPA field defs + optional `FORCE_MODE` — no keys.
+- `check.html` folded into the ⚙ Settings overlay ("Run connection check").
+- Update check repointed to `https://pitfusion.com/version.json`; skipped in hosted.
+- Footer attribution added ("Powered by The Blue Alliance · Data from Nexus · EPA by
+  Statbotics").
+- `stable` branch and channel-prefixed tags dropped — plain `vX.Y.Z`, Cloudflare
+  auto-deploys `main`.
+
+Still outstanding (see "Manual steps" below): rotate the disclosed YouTube key,
+create the Cloudflare Pages project + env vars + custom domain + `/api/*` WAF rule.
 
 ## Context
 

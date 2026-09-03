@@ -1,12 +1,16 @@
 // ============================================================
-//  PitFUSION Configuration
-//  Edit this file to configure your keys and settings.
+//  PitFUSION Configuration — non-secret settings only.
 //  Place this file in the same folder as PitFUSION.html
+//
+//  API keys are NOT set here. Enter them in the app's Settings
+//  panel (the gear icon) when self-hosting; hosted deployments
+//  read them from server-side environment variables.
 // ============================================================
 
-// ── API Keys ─────────────────────────────────────────────────
-const NEXUS_KEY = 'YOUR_NEXUS_KEY';
-const TBA_KEY   = 'YOUR_TBA_KEY';
+// ── Hosting mode override (optional) ─────────────────────────
+// Leave commented for auto-detection (hosted on *.pitfusion.com /
+// *.pages.dev, self-hosted everywhere else). Uncomment to force:
+// const FORCE_MODE = 'selfhosted';   // or 'hosted'
 
 // ── EPA Field Definitions by Year ────────────────────────────
 // Each year maps to the EPA breakdown fields returned by Statbotics.

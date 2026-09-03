@@ -1,0 +1,5 @@
+# Copy to .dev.vars (gitignored) for local `wrangler pages dev`.
+# In production these are set as encrypted env vars on the Cloudflare Pages project.
+NEXUS_API_KEY=
+TBA_API_KEY=
+YOUTUBE_API_KEY=
