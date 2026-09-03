@@ -13,7 +13,7 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 5 | Multi-event support (district playoffs, Worlds divisions → merged playoffs) | designing | L | [features/05-multi-event.md](features/05-multi-event.md) |
 | 6 | Help overlay (repurpose the "?" button) — documents panel resizing | done | XS | [features/06-help-overlay.md](features/06-help-overlay.md) |
 | 7 | Better Statbotics caching (persist + revalidate) | designing | S–M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
-| 8 | Theme rework — generalised tokens, in-app Custom theme editor, theme picker in Settings | building | M–L | [features/08-theme-rework.md](features/08-theme-rework.md) |
+| 8 | Theme rework — generalised tokens, in-app Custom theme editor, theme picker in Settings | built (PR open) | M–L | [features/08-theme-rework.md](features/08-theme-rework.md) |
 
 Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, may split.
 

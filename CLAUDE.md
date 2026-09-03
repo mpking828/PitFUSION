@@ -21,6 +21,22 @@ Single HTML file, no framework, no build step.
 - No build step. `public/index.html` is served at `/` natively; `public/_headers`
   sets security headers (honored by Workers static assets).
 
+## Themes
+- Four themes via `data-theme` on `<html>`+`<body>`: `dark` `light` `tj2` `custom`.
+  Picker in Settings ▸ Appearance and on the setup screen (`renderThemeSwatches`,
+  `THEMES` array). Choice in localStorage `pitfusion_theme`.
+- Colours + a background image + frosted panels are driven by CSS custom
+  properties. Generalised tokens (`--page-bg-*`, `--hdr-bg-*`, `--glass-*`,
+  `--on-accent`) default to no-ops on `:root`; a theme opts in. `body.page-has-bg`
+  (set by `applyPageBg()`) gates the frosted-panel treatment.
+- Custom theme: built-in `[data-theme="custom"]` block is the fallback; the
+  in-app editor (Settings ▸ Appearance ▸ Edit Custom theme) saves JSON to
+  localStorage `pitfusion_custom_theme` and `buildCustomThemeCss()` injects an
+  override into `<style id="custom-theme-style">` (pre-paint in the head script,
+  no flash). Uploaded background images are data URLs, capped at 2 MB.
+- `tj2` still carries ~195 fine-grained overrides — see docs/features/08 for the
+  planned collapse. User-facing guide: docs/custom-theme.md.
+
 ## Update check / releases
 - checkForUpdate() runs in selfhosted mode only; fetches
   https://pitfusion.com/version.json and shows a footer badge if newer.

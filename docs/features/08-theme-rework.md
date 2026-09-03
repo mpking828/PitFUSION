@@ -1,6 +1,7 @@
 # Feature 8 — Theme rework + in-app Custom theme editor
 
-Status: **building**. Size: M–L. One PR (`feat/theme-rework`).
+Status: **built** (`feat/theme-rework`, Parts A–D). Size: M–L. One PR.
+Follow-up (aggressive TJ² collapse) tracked separately in [../roadmap.md](../roadmap.md).
 
 ## Goals
 
@@ -43,7 +44,7 @@ move into the base rules. That needs a full running-app visual regression pass
 (Nexus + TBA keys, every tab + overlay) — tracked as a follow-up PR in
 [../roadmap.md](../roadmap.md), separate from the editor work.
 
-## Part B — theme picker in Settings
+## Part B — theme picker in Settings  ✅ done (`83fa5db`)
 
 - `THEMES` array (`{id, name, swatch}`) + `renderThemeSwatches(container)` — the setup
   screen and the new Settings section both render from it; no duplicated markup.
@@ -53,7 +54,7 @@ move into the base rules. That needs a full running-app visual regression pass
   `pitfusion_theme`, keeps the setup-screen group in sync.
 - **"Edit Custom theme…"** button → selects Custom + opens the editor (Part C).
 
-## Part C — Custom theme editor
+## Part C — Custom theme editor  ✅ done (`3950da8`)
 
 - Storage: `localStorage['pitfusion_custom_theme']` — `{v, colors, glass, bg}`.
 - `applyCustomTheme(cfg)` writes one `<style id="custom-theme-style">` block of
@@ -63,6 +64,15 @@ move into the base rules. That needs a full running-app visual regression pass
   Alliance groups); frosted-glass toggle + opacity/blur sliders; background image via
   URL **or** file upload → data URL (2 MB cap, rejected with a message) + washout
   slider/colour; live preview on every change; **Save / Reset / Copy CSS**.
+- Override selector is `html[data-theme="custom"],body[data-theme="custom"]`
+  (applyTheme sets the attribute on both) so it beats the static block everywhere.
+
+## Part D — docs  ✅ done
+
+- `docs/custom-theme.md` rewritten around the in-app editor (+ "bake into file"
+  section and the updated `--page-bg-*` / `--glass-*` variable reference).
+- Help overlay gains a **Themes** section.
+- `CLAUDE.md` gains a **Themes** section (token model, `pitfusion_custom_theme`).
 
 ## Verification
 
