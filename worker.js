@@ -62,9 +62,17 @@ export default {
     const qs = params.toString();
     const upstreamUrl = route.upstream + path + (qs ? `?${qs}` : '');
 
-    const cache = caches.default;
+    // Edge cache is best-effort — if the Cache API is unavailable or disabled,
+    // fall straight through to the upstream fetch.
     const cacheKey = new Request(upstreamUrl, { method: 'GET' });
-    let response = await cache.match(cacheKey);
+    let cache = null;
+    let response = null;
+    try {
+      cache = caches.default;
+      response = await cache.match(cacheKey);
+    } catch (e) {
+      cache = null;
+    }
 
     if (!response) {
       const headers = { Accept: 'application/json' };
@@ -83,7 +91,9 @@ export default {
         'Cache-Control',
         upstream.ok ? `public, max-age=${route.cache}` : 'no-store'
       );
-      if (upstream.ok) ctx.waitUntil(cache.put(cacheKey, response.clone()));
+      if (upstream.ok && cache) {
+        try { ctx.waitUntil(cache.put(cacheKey, response.clone())); } catch (e) { /* ignore */ }
+      }
     }
 
     const out = new Response(response.body, response);
