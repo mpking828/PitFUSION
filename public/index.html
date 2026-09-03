@@ -3747,7 +3747,7 @@ async function openAllianceEpa(blueTeams, redTeams, matchLabel){
         getTeamYear(t),
         getTeamMatches(t,'all').catch(()=>[]),
       ]);
-      const sorted = (matches||[]).filter(m=>m.epa!=null&&m.status==='Completed').sort((a,b)=>{
+      const sorted = (matches||[]).filter(m=>matchHasEpa(m,t)).sort((a,b)=>{
         const ta=a.time||a.predicted_time||0, tb=b.time||b.predicted_time||0;
         if(ta&&tb&&ta!==tb) return ta-tb;
         const ek=(a.event||'').localeCompare(b.event||'');
@@ -3775,15 +3775,9 @@ async function openAllianceEpa(blueTeams, redTeams, matchLabel){
 
   // Helper: build pts array for one team + one field from event matches
   function buildPts(t, f){
-    return eventMatches(t).map((m,i)=>{
-      const val=getPath(m,f.key);
-      const matchKey=m.match||m.match_key||'';
-      const mkParts=matchKey.match(/_([a-z]+?)(?:(\d+)m(\d+)|(\d+))$/i);
-      const comp=mkParts?mkParts[1].toLowerCase():(m.comp_level||'qm');
-      const mn=mkParts?(mkParts[2]!=null?`${mkParts[2]}-${mkParts[3]}`:mkParts[4]):(m.match_number||i+1);
-      const compLabel=comp==='qm'?'Qual':comp==='sf'?'SF':comp==='f'?'Final':comp.toUpperCase();
-      return {x:i, val, matchLabel:`${compLabel} ${mn}`};
-    }).filter(p=>p.val!=null&&typeof p.val==='number'&&isFinite(p.val));
+    return eventMatches(t).map((m,i)=>({
+      x:i, val: matchEpa(m,t,f.key), matchLabel: matchLabelOf(m),
+    })).filter(p=>p.val!=null&&typeof p.val==='number'&&isFinite(p.val));
   }
 
   // Helper: draw a multi-team line chart (no event bands needed — single event)
@@ -3951,7 +3945,7 @@ function closeAllianceEpa(){
 // in the background. Year-namespaced so last season's data drops on its own.
 const SB_LS          = `pitfusion_sb_${new Date().getFullYear()}`;
 const SB_TTL_YEAR    = 2*60*60*1000;   // team_year  — EPA aggregates move slowly
-const SB_TTL_MATCHES = 20*60*1000;     // team_matches — grows as matches are played
+const SB_TTL_MATCHES = 20*60*1000;     // /v3/matches — grows as matches are played
 const SB_MAX         = 40;             // LRU cap per sub-store
 const _sb = { year:{}, matches:{} };   // key -> { d:<json>, ts:<ms> }
 (function _sbLoad(){
@@ -4006,9 +4000,9 @@ function getTeamYear(team, onFresh){
     SB_TTL_YEAR, 8000, onFresh);
 }
 function getTeamMatches(team, scope, onFresh){
-  const q = scope==='all' ? '&limit=200' : `&event=${scope}`;
+  const q = (scope && scope!=='all') ? `event=${scope}` : `year=${_yr()}&limit=200`;
   return _sbGet('matches', `${team}|${scope||'all'}`,
-    `https://api.statbotics.io/v3/team_matches?team=${team}&year=${_yr()}${q}`,
+    `https://api.statbotics.io/v3/matches?team=${team}&${q}`,
     SB_TTL_MATCHES, 12000, onFresh);
 }
 function bustTeamCache(team){
@@ -4020,6 +4014,29 @@ function bustTeamCache(team){
 
 function getPath(obj, path){
   return path.split('.').reduce((o,k)=>(o==null?null:o[k]), obj);
+}
+
+// ── Per-match EPA (Statbotics /v3/matches) ──────────────────────────────────
+// EPA_FIELDS `key` is a per-match field on m.epas["<team>"]; this maps it to the
+// matching team_year.epa.breakdown.<field> for the chart's "current value" marker.
+const SB_YEAR_FIELD = {
+  epa:'total_points', auto_epa:'auto_points', teleop_epa:'teleop_points',
+  endgame_epa:'endgame_points', rp_1_epa:'rp_1', rp_2_epa:'rp_2', rp_3_epa:'rp_3',
+  tiebreaker_epa:'tiebreaker_points',
+};
+function matchEpa(m, team, key){
+  const e = m && m.epas && m.epas[String(team)];
+  return e ? e[key] : null;
+}
+function curEpa(ty, key){
+  const b = ty && ty.epa && ty.epa.breakdown;
+  return b ? b[SB_YEAR_FIELD[key] || key] : null;
+}
+function matchHasEpa(m, team){
+  return !!(m && m.status==='Completed' && matchEpa(m, team, 'epa') != null);
+}
+function matchLabelOf(m){
+  return m.match_name || `${(m.comp_level||'qm').toUpperCase()} ${m.match_number||''}`.trim();
 }
 
 // Fetch with timeout + 1 automatic retry
@@ -4114,7 +4131,7 @@ async function openEpa(team, forceReload=false){
 
   // Sort matches chronologically
   matches = (matches||[])
-    .filter(m=>m.epa!=null&&m.status==='Completed')
+    .filter(m=>matchHasEpa(m,team))
     .sort((a,b)=>{
       const ta=a.time||a.predicted_time||0;
       const tb=b.time||b.predicted_time||0;
@@ -4154,20 +4171,11 @@ async function openEpa(team, forceReload=false){
       const f=cfgFields[fi];
       const mRef = epaShowCurrentOnly ? filteredMatches : matches;
       const pts=mRef.map((m,i)=>{
-        const val=getPath(m,f.key);
-        const ek=m.event||m.event_key||'';
-        const matchKey=m.match||m.match_key||'';
-        // Parse "2026mabos_qm12" → "mabos Qual 12"
-        const mkParts=matchKey.match(/_([a-z]+?)(?:(\d+)m(\d+)|(\d+))$/i);
-        const comp=mkParts?mkParts[1].toLowerCase():(m.comp_level||'qm');
-        const mn=mkParts?(mkParts[2]!=null?`${mkParts[2]}-${mkParts[3]}`:mkParts[4]):(m.match_number||i+1);
-        const compLabel=comp==='qm'?'Qual':comp==='sf'?'SF':comp==='f'?'Final':comp.toUpperCase();
-        const evShort=ek.replace(/^\d{4}/,'');
-        const matchLabel=`${evShort} ${compLabel} ${mn}`;
-        return {x:i,val,matchLabel};
+        const evShort=(m.event||m.event_key||'').replace(/^\d{4}/,'');
+        return {x:i, val: matchEpa(m,team,f.key), matchLabel: `${evShort} ${matchLabelOf(m)}`.trim()};
       }).filter(p=>p.val!=null&&typeof p.val==='number'&&isFinite(p.val));
 
-      const curVal=getPath(teamYear,f.key);
+      const curVal=curEpa(teamYear,f.key);
       const slot=document.getElementById(`epa-slot-${fi}`);
       if(slot) slot.innerHTML=drawLineChart(`epa-chart-${fi}`,pts,f.color,curVal,eventBands);
 
@@ -4265,7 +4273,7 @@ function renderEpaShell(teamYear, team, year){
 
   // Skeleton placeholder for each chart
   cfgFields.forEach((f,fi)=>{
-    const curVal=getPath(teamYear,f.key);
+    const curVal=curEpa(teamYear,f.key);
     const curStr=curVal!=null?Number(curVal).toFixed(1):'\u2014';
     html+=`<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ${f.color};border-radius:var(--r);padding:10px 14px">
       <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
@@ -4565,7 +4573,7 @@ async function toggleEpaCurrentOnly(){
       getTeamYear(team),
       getTeamMatches(team, epaShowCurrentOnly ? C.event : 'all'),
     ]);
-    const matches=(raw||[]).filter(m=>m.epa!=null&&m.status==='Completed').sort((a,b)=>{
+    const matches=(raw||[]).filter(m=>matchHasEpa(m,team)).sort((a,b)=>{
       const ta=a.time||a.predicted_time||0, tb=b.time||b.predicted_time||0;
       if(ta&&tb&&ta!==tb) return ta-tb;
       return (a.event||'').localeCompare(b.event||'')||(a.match_number||0)-(b.match_number||0);
@@ -4580,7 +4588,7 @@ async function toggleEpaCurrentOnly(){
 
 async function _fillEpaCharts(cached, team, year){
   const matches=(cached.matches||[])
-    .filter(m=>m.epa!=null&&m.status==='Completed')
+    .filter(m=>matchHasEpa(m,team))
     .sort((a,b)=>{
       const ta=a.time||a.predicted_time||0;
       const tb=b.time||b.predicted_time||0;
@@ -4626,19 +4634,11 @@ async function _fillEpaCharts(cached, team, year){
   for(let fi=0;fi<cfgFields.length;fi++){
     const f=cfgFields[fi];
     const pts=filteredMatches.map((m,i)=>{
-      const val=getPath(m,f.key);
-      const ek=m.event||m.event_key||'';
-      const matchKey=m.match||m.match_key||'';
-      const mkParts=matchKey.match(/_([a-z]+?)(?:(\d+)m(\d+)|(\d+))$/i);
-      const comp=mkParts?mkParts[1].toLowerCase():(m.comp_level||'qm');
-      const mn=mkParts?(mkParts[2]!=null?`${mkParts[2]}-${mkParts[3]}`:mkParts[4]):(m.match_number||i+1);
-      const compLabel=comp==='qm'?'Qual':comp==='sf'?'SF':comp==='f'?'Final':comp.toUpperCase();
-      const evShort=ek.replace(/^\d{4}/,'');
-      const matchLabel=`${evShort} ${compLabel} ${mn}`;
-      return {x:i, val, matchLabel};
+      const evShort=(m.event||m.event_key||'').replace(/^\d{4}/,'');
+      return {x:i, val: matchEpa(m,team,f.key), matchLabel: `${evShort} ${matchLabelOf(m)}`.trim()};
     }).filter(p=>p&&p.val!=null&&typeof p.val==='number'&&isFinite(p.val));
 
-    const curVal=getPath(cached.teamYear,f.key);
+    const curVal=curEpa(cached.teamYear,f.key);
     const slot=document.getElementById(`epa-slot-${fi}`);
     if(slot) slot.innerHTML=drawLineChart(`epa-chart-${fi}`,pts,f.color,curVal,eventBands);
 
