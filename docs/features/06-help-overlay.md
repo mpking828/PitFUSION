@@ -1,6 +1,6 @@
 # Feature 6 — Help overlay
 
-Status: **building**. Size: XS.
+Status: **done** (V3, shipped in #17). Size: XS.
 
 ## Context
 
