@@ -1,0 +1,16 @@
+name = "pitfusion"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+# Everything except /api/* is served straight from public/ (honors
+# public/_headers and public/_redirects). /api/* runs worker.js.
+run_worker_first = ["/api/*"]
+
+# Secrets are NOT defined here. Set them on the Worker
+# (Settings -> Variables and Secrets, type "Secret"):
+#   NEXUS_API_KEY, TBA_API_KEY, YOUTUBE_API_KEY
+# For local `wrangler dev`, put them in a gitignored .dev.vars file
+# (see .dev.vars.example).

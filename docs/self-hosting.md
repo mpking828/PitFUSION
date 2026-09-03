@@ -1,10 +1,13 @@
-# PitFUSION
+# Self-hosting PitFUSION
 
 **A real-time FRC pit display that fuses Nexus and The Blue Alliance into one screen.**
 
 Created by Mike King — [Team 88 TJ²](https://www.tj2.org/)
 
-![PitFUSION interface overview](docs/annotated.png)
+![PitFUSION interface overview](annotated.png)
+
+> **Just want to use it?** The hosted version at **[pitfusion.com](https://pitfusion.com)**
+> needs no keys and no setup. This guide is for running your own copy.
 
 \---
 
@@ -36,29 +39,23 @@ Created by Mike King — [Team 88 TJ²](https://www.tj2.org/)
 
 ### 1\. Get API Keys
 
-|Key|Where to get it|
-|-|-|
-|**Nexus API Key**|[frc.nexus/api](https://frc.nexus/api)|
-|**The Blue Alliance API Key**|[thebluealliance.com/apidocs](https://www.thebluealliance.com/apidocs)|
+|Key|Where to get it|Required?|
+|-|-|-|
+|**Nexus API Key**|[frc.nexus/api](https://frc.nexus/api)|Yes|
+|**The Blue Alliance API Key**|[thebluealliance.com/account](https://www.thebluealliance.com/account)|Yes|
+|**YouTube Data API Key**|[console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)|Optional — only to auto-detect a live webcast|
 
-### 2\. Edit config.js
+Keys are **not** stored in any file. You enter them in the app's **⚙ Settings**
+panel (see step 5); they are saved only in that browser's local storage. `config.js`
+holds non-secret config only.
 
-Open `config.js` in any text editor and add your API keys:
-
-```js
-const NEXUS\_KEY = 'YOUR\_NEXUS\_KEY';
-const TBA\_KEY   = 'YOUR\_TBA\_KEY';
-```
-
-This is the only file you need to edit for initial setup.
-
-### 3\. Add a Logo (Optional)
+### 2\. Add a Logo (Optional)
 
 Place any of these files in the **same folder** as `PitFUSION.html` and it will appear automatically on the setup screen above the wordmark:
 
 `logo.png` · `logo.jpg` · `logo.jpeg` · `logo.svg` · `logo.webp`
 
-### 4\. Serve the File
+### 3\. Serve the File
 
 Browsers block local API calls from `file://` URLs, so you need a simple local web server.
 
@@ -79,11 +76,21 @@ Then open your browser to: **http://localhost:8080/PitFUSION.html**
 > Download from \[python.org/downloads](https://www.python.org/downloads/) and run the installer with default settings.
 > On Windows you can also type `python` in a Command Prompt and Windows will prompt you to install it via the Microsoft Store.
 
+### 4\. Enter your API keys
+
+On first load the **setup screen** appears with an **⚙ API Keys & Connection Check**
+button. Open it, paste your Nexus and Blue Alliance keys (and optionally a YouTube
+key), and use **Run connection check** to confirm they work. Keys are stored only in
+this browser. You can reopen this panel any time from the gear icon in the header.
+
 ### 5\. Launch
 
-On first load the **setup screen** appears. Enter your team number, select your event from the dropdown (it automatically filters to events your team is registered at this week), choose a theme, and click **Launch PitFUSION**.
+Enter your team number, select your event from the dropdown (it automatically filters
+to events your team is registered at this week), choose a theme, and click **Launch
+PitFUSION**.
 
-Your team number, event code, theme, and font size are saved automatically and restored on the next reload.
+Your team number, event code, theme, and font size are saved automatically and restored
+on the next reload. Keys are stored separately, also in this browser.
 
 \---
 
@@ -92,14 +99,22 @@ Your team number, event code, theme, and font size are saved automatically and r
 |File|Purpose|
 |-|-|
 |`PitFUSION.html`|The entire application|
-|`config.js`|API keys and EPA field configuration — **edit this file**|
+|`config.js`|Non-secret config only — EPA field definitions and an optional `FORCE_MODE` override. **No API keys.**|
+|`version.json`|Version pointer used by the self-hosted update check|
 |`Start PitFUSION.bat`|Windows launcher — double-click to start|
 |`logo.png` (optional)|Team logo shown on setup screen|
 |`FRC88Background.png` (optional)|Required only for the TJ² theme|
 |`\[your-bg-image]` (optional)|Background image for the Custom theme|
-|`check.html|Tests your API keys from config.js, and reports if they are working|
 
-All files must be in the same folder.
+All files must be in the same folder. The old `check.html` is now the **⚙ Settings**
+panel's *Run connection check* inside the app.
+
+### Hosted vs self-hosted mode
+
+The app auto-detects: **hosted** on `pitfusion.com` / `*.workers.dev` / `*.pages.dev` (API
+calls go through a server-side proxy, keys never reach the browser), **self-hosted**
+everywhere else (direct API calls with your keys from the Settings panel). Force it with
+`FORCE_MODE` in `config.js` or `?forceMode=hosted|selfhosted` in the URL.
 
 \---
 
@@ -229,7 +244,7 @@ Edit the `\[data-theme="custom"]` block near the top of the `<style>` section (a
 |`--custom-bg-washout`|`0.0`|Overlay opacity: `0.0` (none) → `1.0` (solid)|
 |`--custom-bg-washout-color`|`0,0,0`|Overlay RGB — use `255,255,255` for light themes|
 
-See the full [Custom Theme Guide](docs/PitFusion_Custom_Theme.md) for all variables and examples.
+See the full [Custom Theme Guide](custom-theme.md) for all variables and examples.
 
 \---
 
@@ -237,9 +252,9 @@ See the full [Custom Theme Guide](docs/PitFusion_Custom_Theme.md) for all variab
 
 |||
 |-|-|
-|[![Main Screen](docs/MainScreen1.png)](docs/MainScreen1.png)|[![Bracket View](docs/BracketView1.png)](docs/BracketView1.png)|
+|[![Main Screen](MainScreen1.png)](MainScreen1.png)|[![Bracket View](BracketView1.png)](BracketView1.png)|
 |Main display|Playoff bracket|
-|[![Team View](docs/TeamView1.png)](docs/TeamView1.png)|[![Alerts View](docs/AlertsView1.png)](docs/AlertsView1.png)|
+|[![Team View](TeamView1.png)](TeamView1.png)|[![Alerts View](AlertsView1.png)](AlertsView1.png)|
 |My Team tab|Alerts tab|
 
 \---
