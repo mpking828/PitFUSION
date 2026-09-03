@@ -76,6 +76,26 @@ document.addEventListener('DOMContentLoaded',()=>{
   --fs-pit:clamp(1.4rem,2.2vw,2.0rem);   /* pit display — rankings/match list */
   --fs-pit-xl:clamp(2.0rem,3.2vw,3.0rem); /* pit display XL */
   --pad:clamp(10px,1.3vw,20px);--r:8px;
+
+  /* ── Generalised theme tokens ─────────────────────────────────────────────
+     Every theme inherits these no-op defaults; a theme (or the in-app Custom
+     editor — Settings ▸ Appearance) overrides them to opt in.
+     · --page-bg-*  full-page fixed background image + wash overlay
+     · --hdr-bg-*   header-only background image + wash overlay
+     · --glass-*    frosted panel treatment, active only under body.page-has-bg
+     · --on-accent  text/icon colour on accent-filled buttons */
+  --page-bg-image:none;
+  --page-bg-pos:center;
+  --page-bg-washout:0;
+  --page-bg-washout-color:0,0,0;
+  --hdr-bg-image:none;
+  --hdr-bg-pos:center top;
+  --hdr-bg-washout:0;
+  --hdr-bg-washout-color:0,0,0;
+  --glass-bg:var(--surface);
+  --glass-border:var(--border);
+  --glass-blur:12px;
+  --on-accent:#000;
 }
 
 /* ── DARK MODE (default) ── */
@@ -118,13 +138,19 @@ document.addEventListener('DOMContentLoaded',()=>{
   --text:#ffffff;           /* White text on dark navy panels */
   --text-dim:rgba(255,255,255,0.5);
   --text-mid:rgba(255,255,255,0.75);
+  --on-accent:#0d1e3d;      /* navy text on the gold accent */
+  --hdr-bg-image:url('FRC88Background.png');
+  --hdr-bg-pos:center top;
+  --hdr-bg-washout:0.38;
+  --hdr-bg-washout-color:0,0,0;
 }
 
-/* ── CUSTOM — edit these variables to your liking ── */
-/* To use a background image: set --custom-bg-image to the filename,
-   e.g.  --custom-bg-image: url('mybackground.jpg');
-   Set --custom-bg-washout to control how much white/black overlay dims it.
-   0 = no washout (full image), 1 = fully covered (just the --bg color shows) */
+/* ── CUSTOM ───────────────────────────────────────────────────────────────
+   The in-app editor (Settings ▸ Appearance ▸ Edit Custom theme) writes an
+   override block for these variables into <style id="custom-theme-style"> and
+   saves it to localStorage['pitfusion_custom_theme']. The values below are the
+   built-in fallback, used until the editor saves something (and still
+   editable by hand for a self-hosted copy). */
 [data-theme="custom"]{
   --bg:#0d0d0d;
   --surface:#141414;
@@ -141,54 +167,62 @@ document.addEventListener('DOMContentLoaded',()=>{
   --text:#f0f0f0;
   --text-dim:#707070;
   --text-mid:#a0a0a0;
-  /* Background image — set to e.g. url('myimage.png') or leave as none */
-  --custom-bg-image: none;
-  /* Washout overlay — 0.0 (none) to 1.0 (fully washed out). Dark themes
-     typically use 0.5–0.8; light themes 0.1–0.4 */
-  --custom-bg-washout: 0.0;  /* 0 = no overlay when no image; increase when using a bg image */
-  /* Washout overlay color — use black for dark themes, white for light */
-  --custom-bg-washout-color: 0,0,0;
+  --on-accent:#000;
+  /* Frosted panels — only visible when --page-bg-image is set */
+  --glass-bg:rgba(20,20,20,0.72);
+  --glass-border:rgba(255,255,255,0.14);
+  --glass-blur:12px;
+  /* Full-page background image — url('myimage.png') or none.
+     Washout: 0 = image at full strength, 1 = fully covered by --page-bg-washout-color. */
+  --page-bg-image:none;
+  --page-bg-pos:center;
+  --page-bg-washout:0;
+  --page-bg-washout-color:0,0,0;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden}
-body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(--fs-body);-webkit-font-smoothing:antialiased}
-/* TJ2 — dark navy body, tye-dye only in the header */
-body[data-theme="tj2"]{
-  background-color: #060e1e;
-}
-/* Custom theme — background image baked in like TJ2 (no ::before, no has-bg) */
-/* When --custom-bg-image is set to a url(), it shows with the washout gradient on top */
-body[data-theme="custom"]{
-  background-color: var(--bg);
+/* Body background = --bg colour, with an optional full-page image (any theme)
+   dimmed by a wash overlay. Defaults (none / 0) make this a no-op. */
+body{
+  background-color:var(--bg);
   background-image:
     linear-gradient(
-      rgba(var(--custom-bg-washout-color), var(--custom-bg-washout)),
-      rgba(var(--custom-bg-washout-color), var(--custom-bg-washout))
+      rgba(var(--page-bg-washout-color), var(--page-bg-washout)),
+      rgba(var(--page-bg-washout-color), var(--page-bg-washout))
     ),
-    var(--custom-bg-image);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+    var(--page-bg-image);
+  background-size:cover;
+  background-position:var(--page-bg-pos);
+  background-repeat:no-repeat;
+  background-attachment:fixed;
+  color:var(--text);font-family:var(--fb);font-size:var(--fs-body);-webkit-font-smoothing:antialiased;
 }
-/* Custom theme — frosted glass panels when background image is active */
-/* Custom theme panels — glass effect only when bg image is active (body.custom-has-bg) */
-body.custom-has-bg[data-theme="custom"] .hdr,
-body.custom-has-bg[data-theme="custom"] .footer,
-body.custom-has-bg[data-theme="custom"] .col-l,
-body.custom-has-bg[data-theme="custom"] .sidebar,
-body.custom-has-bg[data-theme="custom"] .stream-bar,
-body.custom-has-bg[data-theme="custom"] .tab-bar,
-body.custom-has-bg[data-theme="custom"] .panel-m{display:flex;flex-direction:column;overflow:hidden;min-height:0}
-body.custom-has-bg[data-theme="custom"] .tp{
-  background:rgba(var(--custom-bg-washout-color, 0,0,0), 0.55);
+/* TJ² — dark navy body; the tye-dye photo lives in the header only */
+body[data-theme="tj2"]{ background-color:#060e1e; }
+/* Frosted glass panels — active for ANY theme once a full-page image is set
+   (body.page-has-bg, toggled by applyPageBg()). Tint/border/blur come from
+   the --glass-* tokens so each theme controls its own look. */
+body.page-has-bg .hdr,
+body.page-has-bg .footer,
+body.page-has-bg .col-l,
+body.page-has-bg .sidebar,
+body.page-has-bg .stream-bar,
+body.page-has-bg .tab-bar,
+body.page-has-bg .panel-m{
+  background:var(--glass-bg);
+  border-color:var(--glass-border);
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+}
+body.page-has-bg .tp{
+  background:rgba(var(--page-bg-washout-color, 0,0,0), 0.55);
 }
 
 /* Setup page z-index handled by its own rule (10000) */
 #app{display:grid;grid-template-rows:var(--hdr-h) 1fr var(--ftr-h);width:100vw;height:100vh;overflow:hidden}
 
 /* HEADER */
-.hdr{background:var(--surface);border-bottom:3px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 var(--pad);gap:12px;overflow:hidden}
+.hdr{background-color:var(--surface);background-image:linear-gradient(rgba(var(--hdr-bg-washout-color),var(--hdr-bg-washout)),rgba(var(--hdr-bg-washout-color),var(--hdr-bg-washout))),var(--hdr-bg-image);background-size:cover;background-position:var(--hdr-bg-pos);background-repeat:no-repeat;border-bottom:3px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 var(--pad);gap:12px;overflow:hidden}
 .hdr-l,.hdr-r{display:flex;align-items:center;gap:12px;flex-shrink:0}
 .logo{font-family:var(--fd);font-size:var(--fs-hdr);font-weight:900;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center}
 .logo .wm-pit{color:var(--text)}
@@ -364,7 +398,6 @@ body.custom-has-bg[data-theme="custom"] .tp{
 [data-theme="tj2"] .up-row:nth-child(odd){background:rgba(8,20,48,0.8)}
 [data-theme="tj2"] .up-chip.red{background:rgba(180,30,20,.4);color:#ffaaaa}
 [data-theme="tj2"] .up-chip.blue{background:rgba(20,80,180,.4);color:#aaccff}
-[data-theme="tj2"] .up-chip.me{background:#f5c000;color:#000}
 [data-theme="tj2"] .up-lbl{color:#ffffff}
 [data-theme="tj2"] .upcoming-hdr{color:rgba(255,255,255,0.5)}
 .ic{background:var(--surface2);border:2px solid var(--border2);border-radius:var(--r);padding:11px 13px;margin-bottom:9px}
@@ -411,7 +444,6 @@ body.custom-has-bg[data-theme="custom"] .tp{
 .sched-break{background:rgba(255,214,0,.07);border-left:3px solid rgba(255,214,0,.5)}
 .sched-break td{color:var(--yellow);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px}
 [data-theme="tj2"] .sched-table tr.upcoming td{background:rgba(245,192,0,.04)}
-[data-theme="tj2"] .sched-chip.me{background:#f5c000;color:#000}
 [data-theme="tj2"] .sched-title{color:#f5c000}
 .ftr-stamp{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap}
 .ftr-note{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;letter-spacing:.06em}
@@ -503,7 +535,7 @@ body.custom-has-bg[data-theme="custom"] .tp{
 .setup-hint{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);margin-top:2px}
 .setup-or{display:flex;align-items:center;gap:10px;color:var(--text-dim);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase}
 .setup-or::before,.setup-or::after{content:'';flex:1;height:1px;background:var(--border2)}
-.setup-btn{background:var(--accent);border:none;border-radius:var(--r);color:#000;font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;letter-spacing:.1em;text-transform:uppercase;padding:13px 20px;cursor:pointer;transition:opacity .15s;width:100%}
+.setup-btn{background:var(--accent);border:none;border-radius:var(--r);color:var(--on-accent);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;letter-spacing:.1em;text-transform:uppercase;padding:13px 20px;cursor:pointer;transition:opacity .15s;width:100%}
 .setup-btn:hover{opacity:.85}
 .setup-btn:disabled{opacity:.4;cursor:not-allowed}
 .setup-events-loading{display:flex;align-items:center;gap:8px;font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)}
@@ -545,15 +577,9 @@ body.custom-has-bg[data-theme="custom"] .tp{
   -webkit-backdrop-filter:blur(12px);
   border-color:rgba(255,255,255,0.15);
 }
-/* TJ2 — tye-dye photo in the header */
+/* TJ² — tye-dye photo in the header (via the generalised --hdr-bg-* tokens) */
 [data-theme="tj2"] .hdr{
   background-color:#f5e8d0;
-  background-image:
-    linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)),
-    url('FRC88Background.png');
-  background-size:cover;
-  background-position:center top;
-  background-repeat:no-repeat;
   border-bottom-color:rgba(245,192,0,0.5);
 }
 [data-theme="tj2"] .tab-bar{
@@ -622,10 +648,7 @@ body.custom-has-bg[data-theme="custom"] .tp{
   border-color:#f5c000;
   box-shadow:0 0 0 1px #f5c000;
 }
-[data-theme="tj2"] #setup-page .setup-btn{
-  background:#f5c000;
-  color:#0d1e3d;
-}
+/* (setup button: gold bg = var(--accent), navy text = var(--on-accent) for TJ²) */
 
 [data-theme="tj2"] .hdr *:not(svg):not(ellipse):not(circle):not(path){color:#ffffff}
 
@@ -1443,14 +1466,15 @@ function applyTheme(t){
   if(!VALID_THEMES.includes(t)) t = 'dark';
   document.documentElement.setAttribute('data-theme', t);
   document.body.setAttribute('data-theme', t);
+  applyPageBg();
 }
 
-
-
-function applyCustomHasBg(){
+// Toggle body.page-has-bg whenever the active theme resolves --page-bg-image to
+// an actual image (used by the frosted-glass panel rules). Works for any theme.
+function applyPageBg(){
   const val = getComputedStyle(document.documentElement)
-                .getPropertyValue('--custom-bg-image').trim();
-  document.body.classList.toggle('custom-has-bg', !!(val && val !== 'none' && val !== ''));
+                .getPropertyValue('--page-bg-image').trim();
+  document.body.classList.toggle('page-has-bg', !!(val && val !== 'none' && val !== ''));
 }
 
 function selectTheme(t, el){
@@ -1462,7 +1486,6 @@ function selectTheme(t, el){
     const s = document.querySelector(`.theme-swatch[data-theme="${t}"]`);
     if(s) s.classList.add('active');
   }
-  if(t === 'custom') applyCustomHasBg();
 }
 
 // Apply saved theme immediately on load (before paint)
@@ -1473,7 +1496,7 @@ function selectTheme(t, el){
   document.addEventListener('DOMContentLoaded', ()=>{
     const s = document.querySelector(`.theme-swatch[data-theme="${saved}"]`);
     if(s){ document.querySelectorAll('.theme-swatch').forEach(x=>x.classList.remove('active')); s.classList.add('active'); }
-    if(saved === 'custom') applyCustomHasBg();
+    applyPageBg();
   });
 })();
 
