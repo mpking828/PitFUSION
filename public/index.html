@@ -2687,7 +2687,7 @@ function rTeam(){
       const cells=[['World',rk.total?.rank]];
       if(sbMyYear.country) cells.push([e(sbMyYear.country),rk.country?.rank]);
       if(sbMyYear.state)   cells.push([e(sbMyYear.state),rk.state?.rank]);
-      if(sbMyYear.district) cells.push([e(String(sbMyYear.district).toUpperCase()),rk.district?.rank]);
+      if(hasRealDistrict(sbMyYear)) cells.push([e(String(sbMyYear.district).toUpperCase()),rk.district?.rank]);
       html+=`<div class="sbl">EPA Ranks</div><div class="str" style="grid-template-columns:repeat(${cells.length},1fr)">`
         +cells.map(([lbl,v])=>`<div class="stc"><div class="stv" style="font-size:var(--fs-lbl)">${v!=null?'#'+v:'&mdash;'}</div><div class="stl">${lbl}</div></div>`).join('')
         +`</div>`;
@@ -4153,7 +4153,7 @@ function renderEpaShell(teamYear, team, year){
     if(rk?.total?.rank!=null)       pills.push(['World','#'+rk.total.rank]);
     if(rk?.country?.rank!=null && teamYear.country) pills.push([e(teamYear.country),'#'+rk.country.rank]);
     if(rk?.state?.rank!=null && teamYear.state)     pills.push([e(teamYear.state),'#'+rk.state.rank]);
-    if(rk?.district?.rank!=null && teamYear.district) pills.push([e(String(teamYear.district).toUpperCase()),'#'+rk.district.rank]);
+    if(rk?.district?.rank!=null && hasRealDistrict(teamYear)) pills.push([e(String(teamYear.district).toUpperCase()),'#'+rk.district.rank]);
     if(tbaEvent?.district?.key)     pills.push(['District Pts','<span id="epa-dpts">…</span>']);
     if(pills.length){
       html+=`<div class="epa-stats">`+pills.map(([l,v])=>
@@ -4203,6 +4203,15 @@ function renderEpaShell(teamYear, team, year){
 
   body.innerHTML=html;
   fillDistrictPoints(team);
+}
+
+// A Statbotics team_year has a real FRC district only when `district` differs from the
+// state code. Since ~2026 Statbotics fills `district` with the state abbreviation (and
+// duplicates the state rank) for non-district teams — we don't want to show that.
+function hasRealDistrict(ty){
+  const d=ty&&ty.district;
+  if(!d) return false;
+  return String(d).toLowerCase() !== String(ty.state||'').toLowerCase();
 }
 
 // Fill the "District Pts" pill in the EPA overlay stat strip (district events only).
