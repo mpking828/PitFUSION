@@ -1770,8 +1770,10 @@ setInterval(()=>{document.getElementById('hdr-clk').textContent=new Date().toLoc
 // In hosted mode, requests to the real API hosts are rewritten to same-origin
 // /api/* proxy paths and auth headers are dropped (the proxy injects the key).
 // In self-hosted mode, requests go direct with the header key from Settings.
-const hn=k=>MODE==='hosted'?{}:{'Nexus-Api-Key':k};
-const ht=k=>MODE==='hosted'?{}:{'X-TBA-Auth-Key':k};
+// function declarations (not const) so the setup-screen event loader, which
+// runs mid-parse, can call them before this point in the file.
+function hn(k){ return MODE==='hosted' ? {} : {'Nexus-Api-Key':k}; }
+function ht(k){ return MODE==='hosted' ? {} : {'X-TBA-Auth-Key':k}; }
 function apiUrl(u){
   if(MODE!=='hosted') return u;
   return u.replace('https://frc.nexus/api/v1','/api/nexus')
