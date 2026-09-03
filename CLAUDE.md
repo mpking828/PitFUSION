@@ -9,9 +9,15 @@ Single HTML file, no framework, no build step.
 - hosted/ — cloud version to be built (Cloudflare Pages + Workers proxy)
 
 ## Architecture decision
-Moving to Cloudflare Pages + Workers so API keys live as Worker Secrets,
-never in browser-visible code. HTML calls /api/nexus/* and /api/tba/* 
-which Workers proxy to the real APIs with injected keys.
+Moving to Cloudflare Pages + Pages Functions so API keys live as encrypted
+secrets, never in browser-visible code. HTML calls /api/nexus/*, /api/tba/*,
+/api/youtube/* which Functions proxy to the real APIs with injected keys.
+Single codebase with runtime mode detection: hosted (pitfusion.com / *.pages.dev)
+uses the proxy; self-hosted uses bring-your-own keys from a settings panel
+(localStorage). Ships as V3.0.0 (breaking config change).
+
+Full plan, target layout, Cloudflare setup steps, and investigation notes:
+docs/hosting-migration.md
 
 ## Update check / releases
 - Only the self-hosted build (local/PitFUSION.html) has an update check.
