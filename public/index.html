@@ -254,6 +254,8 @@ body.page-has-bg .tp{
 [data-theme="tj2"] .help-btn:hover{border-color:#f5c000;color:#f5c000}
 .help-overlay{position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center}
 .help-overlay.show{display:flex}
+/* Settings is a modal that can be opened from the setup screen (z-index 10000) too */
+#settings-overlay{z-index:10001}
 .help-card{background:var(--surface);border:2px solid var(--border2);border-radius:var(--r);padding:28px 32px;max-width:520px;width:90%;position:relative;max-height:85vh;overflow-y:auto}
 .help-card h2{font-family:var(--fd);font-size:var(--fs-hdr);font-weight:900;color:var(--accent);margin-bottom:14px;letter-spacing:.04em}
 .help-card h3{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--text);letter-spacing:.06em;text-transform:uppercase;margin:20px 0 8px}
@@ -1200,29 +1202,12 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 
     <div class="setup-field theme-switcher">
       <label class="setup-label">Theme</label>
-      <div class="theme-swatches" id="theme-swatches">
-        <div class="theme-swatch active" data-theme="dark" onclick="selectTheme('dark',this)">
-          <div class="theme-swatch-preview" style="background:linear-gradient(135deg,#09090f 50%,#00d4ff 100%)"></div>
-          <div class="theme-swatch-name">Dark</div>
-        </div>
-        <div class="theme-swatch" data-theme="light" onclick="selectTheme('light',this)">
-          <div class="theme-swatch-preview" style="background:linear-gradient(135deg,#f0f2f8 50%,#0077aa 100%)"></div>
-          <div class="theme-swatch-name">Light</div>
-        </div>
-        <div class="theme-swatch" data-theme="tj2" onclick="selectTheme('tj2',this)">
-          <div class="theme-swatch-preview" style="background:radial-gradient(circle at center,#fff8e8 0%,#e86a10 30%,#e8a800 50%,#1a4fa3 75%,#c0311a 100%)"></div>
-          <div class="theme-swatch-name">TJ²</div>
-        </div>
-        <div class="theme-swatch" data-theme="custom" onclick="selectTheme('custom',this)">
-          <div class="theme-swatch-preview" style="background:linear-gradient(135deg,#0d0d0d 50%,#ff9900 100%)"></div>
-          <div class="theme-swatch-name">Custom</div>
-        </div>
-      </div>
+      <div class="theme-swatches" id="theme-swatches"><!-- rendered by renderThemeSwatches() --></div>
     </div>
 
     <button class="setup-btn" id="setup-go" onclick="setupLaunch()">Launch PitFUSION &rarr;</button>
     <div id="setup-keys-row" style="display:none;text-align:center;margin-top:12px">
-      <button class="s-btn" onclick="openSettings()" style="padding:6px 16px">&#9881; API Keys &amp; Connection Check</button>
+      <button class="s-btn" onclick="openSettings()" style="padding:6px 16px">&#9881; Settings &mdash; API Keys &amp; Connection Check</button>
     </div>
   </div>
 </div>
@@ -1244,7 +1229,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     <div class="hdr-cd" id="hdr-cd"></div>
     <div class="hdr-r">
       <button class="help-btn" onclick="document.getElementById('help-overlay').classList.add('show')" title="Help">?</button>
-      <button class="help-btn" onclick="openSettings()" title="API keys &amp; connection check" style="font-size:12px">&#9881;</button>
+      <button class="help-btn" onclick="openSettings()" title="Settings" style="font-size:12px">&#9881;</button>
       <div class="hdr-clk" id="hdr-clk">&mdash;</div>
       <div id="hdr-delay"></div>
       <div class="hdr-team" id="hdr-team">&mdash;</div>
@@ -1383,6 +1368,14 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <h2>Settings</h2>
       <p style="margin-bottom:10px"><span style="color:var(--text-dim)">Mode:</span> <span id="set-mode-label"></span></p>
 
+      <h3>Appearance</h3>
+      <div class="theme-swatches" id="settings-theme-swatches" style="margin-bottom:10px"><!-- rendered by renderThemeSwatches() --></div>
+      <button class="s-btn" id="edit-custom-btn" onclick="openCustomThemeEditor()" style="padding:6px 16px">Edit Custom theme&hellip;</button>
+      <div id="custom-theme-editor" hidden style="margin-top:14px"></div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <h3>API keys &amp; connection</h3>
+
       <div id="set-hosted-note" style="display:none">
         <p>API keys are managed on the server for this deployment &mdash; nothing to configure here. Use the connection check below to confirm the proxy is healthy.</p>
       </div>
@@ -1460,13 +1453,48 @@ const LS_EVENT = 'pitfusion_event';
 
 // ── THEME ──────────────────────────────────────────────────────────────────
 const LS_THEME = 'pitfusion_theme';
-const VALID_THEMES = ['dark','light','tj2','custom'];
+const THEMES = [
+  { id:'dark',   name:'Dark',       swatch:'linear-gradient(135deg,#09090f 50%,#00d4ff 100%)' },
+  { id:'light',  name:'Light',      swatch:'linear-gradient(135deg,#f0f2f8 50%,#0077aa 100%)' },
+  { id:'tj2',    name:'TJ²',   swatch:'radial-gradient(circle at center,#fff8e8 0%,#e86a10 30%,#e8a800 50%,#1a4fa3 75%,#c0311a 100%)' },
+  { id:'custom', name:'Custom',     swatch:'linear-gradient(135deg,#0d0d0d 50%,#ff9900 100%)' },
+];
+const VALID_THEMES = THEMES.map(t => t.id);
 
 function applyTheme(t){
   if(!VALID_THEMES.includes(t)) t = 'dark';
   document.documentElement.setAttribute('data-theme', t);
   document.body.setAttribute('data-theme', t);
   applyPageBg();
+}
+
+// Build the swatch grid into a container. Used by the setup screen AND the
+// Settings ▸ Appearance section — both stay in sync because selectTheme()
+// re-marks every .theme-swatch in the document.
+function renderThemeSwatches(container){
+  if(!container) return;
+  const active = localStorage.getItem(LS_THEME) || 'dark';
+  container.textContent = '';
+  THEMES.forEach(t => {
+    const cell = document.createElement('div');
+    cell.className = 'theme-swatch' + (t.id === active ? ' active' : '');
+    cell.dataset.theme = t.id;
+    cell.tabIndex = 0;
+    cell.setAttribute('role', 'button');
+    cell.setAttribute('aria-label', t.name + ' theme');
+    const prev = document.createElement('div');
+    prev.className = 'theme-swatch-preview';
+    prev.style.background = t.swatch;
+    const nm = document.createElement('div');
+    nm.className = 'theme-swatch-name';
+    nm.textContent = t.name;
+    cell.append(prev, nm);
+    cell.addEventListener('click', () => selectTheme(t.id));
+    cell.addEventListener('keydown', e => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectTheme(t.id); }
+    });
+    container.appendChild(cell);
+  });
 }
 
 // Toggle body.page-has-bg whenever the active theme resolves --page-bg-image to
@@ -1477,25 +1505,24 @@ function applyPageBg(){
   document.body.classList.toggle('page-has-bg', !!(val && val !== 'none' && val !== ''));
 }
 
-function selectTheme(t, el){
+function selectTheme(t){
+  if(!VALID_THEMES.includes(t)) return;
   applyTheme(t);
   localStorage.setItem(LS_THEME, t);
-  document.querySelectorAll('.theme-swatch').forEach(s=>s.classList.remove('active'));
-  if(el) el.classList.add('active');
-  else {
-    const s = document.querySelector(`.theme-swatch[data-theme="${t}"]`);
-    if(s) s.classList.add('active');
-  }
+  // Keep every swatch group (setup screen + Settings) in sync.
+  document.querySelectorAll('.theme-swatch').forEach(s => {
+    s.classList.toggle('active', s.dataset.theme === t);
+  });
 }
 
 // Apply saved theme immediately on load (before paint)
 (function(){
   const saved = localStorage.getItem(LS_THEME) || 'dark';
   applyTheme(saved);
-  // Mark correct swatch active once DOM is ready (swatches may not exist yet)
+  // Populate swatch grids once the DOM is ready.
   document.addEventListener('DOMContentLoaded', ()=>{
-    const s = document.querySelector(`.theme-swatch[data-theme="${saved}"]`);
-    if(s){ document.querySelectorAll('.theme-swatch').forEach(x=>x.classList.remove('active')); s.classList.add('active'); }
+    renderThemeSwatches(document.getElementById('theme-swatches'));
+    renderThemeSwatches(document.getElementById('settings-theme-swatches'));
     applyPageBg();
   });
 })();
@@ -1705,6 +1732,10 @@ function setupLaunch(){
 
 // ── SETTINGS PANEL (API keys + connection check) ─────────────────────────────
 function openSettings(){
+  // The overlay markup lives inside #app (display:none until launch); reparent it
+  // to <body> on first open so Settings also works from the setup screen.
+  const _ov = document.getElementById('settings-overlay');
+  if(_ov.parentElement !== document.body) document.body.appendChild(_ov);
   const sh = MODE !== 'hosted';
   document.getElementById('set-mode-label').textContent = sh
     ? 'Self-hosted — keys stored in this browser'
@@ -1718,9 +1749,24 @@ function openSettings(){
     document.getElementById('set-youtube').value = KEYS.youtube  || '';
   }
   document.getElementById('set-results').innerHTML = '';
+  renderThemeSwatches(document.getElementById('settings-theme-swatches'));
   document.getElementById('settings-overlay').classList.add('show');
 }
 function closeSettings(){ document.getElementById('settings-overlay').classList.remove('show'); }
+
+// Custom theme editor — full UI lands in Part C; for now, jump to the Custom
+// theme and point at the editable CSS block.
+function openCustomThemeEditor(){
+  selectTheme('custom');
+  renderThemeSwatches(document.getElementById('settings-theme-swatches'));
+  const box = document.getElementById('custom-theme-editor');
+  if(!box) return;
+  box.hidden = false;
+  box.innerHTML = '<p style="color:var(--text-dim);font-size:var(--fs-lbl);line-height:1.6">'
+    + 'Visual editor coming in the next update. Until then, edit the '
+    + '<code>[data-theme=&quot;custom&quot;]</code> block near the top of '
+    + '<code>index.html</code> &mdash; see <code>docs/custom-theme.md</code>.</p>';
+}
 
 function saveSettings(){
   saveKeys({
