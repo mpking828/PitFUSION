@@ -8,7 +8,8 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 |---|---------|--------|------|------------|
 | 1 | Enhanced Statbotics mode — predicted match winners (opt-in) | designing | M | [features/01-statbotics-predictions.md](features/01-statbotics-predictions.md) |
 | 2 | 2027 season support | designing | S–M | [features/02-2027-season.md](features/02-2027-season.md) |
-| 3 | Rank data on My Team tab + EPA overlay (World/Country/District/State EPA ranks; overlay also gets event rank, RP, district points) | built (PR open) | S–M | [features/03-team-ranks.md](features/03-team-ranks.md) |
+| 3 | Rank data on My Team tab + EPA overlay (World/Country/District/State EPA ranks; overlay also gets event rank, RP, district points) | shipped | S–M | [features/03-team-ranks.md](features/03-team-ranks.md) |
+| 3b | FRC advancement points — real district points/rank **and** regional-championship-pool points/rank, on both views | built (PR open) | S | [features/03-team-ranks.md](features/03-team-ranks.md) |
 | 4 | ~~Replacement tab for the freed "My Team" slot~~ | scrapped | — | My Team tab stays (has next-match + match history not duplicated elsewhere); #3 rescoped to add-only |
 | 5 | Multi-event support (district playoffs, Worlds divisions → merged playoffs) | designing | L | [features/05-multi-event.md](features/05-multi-event.md) |
 | 6 | Help overlay (repurpose the "?" button) — documents panel resizing | done | XS | [features/06-help-overlay.md](features/06-help-overlay.md) |
