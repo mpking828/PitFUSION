@@ -13,7 +13,8 @@ Cloudflare Worker; API keys are held server-side, so nothing sensitive is in the
 
 ## Run your own copy
 
-Download `public/` and open `PitFUSION.html` through a local web server. On first launch,
+Download `public/` and serve the folder with any local web server (`python -m http.server`),
+then open `http://localhost:8080/`. On first launch,
 open **⚙ Settings** and enter your own Nexus and Blue Alliance API keys (a YouTube Data
 API key is optional — it's only used to auto-detect a live webcast). Keys are stored only
 in your browser.
@@ -24,7 +25,7 @@ Full guide: **[docs/self-hosting.md](docs/self-hosting.md)**.
 
 | Path | What it is |
 |------|------------|
-| `public/` | Static assets served directly by the Worker — `PitFUSION.html`, `config.js` (non-secret config only), images, `_headers`, `_redirects`. |
+| `public/` | Static assets served directly by the Worker — `index.html` (the whole app), `config.js` (non-secret config only), images, `_headers`. |
 | `worker.js` | The Cloudflare Worker. Runs only for `/api/*` (`run_worker_first`); proxies `/api/nexus/*`, `/api/tba/*`, `/api/youtube/*` to the real APIs, injecting keys from secrets. |
 | `wrangler.toml`, `.dev.vars.example` | Worker config; the three secrets are `NEXUS_API_KEY`, `TBA_API_KEY`, `YOUTUBE_API_KEY`. |
 | `docs/` | Self-hosting guide, custom-theme guide, the hosting-migration design doc. |

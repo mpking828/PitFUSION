@@ -5,7 +5,7 @@ FRC pit display built on Nexus and The Blue Alliance APIs.
 Single HTML file, no framework, no build step.
 
 ## Current state (V3.0.0, feat/v3-cloudflare)
-- Single codebase. `public/PitFUSION.html` is the whole app; `public/config.js`
+- Single codebase. `public/index.html` is the whole app; `public/config.js`
   is non-secret config only (EPA field defs + optional `FORCE_MODE`).
 - Runtime `MODE`: `hosted` on pitfusion.com / *.workers.dev / *.pages.dev, else
   `selfhosted`. `?forceMode=hosted|selfhosted` and `config.js` `FORCE_MODE` override.
@@ -18,16 +18,16 @@ Single HTML file, no framework, no build step.
   edge-caches (10/30/60s).
 - selfhosted: direct calls with keys from the ⚙ Settings panel (localStorage
   `pitfusion_keys`). Nexus + TBA required (gated in `setupLaunch`), YouTube optional.
-- No build step. `public/_redirects` serves PitFUSION.html at `/`; `public/_headers`
-  sets security headers (both honored by Workers static assets).
+- No build step. `public/index.html` is served at `/` natively; `public/_headers`
+  sets security headers (honored by Workers static assets).
 
 ## Update check / releases
 - checkForUpdate() runs in selfhosted mode only; fetches
   https://pitfusion.com/version.json and shows a footer badge if newer.
-- VERSION constant is at the top of public/PitFUSION.html; keep it equal to
+- VERSION constant is at the top of public/index.html; keep it equal to
   "version" in public/version.json.
 - Release: bump both, merge to main (Cloudflare Workers Builds auto-deploys `main`
-  to pitfusion.com), tag `vX.Y.Z`, GitHub release with public/PitFUSION.html
+  to pitfusion.com), tag `vX.Y.Z`, GitHub release with public/index.html
   attached. No `stable` branch, no channel-prefixed tags.
 
 ## Domain
