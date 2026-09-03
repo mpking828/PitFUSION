@@ -53,3 +53,29 @@ Preview deploy, team 88, a district event (2025 NE) and a regional (2025 non-dis
 
 `openEpa()` has dead code — `if(forceReload) delete epaCache[cacheKey];` after a
 `return`, inside the cache-hit `if`. Harmless; not fixed here.
+
+---
+
+## Follow-up (feature 3b) — real FRC advancement points
+
+Feature 3's district figures were the **Statbotics EPA** district rank plus a TBA
+district-points pill gated on the *event*. 3b adds the **FRC** advancement standing
+proper, on both views, and handles regional teams.
+
+- **Which pool a team is in:** `GET /team/frc<team>/districts` → an entry with
+  `year === currentYear` means district; none means regional pool.
+- **District points/rank:** `GET /district/<key>/rankings` → `point_total`, `rank`.
+- **Regional pool points/rank:** `GET /regional_advancement/<year>/rankings` → same row
+  shape (`point_total`, `rank`), ~1600 teams. (Per-event: `/event/<key>/advancement_points`
+  and `/event/<key>/regional_champs_pool_points`.)
+- `getAdvancement(team)` returns `{label, rank, points}` — `label` is `"<ABBR> District"`
+  or `"Regional Pool"`. Fast path reuses the event-district rankings list before any
+  per-team `/districts` call.
+- **Never polled.** Cached per team and per rankings URL for the session;
+  `fMyAdv()` runs once after `fEv()`; `rTeam()` reads the cached `sbMyAdv`.
+- My Team tab: new "FRC Advancement" row. Overlay: the old "District Pts" pill became
+  the "FRC Advancement" pill (label + `#rank · pts` set async; self-removes if unranked),
+  no longer event-gated.
+- `hasRealDistrict` → `epaDistrictMeaningful` — now **only** gates the Statbotics EPA
+  district-rank pill. Fixes 2026 (FIRST California is a real district `2026ca` that the
+  old `district !== state` check would have suppressed).
