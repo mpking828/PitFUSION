@@ -17,13 +17,14 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 7 | Better Statbotics caching (persist + revalidate) | built (PR open) | S–M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
 | 7b | Migrate off the removed `/v3/team_matches` → `/v3/matches` (fixes the broken EPA line charts) | built (PR open) | M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
 | 8 | Theme rework — generalised tokens, in-app Custom theme editor, theme picker in Settings | shipped (V3.1.0, #20) | M–L | [features/08-theme-rework.md](features/08-theme-rework.md) |
-| 8b | TJ² CSS collapse — fold hand-written `[data-theme="tj2"]` overrides into tokens | building (PR open) | S | [features/08-theme-rework.md](features/08-theme-rework.md) |
+| 8b | TJ² CSS collapse — fold hand-written `[data-theme="tj2"]` overrides into tokens | shipped (#23, 197→166 rules) | S | [features/08-theme-rework.md](features/08-theme-rework.md) |
 
 Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, may split.
 
 ## Deferred / follow-up
 
-- **#8b — deeper TJ² CSS collapse.** The first PR removed 31 rules that were
+- **#8b done in #23.** A *deeper* collapse is possible but is not planned. The
+  first PR removed 31 rules that were
   either structural (overlay backgrounds → `--overlay-*` tokens) or provably
   redundant (value already equalled the TJ² token). ~165 remain; most are
   deliberate per-component tuning for contrast over the tye-dye photo (alliance
