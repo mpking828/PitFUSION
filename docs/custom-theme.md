@@ -50,9 +50,12 @@ blur (0 = off).
 ### Background image
 
 - **Image URL** — a link (`https://…`) or, for a self-hosted copy, a filename in
-  the same folder as `index.html`.
-- **…or upload** — pick a local file; it's stored inline in the theme (max
-  **2 MB** — larger files are rejected, use a URL instead).
+  the same folder as `index.html`. Some image hosts block hotlinking; if the URL
+  doesn't load, download the file and use **upload** instead.
+- **…or upload** — pick a local JPG or PNG. Large photos are automatically
+  resized (long edge ≤ 1920 px) and re-encoded, then stored inline in the theme.
+  HEIC/HEIF (iPhone) and other exotic formats can't be decoded in the browser —
+  convert to JPG first.
 - **Position** — how the image is anchored (`center`, `top`, …).
 - **Wash strength / Wash colour** — a solid overlay that dims the image so text
   stays readable. `0` = full image; `1` = image fully covered by the wash colour.
@@ -97,6 +100,8 @@ also work if you're hand-editing `dark`, `light`, or `tj2`.
 ## Notes
 
 - The theme choice and Custom values are per-browser. Set them on each display.
-- If a background image doesn't show, check the filename/URL and that an
-  uploaded file was under 2 MB. Browser storage being full or disabled also
-  blocks Save — the editor tells you, and **Copy CSS** still works.
+- If a background image doesn't show: for a **URL**, the host may block
+  hotlinking (the editor warns you) — upload the file instead. For an **upload**,
+  the format may be undecodable (HEIC) — convert to JPG. Browser storage being
+  full or disabled blocks Save — the editor tells you, and **Copy CSS** still works.
+- The background is only visible **in the running app**, not on the setup screen.

@@ -1899,12 +1899,14 @@ function _cteMsg(text, isErr){
   if(!el) return;
   el.textContent = text || '';
   el.style.color = isErr ? 'var(--red)' : 'var(--text-dim)';
+  el.dataset.err = isErr ? '1' : '';
 }
 function _cteMarkDirty(){
   _cteDirty = true;
   const d = document.getElementById('cte-dirty');
   if(d) d.hidden = false;
-  _cteMsg('Changes preview live. Press Save to keep them.');
+  const m = document.getElementById('cte-msg');
+  if(!m || m.dataset.err !== '1') _cteMsg('Changes preview live. Press Save to keep them.');
 }
 function _cteLiveApply(){
   clearTimeout(_cteTimer);
@@ -1993,6 +1995,14 @@ function renderCustomEditor(){
   const urlIn = h('input', { type:'text', class:'cte-hex', style:'flex:1', placeholder:'https://… or a filename in this folder',
                              value: isData ? '' : img, spellcheck:false, disabled: isData });
   urlIn.addEventListener('input', () => { _cteDraft.bg.image = urlIn.value.trim(); _cteMarkDirty(); _cteLiveApply(); });
+  urlIn.addEventListener('change', () => {
+    const u = urlIn.value.trim();
+    if(!u) return;
+    const probe = new Image();
+    probe.onload  = () => _cteMsg('Image URL loaded OK. Press Save to keep it.');
+    probe.onerror = () => _cteMsg('That URL did not load as an image — check the link (some hosts block hotlinking).', true);
+    probe.src = u;
+  });
   const fileIn = h('input', { type:'file', accept:'image/*', class:'cte-file' });
   fileIn.addEventListener('change', () => _cteHandleFile(fileIn.files && fileIn.files[0]));
   box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Image URL' }), urlIn ]));
@@ -2030,19 +2040,41 @@ function renderCustomEditor(){
   else _cteMsg('Changes preview live. Press Save to keep them.');
 }
 
+// Accept any image the browser can decode; downscale to a sane size and
+// re-encode as JPEG so it's small enough to store and always renders.
 function _cteHandleFile(file){
   if(!file) return;
-  if(!/^image\//.test(file.type)){ _cteMsg('That file is not an image.', true); return; }
-  if(file.size > 2 * 1024 * 1024){ _cteMsg('Image is larger than 2 MB — use a smaller file or an image URL.', true); return; }
+  if(file.type && !/^image\//.test(file.type)){ _cteMsg('That file is not an image.', true); return; }
+  if(file.size > 30 * 1024 * 1024){ _cteMsg('That file is over 30 MB — pick a smaller one.', true); return; }
+  _cteMsg('Processing image…');
   const rd = new FileReader();
-  rd.onload = () => {
-    _cteDraft.bg.image = String(rd.result || '');
-    _cteMarkDirty();
-    applyCustomTheme(_cteDraft);
-    renderCustomEditor();
-    _cteMsg('Image loaded (' + Math.round(file.size / 1024) + ' KB). Save to keep it.');
-  };
   rd.onerror = () => _cteMsg('Could not read that file.', true);
+  rd.onload = () => {
+    const im = new Image();
+    im.onerror = () => _cteMsg('That image could not be decoded — HEIC/HEIF and some formats are not supported. Try a JPG or PNG, or paste an image URL.', true);
+    im.onload = () => {
+      const MAX = 1920;
+      const s = Math.min(1, MAX / Math.max(im.naturalWidth, im.naturalHeight) || 1);
+      const w = Math.max(1, Math.round(im.naturalWidth  * s));
+      const hgt = Math.max(1, Math.round(im.naturalHeight * s));
+      let out;
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = hgt;
+        cv.getContext('2d').drawImage(im, 0, 0, w, hgt);
+        out = cv.toDataURL('image/jpeg', 0.82);
+      } catch(e){ _cteMsg('Could not process that image.', true); return; }
+      if(!out || out.length > 3.5 * 1024 * 1024){
+        _cteMsg('Image is still too large after resizing — try a smaller one or an image URL.', true); return;
+      }
+      _cteDraft.bg.image = out;
+      _cteMarkDirty();
+      applyCustomTheme(_cteDraft);
+      renderCustomEditor();
+      _cteMsg('Image added — ' + w + '×' + hgt + ', ' + Math.round(out.length / 1024) + ' KB. Press Save to keep it.');
+    };
+    im.src = String(rd.result || '');
+  };
   rd.readAsDataURL(file);
 }
 function _cteSave(){
