@@ -79,3 +79,25 @@ proper, on both views, and handles regional teams.
 - `hasRealDistrict` → `epaDistrictMeaningful` — now **only** gates the Statbotics EPA
   district-rank pill. Fixes 2026 (FIRST California is a real district `2026ca` that the
   old `district !== state` check would have suppressed).
+
+---
+
+## Follow-up (3c) — overlay redesign + slim My Team tab
+
+- **My Team tab**: the team-identity card (`div.ic`) is removed. Number / name /
+  address / rookie year now live only in the EPA overlay. Event Rank/Record/RP,
+  EPA Ranks, and FRC Advancement rows stay on the tab.
+- **EPA overlay header** → labelled `.epa-sect` blocks:
+  - Identity (`#num` + nickname + `City, State, Country · Rookie <year>`). Own team
+    from `tbaTi` (seeded into `teamInfoCache` at init); other teams show state/country
+    from Statbotics, then `fillIdentity()` adds the city from a cached `/team/frc<t>`.
+  - **Event** (Rank / RP / Record from `tbaRk`, live) + **Records** side by side.
+  - **Records**: Official Play (event types 0–6) vs Overall (incl. offseason),
+    computed by `fillRecords()` from `/team/frc<t>/matches/<yr>/simple` and a shared
+    `/events/<yr>/simple` event-type map (`eventTypeCache`).
+  - **EPA Ranks** and **FRC Advancement** as their own blocks.
+  - Dead "Norm EPA" element removed.
+- Caching: `teamInfoCache` / `eventTypeCache` / `recordsCache` — one fetch per team per
+  overlay session, never on a loop. `↻ Reload` clears `epaCache` + `recordsCache` +
+  `advCache` + `teamDistrictCache` for the team (fixes the old dead-code
+  `if(forceReload) delete` after a `return`).

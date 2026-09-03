@@ -1195,12 +1195,27 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 .epa-stat-pill{display:flex;flex-direction:column;align-items:center;gap:1px;background:var(--surface2);border:2px solid var(--border2);border-radius:6px;padding:4px 12px;min-width:64px}
 .epa-stat-pill .esp-l{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim)}
 .epa-stat-pill .esp-v{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--text);line-height:1}
+/* EPA overlay header — identity + labelled sections */
+.epa-idcard{display:flex;align-items:center;gap:16px;background:var(--surface);border:2px solid var(--border2);border-radius:var(--r);padding:12px 16px}
+.epa-idnum{font-family:var(--fd);font-size:var(--fs-hero);font-weight:900;color:var(--accent);line-height:1}
+.epa-idname{font-family:var(--fd);font-size:var(--fs-big);font-weight:900;color:var(--text);line-height:1.1}
+.epa-idsub{font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text-dim);margin-top:3px}
+.epa-sect{background:var(--surface);border:2px solid var(--border2);border-radius:var(--r);padding:10px 14px}
+.epa-sect-h{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);border-bottom:2px solid var(--border);padding-bottom:5px;margin-bottom:7px}
+.epa-sect2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:600px){.epa-sect2{grid-template-columns:1fr}}
+.epa-kv{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-family:var(--fd);font-size:var(--fs-lbl);padding:2px 0}
+.epa-kv span{color:var(--text-dim)}
+.epa-kv b{color:var(--text);font-weight:900}
 /* TJ2 overrides */
 [data-theme="tj2"] .epa-toggle-btn-cls[data-active="0"]{background:#1a2f50;border-color:rgba(255,255,255,0.3);color:#eef0f8}
 [data-theme="tj2"] .epa-toggle-btn-cls[data-active="1"]{background:rgba(126,200,255,0.15);border-color:#7ec8ff;color:#7ec8ff}
 [data-theme="tj2"] .epa-stat-pill{background:#1a2f50;border-color:rgba(255,255,255,0.3)}
 [data-theme="tj2"] .epa-stat-pill .esp-v{color:#fff}
 [data-theme="tj2"] .epa-stat-pill .esp-l{color:rgba(255,255,255,0.6)}
+[data-theme="tj2"] .epa-idcard,[data-theme="tj2"] .epa-sect{background:#111e35;border-color:rgba(255,255,255,0.12)}
+[data-theme="tj2"] .epa-idname,[data-theme="tj2"] .epa-kv b{color:#fff}
+[data-theme="tj2"] .epa-idsub,[data-theme="tj2"] .epa-sect-h,[data-theme="tj2"] .epa-kv span{color:rgba(255,255,255,0.55)}
 [data-theme="tj2"] #epa-overlay .epa-year-lbl{color:rgba(255,255,255,0.4)}
 
 /* PIT MAP OVERLAY */
@@ -2142,6 +2157,10 @@ let sbMyAdv=null;    // { label, rank, points } — our team's FRC district OR r
 const teamDistrictCache={};   // team -> {key, abbreviation} | null   (current year only)
 const advRankingsCache={};    // rankings-endpoint URL -> array (district or regional-pool)
 const advCache={};            // team -> { label, rank, points } | null
+// EPA-overlay context caches — fetched once per team when the overlay opens, not polled.
+const teamInfoCache={};       // team -> TBA /team/frc<t> object (identity: city, etc.)
+const eventTypeCache={};      // year -> { eventKey: event_type }  (from /events/<yr>/simple)
+const recordsCache={};        // team -> { off:{w,l,t}, all:{w,l,t} }
 // Dismissed alert IDs — persisted in localStorage
 const LS_DISMISSED='pitfusion_dismissed_alerts';
 function getDismissed(){try{return new Set(JSON.parse(localStorage.getItem(LS_DISMISSED)||'[]'));}catch{return new Set();}}
@@ -2240,6 +2259,7 @@ async function init(){
   resetPitMap();
   await fNexus(); // resolve Nexus alias first so fPits uses correct key
   await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv(),fMyYear()]);
+  if(tbaTi) teamInfoCache[C.team]=tbaTi;   // seed EPA-overlay identity cache for our team
   document.getElementById('lo').style.display='none';
   renderAll(); startCd();
   fMyAdv().then(()=>rTeam());   // once, non-blocking; updates the My Team tab when ready
@@ -2612,7 +2632,7 @@ function rUpcoming(){
 // TEAM TAB
 function rTeam(){
   const el=document.getElementById('team-content');
-  const myT=C.team,info=tbaTi,ri=tbaRk?.rankings?.find(r=>r.team_key===`frc${myT}`);
+  const myT=C.team,ri=tbaRk?.rankings?.find(r=>r.team_key===`frc${myT}`);
   const mx=(nxData?.matches||[]).filter(m=>!/^practice/i.test(m.label)&&[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
   const nowQ=nxData?.nowQueuing;
   const sm=scoreMap();
@@ -2652,7 +2672,8 @@ function rTeam(){
   });
 
   let html='';
-  if(info){html+=`<div class="ic"><div class="it">${e(info.nickname||'Team '+myT)}</div><div class="is">${[info.city,info.state_prov,info.country].filter(Boolean).join(', ')}</div><div class="str" style="grid-template-columns:1fr 1fr"><div class="stc"><div class="stv ac">#${myT}</div><div class="stl">Team</div></div><div class="stc"><div class="stv">${info.rookie_year||'&mdash;'}</div><div class="stl">Rookie</div></div></div></div>`;}
+  // Team identity (number / name / address / rookie) lives in the EPA Stats overlay now —
+  // the pit crew already knows their own team. This keeps the tab compact.
   if(ri){const rec=ri.record?`${ri.record.wins}&ndash;${ri.record.losses}&ndash;${ri.record.ties}`:'&mdash;',rp=ri.sort_orders?.[0];html+=`<div class="str"><div class="stc"><div class="stv gn">#${ri.rank}</div><div class="stl">Rank</div></div><div class="stc"><div class="stv" style="font-size:var(--fs-lbl)">${rec}</div><div class="stl">Record</div></div><div class="stc"><div class="stv">${typeof rp==='number'?rp.toFixed(1):'&mdash;'}</div><div class="stl">RP</div></div></div>`;}
   {
     const rk=sbMyYear?.epa?.ranks;
@@ -3981,9 +4002,12 @@ async function openEpa(team, forceReload=false){
   const year     = new Date().getFullYear();
   const cacheKey = `${team}_${year}`;
 
+  if(forceReload){
+    delete epaCache[cacheKey];
+    delete recordsCache[team]; delete advCache[team]; delete teamDistrictCache[team];
+  }
   if(!forceReload && epaCache[cacheKey]&&(Date.now()-epaCache[cacheKey].ts<EPA_CACHE_MS)){
     renderEpa(epaCache[cacheKey], team, year); return;
-  if(forceReload) delete epaCache[cacheKey];
   }
 
   // ── Step 1: Fetch team_year summary ─────────────────────────────────────────
@@ -4107,40 +4131,65 @@ function renderEpaShell(teamYear, team, year){
     ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
     :null;
 
-  const name   =teamYear.name||teamYear.team_name||'';
-  const record =teamYear.record?`${teamYear.record.wins}W \u2013 ${teamYear.record.losses}L \u2013 ${teamYear.record.ties}T`:'';
-  const normEpa=teamYear.norm_epa!=null?Number(teamYear.norm_epa).toFixed(0):null;
+  const name = teamYear.name||teamYear.team_name||'';
 
-  let html=`<div style="background:var(--surface);border:2px solid var(--border2);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+  // Own team: full address from tbaTi immediately. Others: state/country from teamYear
+  // now, city added by fillIdentity() once /team/frc<t> loads.
+  const info = teamInfoCache[team] || (String(team)===String(C.team) ? tbaTi : null);
+  const rookie = (info && info.rookie_year) || teamYear.rookie_year;
+  const place = info
+    ? [info.city, info.state_prov, info.country].filter(Boolean).join(', ')
+    : [teamYear.state, teamYear.country].filter(Boolean).join(', ');
+  const subParts=[];
+  if(place)  subParts.push(place);
+  if(rookie) subParts.push(`Rookie ${rookie}`);
+  let html=`<div class="epa-idcard">
+    <div class="epa-idnum">#${e(String(team))}</div>
     <div>
-      <div style="font-family:var(--fd);font-size:var(--fs-big);font-weight:900;color:var(--accent)">#${e(String(team))}</div>
-      ${name?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text)">${e(name)}</div>`:''}
+      ${name?`<div class="epa-idname">${e(name)}</div>`:''}
+      <div class="epa-idsub" id="epa-idsub">${e(subParts.join(' · '))}</div>
     </div>
-    ${record?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text-mid)">${e(record)}</div>`:''}
-    ${normEpa?`<div style="margin-left:auto;text-align:right"><div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)">Norm EPA</div><div style="font-family:var(--fd);font-size:var(--fs-big);font-weight:900;color:var(--text)">${normEpa}</div></div>`:''}
   </div>`;
 
-  // ── Stat strip: event rank / RP / EPA ranks / district points ──────────────
+  // ── Event + Records ────────────────────────────────────────────────────────
+  const ri = tbaRk?.rankings?.find(r=>r.team_key===`frc${team}`);
+  const rp = ri?.sort_orders?.[0];
+  const evRec = ri?.record ? `${ri.record.wins}–${ri.record.losses}–${ri.record.ties}` : null;
+  const eventKV=[];
+  if(ri?.rank!=null)       eventKV.push(['Rank','#'+ri.rank]);
+  if(typeof rp==='number') eventKV.push(['RP',rp.toFixed(1)]);
+  if(evRec)                eventKV.push(['Record',evRec]);
+  let sect2='';
+  if(eventKV.length){
+    sect2+=`<div class="epa-sect"><div class="epa-sect-h">Event</div>`
+      +eventKV.map(([k,v])=>`<div class="epa-kv"><span>${k}</span><b>${v}</b></div>`).join('')+`</div>`;
+  }
+  sect2+=`<div class="epa-sect"><div class="epa-sect-h">Records</div>
+    <div class="epa-kv"><span>Official Play</span><b id="epa-rec-off">…</b></div>
+    <div class="epa-kv"><span>Overall</span><b id="epa-rec-all">…</b></div>
+  </div>`;
+  html+=`<div class="epa-sect2">${sect2}</div>`;
+
+  // ── EPA Ranks ──────────────────────────────────────────────────────────────
   {
-    const ri = tbaRk?.rankings?.find(r=>r.team_key===`frc${team}`);
-    const rp = ri?.sort_orders?.[0];
     const rk = teamYear.epa?.ranks;
     const pills=[];
-    if(ri?.rank!=null)              pills.push(['Event Rank','#'+ri.rank]);
-    if(typeof rp==='number')        pills.push(['RP',rp.toFixed(1)]);
     if(rk?.total?.rank!=null)       pills.push(['World','#'+rk.total.rank]);
     if(rk?.country?.rank!=null && teamYear.country) pills.push([e(teamYear.country),'#'+rk.country.rank]);
     if(rk?.state?.rank!=null && teamYear.state)     pills.push([e(teamYear.state),'#'+rk.state.rank]);
     if(rk?.district?.rank!=null && epaDistrictMeaningful(teamYear)) pills.push([e(String(teamYear.district).toUpperCase()),'#'+rk.district.rank]);
-    // FRC district / regional-pool standing (points) — filled async, label set then;
-    // self-removes if the team is in neither pool. The " pts" value distinguishes it
-    // from the Statbotics EPA rank pills above.
-    pills.push(['FRC Advancement','<span id="epa-adv">…</span>']);
     if(pills.length){
-      html+=`<div class="epa-stats">`+pills.map(([l,v])=>
-        `<div class="epa-stat-pill"><span class="esp-l">${l}</span><span class="esp-v">${v}</span></div>`).join('')+`</div>`;
+      html+=`<div class="epa-sect"><div class="epa-sect-h">EPA Ranks</div><div class="epa-stats">`
+        +pills.map(([l,v])=>`<div class="epa-stat-pill"><span class="esp-l">${l}</span><span class="esp-v">${v}</span></div>`).join('')
+        +`</div></div>`;
     }
   }
+
+  // ── FRC Advancement — filled async by fillAdvancement(); the section self-removes
+  // if the team is in neither a district nor the regional pool.
+  html+=`<div class="epa-sect" id="epa-adv-sect"><div class="epa-sect-h">FRC Advancement</div><div class="epa-stats">
+    <div class="epa-stat-pill"><span class="esp-l" id="epa-adv-l">Standing</span><span class="esp-v"><span id="epa-adv">…</span></span></div>
+  </div></div>`;
 
   html+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <button id="epa-toggle-btn" onclick="toggleEpaCurrentOnly()"
@@ -4158,7 +4207,7 @@ function renderEpaShell(teamYear, team, year){
 
   if(!cfgFields){
     html+=`<div class="epa-err">No EPA_FIELDS config for ${year}. Check config.js.</div>`;
-    body.innerHTML=html; fillAdvancement(team); return;
+    body.innerHTML=html; fillAdvancement(team); fillRecords(team); fillIdentity(team); return;
   }
 
   // Skeleton placeholder for each chart
@@ -4184,11 +4233,73 @@ function renderEpaShell(teamYear, team, year){
 
   body.innerHTML=html;
   fillAdvancement(team);
+  fillRecords(team);
+  fillIdentity(team);
 }
 
-// A Statbotics team_year has a real FRC district only when `district` differs from the
-// state code. Since ~2026 Statbotics fills `district` with the state abbreviation (and
-// duplicates the state rank) for non-district teams — we don't want to show that.
+// TBA /team/frc<t> object (identity — has city). Cached; own team seeded from tbaTi.
+async function getTeamInfo(team){
+  if(team in teamInfoCache) return teamInfoCache[team];
+  let out=null;
+  try{ out=await get(`https://www.thebluealliance.com/api/v3/team/frc${team}`,ht(C.tba)); }catch{}
+  teamInfoCache[team]=out;
+  return out;
+}
+
+// Upgrade the identity subline with the full address once /team/frc<t> loads.
+// (Own team is already a teamInfoCache hit from init — no fetch.)
+async function fillIdentity(team){
+  const el=document.getElementById('epa-idsub');
+  if(!el) return;
+  const info=await getTeamInfo(team);
+  if(!info || !info.city) return;
+  const place=[info.city,info.state_prov,info.country].filter(Boolean).join(', ');
+  const parts=[]; if(place) parts.push(place);
+  if(info.rookie_year) parts.push(`Rookie ${info.rookie_year}`);
+  if(parts.length) el.textContent=parts.join(' · ');
+}
+
+// Fill the Records section (Official Play vs Overall, this season).
+// Official = event types 0-6 (Regional…Festival of Champions). Overall = + offseason.
+// Not polled — one fetch per team per overlay session; cleared by the Reload button.
+async function fillRecords(team){
+  const offEl=document.getElementById('epa-rec-off'), allEl=document.getElementById('epa-rec-all');
+  if(!offEl && !allEl) return;
+  const yr=new Date().getFullYear();
+  try{
+    if(!eventTypeCache[yr]){
+      const evs=await get(`https://www.thebluealliance.com/api/v3/events/${yr}/simple`,ht(C.tba));
+      const m={}; (evs||[]).forEach(x=>{ m[x.key]=x.event_type; });
+      eventTypeCache[yr]=m;
+    }
+    if(!(team in recordsCache)){
+      const ms=await get(`https://www.thebluealliance.com/api/v3/team/frc${team}/matches/${yr}/simple`,ht(C.tba));
+      const OFFICIAL=new Set([0,1,2,3,4,5,6]);
+      const off={w:0,l:0,t:0}, all={w:0,l:0,t:0};
+      (ms||[]).forEach(mm=>{
+        const R=mm.alliances?.red, B=mm.alliances?.blue;
+        if(!R||!B||R.score==null||R.score<0) return;
+        const key=`frc${team}`;
+        let side=null;
+        if((R.team_keys||[]).includes(key) && !(R.surrogate_team_keys||[]).includes(key)) side='red';
+        else if((B.team_keys||[]).includes(key) && !(B.surrogate_team_keys||[]).includes(key)) side='blue';
+        if(!side) return;
+        const res = mm.winning_alliance===side ? 'w' : (mm.winning_alliance ? 'l' : 't');
+        all[res]++;
+        if(OFFICIAL.has(eventTypeCache[yr][mm.event_key])) off[res]++;
+      });
+      recordsCache[team]={off,all};
+    }
+    const {off,all}=recordsCache[team];
+    const fmt=r=>`${r.w}–${r.l}–${r.t}`;
+    if(offEl) offEl.textContent=fmt(off);
+    if(allEl) allEl.textContent=fmt(all);
+  }catch{
+    offEl?.closest('.epa-kv')?.remove();
+    allEl?.closest('.epa-kv')?.remove();
+  }
+}
+
 // The Statbotics EPA "district rank" is only worth showing when it isn't just the state
 // rank under another name (Statbotics ~2026 fills `district` with the state code for
 // state-named districts / non-district teams and duplicates the state rank).
@@ -4228,10 +4339,10 @@ async function getAdvancement(team){
   try{
     const yr=new Date().getFullYear();
     let rows=null,label=null;
-    // Fast path: at a district event, that district's rankings already hold every
-    // home-district team — reuse before a per-team /districts lookup.
+    // Fast path: at a *current-year* district event, that district's rankings already
+    // hold every home-district team — reuse before a per-team /districts lookup.
     const evDk=tbaEvent?.district?.key;
-    if(evDk){
+    if(evDk && evDk.startsWith(String(yr))){
       const evRows=await advRankings(`https://www.thebluealliance.com/api/v3/district/${evDk}/rankings`);
       if(evRows.find(r=>r.team_key===`frc${team}`)){
         rows=evRows; label=`${(tbaEvent.district.abbreviation||'').toUpperCase()} District`;
@@ -4254,17 +4365,16 @@ async function getAdvancement(team){
   return out;
 }
 
-// Fill (or remove) the FRC advancement pill in the EPA overlay stat strip.
+// Fill the FRC Advancement section, or remove it if the team is unranked.
 async function fillAdvancement(team){
   const el=document.getElementById('epa-adv');
   if(!el) return;
-  const pill=el.closest('.epa-stat-pill');
   const adv=await getAdvancement(team);
   if(adv){
     el.textContent=`#${adv.rank} · ${adv.points} pts`;
-    const l=pill&&pill.querySelector('.esp-l'); if(l) l.textContent=adv.label;
-  }else if(pill){
-    pill.remove();
+    const l=document.getElementById('epa-adv-l'); if(l) l.textContent=adv.label;
+  }else{
+    document.getElementById('epa-adv-sect')?.remove();
   }
 }
 
