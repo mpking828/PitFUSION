@@ -95,7 +95,8 @@ proper, on both views, and handles regional teams.
   - **Records**: Official Play (event types 0–6) vs Overall (incl. offseason),
     computed by `fillRecords()` from `/team/frc<t>/matches/<yr>/simple` and a shared
     `/events/<yr>/simple` event-type map (`eventTypeCache`).
-  - **EPA Ranks** and **FRC Advancement** as their own blocks.
+  - **EPA Ranks** as its own block. **FRC Advancement** is a right-aligned pill
+    *inside the identity card* (`#epa-adv-pill`; `fillAdvancement` fills or removes it).
   - Dead "Norm EPA" element removed.
 - Caching: `teamInfoCache` / `eventTypeCache` / `recordsCache` — one fetch per team per
   overlay session, never on a loop. `↻ Reload` clears `epaCache` + `recordsCache` +
