@@ -2239,9 +2239,12 @@ function rAlerts(){
 
 
 // STREAM
-const YT_KEY = 'AIzaSyDOSE2OGy1Lx9TRXS_qXfLn-BSSwlphVyo';
+// YouTube key comes from config.js (YOUTUBE_KEY). Never hardcode it here —
+// this file is public. If unset/placeholder, live detection is skipped.
+const YT_KEY = (typeof YOUTUBE_KEY !== 'undefined' && YOUTUBE_KEY !== 'YOUR_YOUTUBE_KEY') ? YOUTUBE_KEY : '';
 
 async function isYouTubeLive(videoId) {
+  if (!YT_KEY) return false;   // no key configured — fall back to showing the first webcast
   try {
     const res = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${videoId}&key=${YT_KEY}`,

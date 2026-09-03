@@ -130,6 +130,11 @@ Workers/Functions 100,000 requests/day. $5/month ceiling only if very popular
 - **Recommended now:** rotate the YouTube key in Google Cloud Console (delete +
   reissue — referrer restrictions don't help once public). New key goes only into
   the Cloudflare secret; self-hosters supply their own.
+- **Interim fix landed:** the literal is removed from `PitFUSION.html`; `YT_KEY`
+  now reads `YOUTUBE_KEY` from `config.js` (placeholder `YOUR_YOUTUBE_KEY`, same
+  as the Nexus/TBA keys), and `isYouTubeLive()` short-circuits to `false` when no
+  key is configured. **Still required:** the owner must delete the old key in the
+  console — the disclosed key stays live until then.
 
 ### TBA attribution — missing
 

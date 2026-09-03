@@ -40,14 +40,16 @@ Created by Mike King — [Team 88 TJ²](https://www.tj2.org/)
 |-|-|
 |**Nexus API Key**|[frc.nexus/api](https://frc.nexus/api)|
 |**The Blue Alliance API Key**|[thebluealliance.com/apidocs](https://www.thebluealliance.com/apidocs)|
+|**YouTube Data API v3 Key** (optional)|[console.cloud.google.com](https://console.cloud.google.com/apis/credentials) — only used to auto-detect which webcast is currently live|
 
 ### 2\. Edit config.js
 
 Open `config.js` in any text editor and add your API keys:
 
 ```js
-const NEXUS\_KEY = 'YOUR\_NEXUS\_KEY';
-const TBA\_KEY   = 'YOUR\_TBA\_KEY';
+const NEXUS\_KEY   = 'YOUR\_NEXUS\_KEY';
+const TBA\_KEY     = 'YOUR\_TBA\_KEY';
+const YOUTUBE\_KEY = 'YOUR\_YOUTUBE\_KEY';   // optional — leave as-is to skip live detection
 ```
 
 This is the only file you need to edit for initial setup.

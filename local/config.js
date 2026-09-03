@@ -5,8 +5,12 @@
 // ============================================================
 
 // ── API Keys ─────────────────────────────────────────────────
-const NEXUS_KEY = 'YOUR_NEXUS_KEY';
-const TBA_KEY   = 'YOUR_TBA_KEY';
+const NEXUS_KEY   = 'YOUR_NEXUS_KEY';
+const TBA_KEY     = 'YOUR_TBA_KEY';
+// YouTube Data API v3 key — used only to detect whether an event webcast
+// is currently live (videos.list, 1 quota unit/call). Optional: if left as
+// the placeholder, live detection is skipped and the first webcast is shown.
+const YOUTUBE_KEY = 'YOUR_YOUTUBE_KEY';
 
 // ── EPA Field Definitions by Year ────────────────────────────
 // Each year maps to the EPA breakdown fields returned by Statbotics.
