@@ -8,8 +8,8 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 |---|---------|--------|------|------------|
 | 1 | Enhanced Statbotics mode — predicted match winners (opt-in) | designing | M | [features/01-statbotics-predictions.md](features/01-statbotics-predictions.md) |
 | 2 | 2027 season support | designing | S–M | [features/02-2027-season.md](features/02-2027-season.md) |
-| 3 | Fold "My Team" into the EPA overlay + rename it + add multi-scope ranks | designing | M | [features/03-team-profile.md](features/03-team-profile.md) |
-| 4 | Replacement tab for the freed "My Team" slot | designing | S–M | covered in #3 doc |
+| 3 | Rank data on My Team tab + EPA overlay (World/Country/District/State EPA ranks; overlay also gets event rank, RP, district points) | built (PR open) | S–M | [features/03-team-ranks.md](features/03-team-ranks.md) |
+| 4 | ~~Replacement tab for the freed "My Team" slot~~ | scrapped | — | My Team tab stays (has next-match + match history not duplicated elsewhere); #3 rescoped to add-only |
 | 5 | Multi-event support (district playoffs, Worlds divisions → merged playoffs) | designing | L | [features/05-multi-event.md](features/05-multi-event.md) |
 | 6 | Help overlay (repurpose the "?" button) — documents panel resizing | done | XS | [features/06-help-overlay.md](features/06-help-overlay.md) |
 | 7 | Better Statbotics caching (persist + revalidate) | designing | S–M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
@@ -28,14 +28,12 @@ Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, m
 
 ## Suggested build order
 
-1. **#2 (2027 season)** — but it's *blocked until the Jan 9 2027 kickoff*; do the
-   non-blocked prep now (audit for hardcoded `2026`, confirm year is always dynamic).
-2. **#7 (caching)** — small, isolated, improves the worst current pain (EPA load time),
-   and #1 and #3 both lean on Statbotics so they benefit.
-3. **#6 (reset layout)** — trivial, ship alongside anything.
-4. **#3 + #4 (team profile + new tab)** — self-contained UI refactor.
-5. **#1 (predictions)** — builds on #7's caching; needs the UX decision first.
-6. **#5 (multi-event)** — largest, most invasive to the data model; do it last and
+1. **#2 (2027 season)** — blocked until the Jan 9 2027 kickoff; do the non-blocked prep
+   now (audit for hardcoded `2026`, confirm year is always dynamic).
+2. **#7 (caching)** — small, isolated, improves the worst current pain (EPA load time);
+   #1 leans on Statbotics so it benefits.
+3. **#1 (predictions)** — builds on #7's caching; needs the UX decision first.
+4. **#5 (multi-event)** — largest, most invasive to the data model; do it last and
    probably split into its own mini-roadmap.
 
-See [features/06-help-overlay.md](features/06-help-overlay.md).
+Done: #3 (PR open), #6, #8 (PR open).
