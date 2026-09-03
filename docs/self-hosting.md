@@ -28,7 +28,7 @@ Created by Mike King — [Team 88 TJ²](https://www.tj2.org/)
 * 📈 **EPA Stats** — full-screen EPA overlay powered by Statbotics. Per-match line charts for each component, tooltips, event dividers, and current-event filter
 * 🤝 **Alliance EPA** — clicking a team in the Queuing Status alliance grid opens a side-by-side EPA comparison for all 6 teams in the match
 * 🖼 **Logo Support** — automatically loads `logo.png/jpg/jpeg/svg/webp` from the same folder as the HTML file
-* 🎨 **4 Themes** — Dark, Light, TJ² (Team 88 tye-dye), and fully customizable Custom theme
+* 🎨 **4 Themes** — Dark, Light, TJ² (Team 88 tye-dye), and a Custom theme with an in-app editor (colors, background image, frosted panels)
 * 💾 **Persistent Settings** — team number, event, theme, and font size remembered across reloads
 * 🔤 **Font Size Toggle** — footer button switches between readable and extra-large pit display sizes
 * 🔌 **No Install Required** — single HTML file, no framework, no build step, no dependencies
@@ -224,27 +224,16 @@ Played matches in the **My Team** tab show a small ▶ indicator when TBA has a 
 |**Dark**|Default — deep navy with cyan accents|
 |**Light**|Clean white/grey with navy accents|
 |**TJ²**|Team 88's real tye-dye photo background with frosted glass panels and team colors|
-|**Custom**|Fully configurable — edit colors and optional background image directly in the HTML|
+|**Custom**|Fully configurable in the app — colors, a background image (URL or upload), and frosted-panel styling|
 
 ### Custom Theme
 
-Edit the `\[data-theme="custom"]` block near the top of the `<style>` section (around line 100).
+Open **⚙ Settings → Appearance**, choose **Custom**, then **Edit Custom theme…**.
+Every change previews live; **Save** stores it in this browser (`localStorage`
+key `pitfusion_custom_theme`). **Copy CSS** exports the block if you'd rather bake
+it into your `index.html`.
 
-**Key variables:**
-
-|Variable|Default|What it does|
-|-|-|-|
-|`--bg`|`#0d0d0d`|Main background color|
-|`--surface`|`#141414`|Card and panel background|
-|`--surface2`|`#1c1c1c`|Secondary panel background|
-|`--accent`|`#ff9900`|Primary highlight color|
-|`--text`|`#f0f0f0`|Primary text color|
-|`--text-dim`|`#707070`|Dimmed/secondary text|
-|`--custom-bg-image`|`none`|Background image, e.g. `url('myimage.jpg')`|
-|`--custom-bg-washout`|`0.0`|Overlay opacity: `0.0` (none) → `1.0` (solid)|
-|`--custom-bg-washout-color`|`0,0,0`|Overlay RGB — use `255,255,255` for light themes|
-
-See the full [Custom Theme Guide](custom-theme.md) for all variables and examples.
+See the full [Custom Theme Guide](custom-theme.md) for every variable and tips.
 
 \---
 

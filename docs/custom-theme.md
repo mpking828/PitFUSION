@@ -1,151 +1,107 @@
 # PitFusion — Custom Theme Guide
 
-The **Custom** theme lets you fully control the colors and background of PitFusion
-without touching any CSS beyond a single block near the top of `PitFusion.html`.
+The **Custom** theme lets you set your own colours, a background image, and
+frosted-panel styling — no code required.
 
 ---
 
-## Where to Edit
+## Editing in the app
 
-Open `PitFusion.html` in any text editor and search for:
+1. Open **⚙ Settings** (gear icon in the header, or on the setup screen).
+2. Under **Appearance**, choose **Custom**.
+3. Click **Edit Custom theme…**.
 
-```
-[data-theme="custom"]{
-```
+Every change previews live on the display. Click **Save** to keep it — the theme
+is stored in this browser's `localStorage` (key `pitfusion_custom_theme`) and
+reloads automatically next time. **Reset to defaults** clears it.
 
-It appears near the top of the `<style>` block, around **line 100**.
-Everything you need to change is inside that block.
+### Colours
 
----
+Each colour has a swatch (click to pick) and a text field. The text field also
+accepts `rgba(…)` or named colours like `navy` if you want transparency or
+something the picker can't express.
 
-## Color Variables
-
-| Variable | Default | What it controls |
-|---|---|---|
-| `--bg` | `#0d0d0d` | Main page background color |
-| `--surface` | `#141414` | Card and panel backgrounds (header, match rows, etc.) |
-| `--surface2` | `#1c1c1c` | Secondary panel backgrounds (tab bars, inner cards) |
-| `--border` | `#2a2a2a` | Subtle dividing lines |
-| `--border2` | `#3a3a3a` | More prominent borders |
-| `--accent` | `#ff9900` | Primary highlight color (team number, active elements, links) |
-| `--accent2` | `#cc3300` | Secondary highlight (announcements, stream labels) |
-| `--green` | `#00cc44` | "On" indicators, winners, positive values |
-| `--yellow` | `#ffcc00` | Your team highlight, gold/RP values |
-| `--red` | `#ff2244` | Urgent alerts, red alliance |
-| `--blue-a` | `#1976d2` | Blue alliance color |
-| `--red-a` | `#c62828` | Red alliance color (darker variant) |
-| `--text` | `#f0f0f0` | Primary text color |
-| `--text-dim` | `#707070` | Dimmed/secondary text (labels, timestamps) |
-| `--text-mid` | `#a0a0a0` | Mid-brightness text (table data, scores) |
-
-### Tips for choosing colors
-- For a **dark theme**: keep `--bg` and `--surface` dark, use bright `--accent` and `--text`
-- For a **light theme**: use light `--bg`/`--surface`, dark `--text`, and muted `--text-dim`
-- `--surface` should be slightly lighter/darker than `--bg` so cards are distinguishable
-- `--accent` is used heavily — pick your most important team color here
-- `--yellow` controls your team's highlight in match lists and rankings — keep it bright
-
----
-
-## Background Image
-
-You can use any image file as the background, with a washout overlay to keep
-text readable.
-
-### Step 1 — Add the image
-Place your image file in the **same directory** as `PitFusion.html`.
-Supported formats: `.png`, `.jpg`, `.jpeg`, `.webp`, `.svg`
-
-### Step 2 — Set the variable
-Change `--custom-bg-image` from `none` to your filename:
-
-```css
---custom-bg-image: url('myteamphoto.jpg');
-```
-
-### Step 3 — Adjust the washout
-`--custom-bg-washout` controls how much a solid color overlay dims the image:
-
-| Value | Effect |
+| Field | Controls |
 |---|---|
-| `0.0` | No washout — full image, no overlay |
-| `0.3` | Light wash — image still very visible |
-| `0.5` | Medium wash — image visible but subdued |
-| `0.65` | Default — good for dark themes |
-| `0.8` | Heavy wash — image barely visible |
-| `1.0` | Fully covered — just the `--bg` color shows |
+| Page background | The area behind all panels |
+| Panel / Panel — inner | Card and inner-card fills (header, match rows, tab bars) |
+| Divider / Border — strong | Hairlines and heavier borders |
+| Text / Text — mid / Text — dim | Primary, secondary, and label text |
+| Accent / Accent 2 | Primary highlight (team number, links, active elements) and the secondary highlight |
+| Text on accent | Text colour on accent-filled buttons (keep it readable on your Accent) |
+| Good / win · Your team · Alert | Green "on" states, your-team gold highlight, urgent red |
+| Blue alliance / Red alliance | Alliance colours |
 
-### Step 4 — Set the washout color
-`--custom-bg-washout-color` is an RGB triplet (no `rgb()` wrapper):
+Tips:
 
-```css
---custom-bg-washout-color: 0,0,0;      /* black overlay — for dark themes */
---custom-bg-washout-color: 255,255,255; /* white overlay — for light themes */
---custom-bg-washout-color: 0,30,80;     /* dark blue overlay — for team colors */
-```
+- **Dark theme:** dark Page/Panel, bright Accent and Text.
+- **Light theme:** light Page/Panel, dark Text, muted Text — dim; set *Text on
+  accent* dark or light to contrast your Accent.
+- *Panel* should sit slightly lighter or darker than *Page background* so cards
+  stand out.
+- *Your team* is your highlight colour in match lists and rankings — keep it bright.
+
+### Frosted panels
+
+These apply **only when a background image is set**. *Panel tint* + *Panel
+opacity* set the translucent fill over the image; *Panel blur* is the glass
+blur (0 = off).
+
+### Background image
+
+- **Image URL** — a link (`https://…`) or, for a self-hosted copy, a filename in
+  the same folder as `index.html`. Some image hosts block hotlinking; if the URL
+  doesn't load, download the file and use **upload** instead.
+- **…or upload** — pick a local JPG or PNG. Large photos are automatically
+  resized (long edge ≤ 1920 px) and re-encoded, then stored inline in the theme.
+  HEIC/HEIF (iPhone) and other exotic formats can't be decoded in the browser —
+  convert to JPG first.
+- **Position** — how the image is anchored (`center`, `top`, …).
+- **Wash strength / Wash colour** — a solid overlay that dims the image so text
+  stays readable. `0` = full image; `1` = image fully covered by the wash colour.
+  Use black for dark themes, white for light.
+
+The image is fixed to the viewport and shows behind the panels (like the TJ²
+tye-dye). It does not appear on the setup screen.
 
 ---
 
-## Example: Team Colors Dark Theme
+## Advanced: bake it into a self-hosted file
 
-```css
-[data-theme="custom"]{
-  --bg:#0a0a1a;
-  --surface:#10102a;
-  --surface2:#181830;
-  --border:#252545;
-  --border2:#353560;
-  --accent:#00aaff;        /* team blue */
-  --accent2:#ff6600;       /* team orange */
-  --green:#00e676;
-  --yellow:#ffd600;
-  --red:#ff1744;
-  --blue-a:#1976d2;
-  --red-a:#c62828;
-  --text:#eef0f8;
-  --text-dim:#6b7899;
-  --text-mid:#9ba8cc;
-  --custom-bg-image: none;
-  --custom-bg-washout: 0.65;
-  --custom-bg-washout-color: 0,0,0;
-}
-```
+If you maintain your own copy of `index.html` and want the theme to ship with it
+(no per-browser Save), click **Copy CSS** in the editor and paste the block over
+the existing `[data-theme="custom"]{ … }` rule near the top of the `<style>`
+section. A saved `localStorage` theme still overrides the file block if present.
 
-## Example: Light Theme with Background Image
+### Variable reference
 
-```css
-[data-theme="custom"]{
-  --bg:#f5f5f5;
-  --surface:#ffffff;
-  --surface2:#eeeeee;
-  --border:#cccccc;
-  --border2:#aaaaaa;
-  --accent:#003087;        /* team navy */
-  --accent2:#c8102e;       /* team red */
-  --green:#1a7a3a;
-  --yellow:#b38000;
-  --red:#cc1133;
-  --blue-a:#1565c0;
-  --red-a:#b71c1c;
-  --text:#111111;
-  --text-dim:#555555;
-  --text-mid:#333333;
-  --custom-bg-image: url('field.jpg');
-  --custom-bg-washout: 0.75;
-  --custom-bg-washout-color: 255,255,255;  /* white overlay for light theme */
-}
-```
+| Variable | Default | Meaning |
+|---|---|---|
+| `--bg` | `#0d0d0d` | Page background |
+| `--surface` / `--surface2` | `#141414` / `#1c1c1c` | Panel / inner panel |
+| `--border` / `--border2` | `#2a2a2a` / `#3a3a3a` | Divider / strong border |
+| `--accent` / `--accent2` | `#ff9900` / `#cc3300` | Primary / secondary highlight |
+| `--on-accent` | `#000` | Text on accent-filled buttons |
+| `--green` / `--yellow` / `--red` | `#00cc44` / `#ffcc00` / `#ff2244` | Good / your team / alert |
+| `--blue-a` / `--red-a` | `#1976d2` / `#c62828` | Blue / red alliance |
+| `--text` / `--text-mid` / `--text-dim` | `#f0f0f0` / `#a0a0a0` / `#707070` | Text tiers |
+| `--glass-bg` / `--glass-border` | `rgba(20,20,20,.72)` / `rgba(255,255,255,.14)` | Frosted panel fill / border (with image) |
+| `--glass-blur` | `12px` | Frosted panel blur |
+| `--page-bg-image` | `none` | `url('file.jpg')` or `none` |
+| `--page-bg-pos` | `center` | Background position |
+| `--page-bg-washout` | `0` | Wash overlay strength, `0`–`1` |
+| `--page-bg-washout-color` | `0,0,0` | Wash overlay colour as `r,g,b` (no `rgb()` wrapper) |
+
+These same tokens exist on every theme, so `--page-bg-image` / `--hdr-bg-image`
+also work if you're hand-editing `dark`, `light`, or `tj2`.
 
 ---
 
 ## Notes
 
-- After saving the file, reload the page and select **Custom** from the theme
-  switcher on the setup screen.
-- The theme choice is remembered between reloads, so you only need to select it once.
-- If the background image isn't showing, make sure the image file is in the
-  **exact same folder** as `PitFusion.html` and the filename matches exactly
-  (including capitalization).
-- Color values can be in any valid CSS format: `#rrggbb`, `#rgb`,
-  `rgba(r,g,b,a)`, or named colors like `navy`. The washout color must use
-  the plain `r,g,b` format without the `rgb()` wrapper.
+- The theme choice and Custom values are per-browser. Set them on each display.
+- If a background image doesn't show: for a **URL**, the host may block
+  hotlinking (the editor warns you) — upload the file instead. For an **upload**,
+  the format may be undecodable (HEIC) — convert to JPG. Browser storage being
+  full or disabled blocks Save — the editor tells you, and **Copy CSS** still works.
+- The background is only visible **in the running app**, not on the setup screen.

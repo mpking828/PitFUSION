@@ -8,7 +8,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V3.0.0';
+const VERSION = 'V3.1.0';
 // ─────────────────────────────────────────────────────────────
 
 // ── Hosting mode ─────────────────────────────────────────────
@@ -37,8 +37,68 @@ function saveKeys(k){ KEYS = k || {}; try { localStorage.setItem(LS_KEYS, JSON.s
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PitFUSION &mdash; FRC Pit Display</title>
 <script>
-// Apply theme before first paint to avoid flash
-(function(){var t=localStorage.getItem('pitfusion_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();
+// ── Custom-theme CSS builder (shared: used here for the pre-paint inject and
+//    later by the in-app editor) ──────────────────────────────────────────────
+const LS_CUSTOM_THEME = 'pitfusion_custom_theme';
+const CUSTOM_COLOR_KEYS = ['--bg','--surface','--surface2','--border','--border2',
+  '--accent','--accent2','--on-accent','--green','--yellow','--red',
+  '--blue-a','--red-a','--text','--text-dim','--text-mid'];
+function _hexToRgb(h){
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(h||'').trim());
+  if(!m) return null;
+  let s = m[1];
+  if(s.length === 3) s = s[0]+s[0]+s[1]+s[1]+s[2]+s[2];
+  return [parseInt(s.slice(0,2),16), parseInt(s.slice(2,4),16), parseInt(s.slice(4,6),16)];
+}
+function _rgba(hex, a){
+  const rgb = _hexToRgb(hex);
+  a = (a==null || isNaN(a)) ? 1 : Math.max(0, Math.min(1, +a));
+  return rgb ? `rgba(${rgb.join(',')},${a})` : String(hex||'');
+}
+function _rgbTriplet(hex){ const c = _hexToRgb(hex); return c ? c.join(',') : '0,0,0'; }
+function buildCustomThemeCss(cfg, sel){
+  // Default selector beats the static [data-theme="custom"] block (higher
+  // specificity) and covers both <html> and <body> (applyTheme sets both).
+  sel = sel || 'html[data-theme="custom"],body[data-theme="custom"]';
+  if(!cfg || typeof cfg !== 'object') return '';
+  const L = [], c = cfg.colors || {};
+  CUSTOM_COLOR_KEYS.forEach(k => {
+    const v = c[k];
+    if(typeof v === 'string' && v.trim()) L.push(k + ':' + v.trim());
+  });
+  const g = cfg.glass || {};
+  if(g.bg)     L.push('--glass-bg:' + _rgba(g.bg, g.bgAlpha));
+  if(g.border) L.push('--glass-border:' + _rgba(g.border, g.borderAlpha));
+  if(g.blur != null) L.push('--glass-blur:' + (Math.max(0, +g.blur) || 0) + 'px');
+  const b = cfg.bg || {};
+  const img = (b.image || '').trim();
+  L.push('--page-bg-image:' + (img ? `url("${img.replace(/"/g,'\\"')}")` : 'none'));
+  if(b.pos) L.push('--page-bg-pos:' + b.pos);
+  L.push('--page-bg-washout:' + (b.washout != null ? +b.washout : 0));
+  if(b.washoutColor) L.push('--page-bg-washout-color:' + _rgbTriplet(b.washoutColor));
+  return sel + '{' + L.join(';') + '}';
+}
+function injectCustomThemeStyle(css){
+  let el = document.getElementById('custom-theme-style');
+  if(!el){
+    el = document.createElement('style');
+    el.id = 'custom-theme-style';
+    (document.head || document.documentElement).appendChild(el);
+  }
+  el.textContent = css || '';
+}
+// Apply theme (and any saved Custom overrides) before first paint to avoid flash
+(function(){
+  let t = 'dark';
+  try { t = localStorage.getItem('pitfusion_theme') || 'dark'; } catch(e){}
+  document.documentElement.setAttribute('data-theme', t);
+  if(t === 'custom'){
+    try {
+      const cfg = JSON.parse(localStorage.getItem(LS_CUSTOM_THEME) || 'null');
+      if(cfg) injectCustomThemeStyle(buildCustomThemeCss(cfg));
+    } catch(e){}
+  }
+})();
 // Set version in footer once DOM is ready
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('version-display');
@@ -76,6 +136,26 @@ document.addEventListener('DOMContentLoaded',()=>{
   --fs-pit:clamp(1.4rem,2.2vw,2.0rem);   /* pit display — rankings/match list */
   --fs-pit-xl:clamp(2.0rem,3.2vw,3.0rem); /* pit display XL */
   --pad:clamp(10px,1.3vw,20px);--r:8px;
+
+  /* ── Generalised theme tokens ─────────────────────────────────────────────
+     Every theme inherits these no-op defaults; a theme (or the in-app Custom
+     editor — Settings ▸ Appearance) overrides them to opt in.
+     · --page-bg-*  full-page fixed background image + wash overlay
+     · --hdr-bg-*   header-only background image + wash overlay
+     · --glass-*    frosted panel treatment, active only under body.page-has-bg
+     · --on-accent  text/icon colour on accent-filled buttons */
+  --page-bg-image:none;
+  --page-bg-pos:center;
+  --page-bg-washout:0;
+  --page-bg-washout-color:0,0,0;
+  --hdr-bg-image:none;
+  --hdr-bg-pos:center top;
+  --hdr-bg-washout:0;
+  --hdr-bg-washout-color:0,0,0;
+  --glass-bg:var(--surface);
+  --glass-border:var(--border);
+  --glass-blur:12px;
+  --on-accent:#000;
 }
 
 /* ── DARK MODE (default) ── */
@@ -118,13 +198,19 @@ document.addEventListener('DOMContentLoaded',()=>{
   --text:#ffffff;           /* White text on dark navy panels */
   --text-dim:rgba(255,255,255,0.5);
   --text-mid:rgba(255,255,255,0.75);
+  --on-accent:#0d1e3d;      /* navy text on the gold accent */
+  --hdr-bg-image:url('FRC88Background.png');
+  --hdr-bg-pos:center top;
+  --hdr-bg-washout:0.38;
+  --hdr-bg-washout-color:0,0,0;
 }
 
-/* ── CUSTOM — edit these variables to your liking ── */
-/* To use a background image: set --custom-bg-image to the filename,
-   e.g.  --custom-bg-image: url('mybackground.jpg');
-   Set --custom-bg-washout to control how much white/black overlay dims it.
-   0 = no washout (full image), 1 = fully covered (just the --bg color shows) */
+/* ── CUSTOM ───────────────────────────────────────────────────────────────
+   The in-app editor (Settings ▸ Appearance ▸ Edit Custom theme) writes an
+   override block for these variables into <style id="custom-theme-style"> and
+   saves it to localStorage['pitfusion_custom_theme']. The values below are the
+   built-in fallback, used until the editor saves something (and still
+   editable by hand for a self-hosted copy). */
 [data-theme="custom"]{
   --bg:#0d0d0d;
   --surface:#141414;
@@ -141,54 +227,64 @@ document.addEventListener('DOMContentLoaded',()=>{
   --text:#f0f0f0;
   --text-dim:#707070;
   --text-mid:#a0a0a0;
-  /* Background image — set to e.g. url('myimage.png') or leave as none */
-  --custom-bg-image: none;
-  /* Washout overlay — 0.0 (none) to 1.0 (fully washed out). Dark themes
-     typically use 0.5–0.8; light themes 0.1–0.4 */
-  --custom-bg-washout: 0.0;  /* 0 = no overlay when no image; increase when using a bg image */
-  /* Washout overlay color — use black for dark themes, white for light */
-  --custom-bg-washout-color: 0,0,0;
+  --on-accent:#000;
+  /* Frosted panels — only visible when --page-bg-image is set */
+  --glass-bg:rgba(20,20,20,0.72);
+  --glass-border:rgba(255,255,255,0.14);
+  --glass-blur:12px;
+  /* Full-page background image — url('myimage.png') or none.
+     Washout: 0 = image at full strength, 1 = fully covered by --page-bg-washout-color. */
+  --page-bg-image:none;
+  --page-bg-pos:center;
+  --page-bg-washout:0;
+  --page-bg-washout-color:0,0,0;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden}
-body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:var(--fs-body);-webkit-font-smoothing:antialiased}
-/* TJ2 — dark navy body, tye-dye only in the header */
-body[data-theme="tj2"]{
-  background-color: #060e1e;
-}
-/* Custom theme — background image baked in like TJ2 (no ::before, no has-bg) */
-/* When --custom-bg-image is set to a url(), it shows with the washout gradient on top */
-body[data-theme="custom"]{
-  background-color: var(--bg);
+/* Body background = --bg colour, with an optional full-page image (any theme)
+   dimmed by a wash overlay. Defaults (none / 0) make this a no-op. */
+body{
+  background-color:var(--bg);
   background-image:
     linear-gradient(
-      rgba(var(--custom-bg-washout-color), var(--custom-bg-washout)),
-      rgba(var(--custom-bg-washout-color), var(--custom-bg-washout))
+      rgba(var(--page-bg-washout-color), var(--page-bg-washout)),
+      rgba(var(--page-bg-washout-color), var(--page-bg-washout))
     ),
-    var(--custom-bg-image);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+    var(--page-bg-image);
+  background-size:cover;
+  background-position:var(--page-bg-pos);
+  background-repeat:no-repeat;
+  background-attachment:fixed;
+  color:var(--text);font-family:var(--fb);font-size:var(--fs-body);-webkit-font-smoothing:antialiased;
 }
-/* Custom theme — frosted glass panels when background image is active */
-/* Custom theme panels — glass effect only when bg image is active (body.custom-has-bg) */
-body.custom-has-bg[data-theme="custom"] .hdr,
-body.custom-has-bg[data-theme="custom"] .footer,
-body.custom-has-bg[data-theme="custom"] .col-l,
-body.custom-has-bg[data-theme="custom"] .sidebar,
-body.custom-has-bg[data-theme="custom"] .stream-bar,
-body.custom-has-bg[data-theme="custom"] .tab-bar,
-body.custom-has-bg[data-theme="custom"] .panel-m{display:flex;flex-direction:column;overflow:hidden;min-height:0}
-body.custom-has-bg[data-theme="custom"] .tp{
-  background:rgba(var(--custom-bg-washout-color, 0,0,0), 0.55);
+/* TJ² — dark navy body; the tye-dye photo lives in the header only */
+body[data-theme="tj2"]{ background-color:#060e1e; }
+/* Frosted glass panels — active for ANY theme once a full-page image is set
+   (body.page-has-bg, toggled by applyPageBg()). Tint/border/blur come from
+   the --glass-* tokens so each theme controls its own look. */
+body.page-has-bg .hdr,
+body.page-has-bg .footer,
+body.page-has-bg .col-l,
+body.page-has-bg .sidebar,
+body.page-has-bg .stream-bar,
+body.page-has-bg .tab-bar,
+body.page-has-bg .panel-m,
+body.page-has-bg .q-half,
+body.page-has-bg .upcoming-panel{
+  background:var(--glass-bg);
+  border-color:var(--glass-border);
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+}
+body.page-has-bg .tp{
+  background:rgba(var(--page-bg-washout-color, 0,0,0), 0.55);
 }
 
 /* Setup page z-index handled by its own rule (10000) */
 #app{display:grid;grid-template-rows:var(--hdr-h) 1fr var(--ftr-h);width:100vw;height:100vh;overflow:hidden}
 
 /* HEADER */
-.hdr{background:var(--surface);border-bottom:3px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 var(--pad);gap:12px;overflow:hidden}
+.hdr{background-color:var(--surface);background-image:linear-gradient(rgba(var(--hdr-bg-washout-color),var(--hdr-bg-washout)),rgba(var(--hdr-bg-washout-color),var(--hdr-bg-washout))),var(--hdr-bg-image);background-size:cover;background-position:var(--hdr-bg-pos);background-repeat:no-repeat;border-bottom:3px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 var(--pad);gap:12px;overflow:hidden}
 .hdr-l,.hdr-r{display:flex;align-items:center;gap:12px;flex-shrink:0}
 .logo{font-family:var(--fd);font-size:var(--fs-hdr);font-weight:900;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center}
 .logo .wm-pit{color:var(--text)}
@@ -220,6 +316,8 @@ body.custom-has-bg[data-theme="custom"] .tp{
 [data-theme="tj2"] .help-btn:hover{border-color:#f5c000;color:#f5c000}
 .help-overlay{position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center}
 .help-overlay.show{display:flex}
+/* Settings is a modal that can be opened from the setup screen (z-index 10000) too */
+#settings-overlay{z-index:10001}
 .help-card{background:var(--surface);border:2px solid var(--border2);border-radius:var(--r);padding:28px 32px;max-width:520px;width:90%;position:relative;max-height:85vh;overflow-y:auto}
 .help-card h2{font-family:var(--fd);font-size:var(--fs-hdr);font-weight:900;color:var(--accent);margin-bottom:14px;letter-spacing:.04em}
 .help-card h3{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--text);letter-spacing:.06em;text-transform:uppercase;margin:20px 0 8px}
@@ -364,7 +462,6 @@ body.custom-has-bg[data-theme="custom"] .tp{
 [data-theme="tj2"] .up-row:nth-child(odd){background:rgba(8,20,48,0.8)}
 [data-theme="tj2"] .up-chip.red{background:rgba(180,30,20,.4);color:#ffaaaa}
 [data-theme="tj2"] .up-chip.blue{background:rgba(20,80,180,.4);color:#aaccff}
-[data-theme="tj2"] .up-chip.me{background:#f5c000;color:#000}
 [data-theme="tj2"] .up-lbl{color:#ffffff}
 [data-theme="tj2"] .upcoming-hdr{color:rgba(255,255,255,0.5)}
 .ic{background:var(--surface2);border:2px solid var(--border2);border-radius:var(--r);padding:11px 13px;margin-bottom:9px}
@@ -411,7 +508,6 @@ body.custom-has-bg[data-theme="custom"] .tp{
 .sched-break{background:rgba(255,214,0,.07);border-left:3px solid rgba(255,214,0,.5)}
 .sched-break td{color:var(--yellow);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px}
 [data-theme="tj2"] .sched-table tr.upcoming td{background:rgba(245,192,0,.04)}
-[data-theme="tj2"] .sched-chip.me{background:#f5c000;color:#000}
 [data-theme="tj2"] .sched-title{color:#f5c000}
 .ftr-stamp{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap}
 .ftr-note{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;letter-spacing:.06em}
@@ -503,7 +599,7 @@ body.custom-has-bg[data-theme="custom"] .tp{
 .setup-hint{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);margin-top:2px}
 .setup-or{display:flex;align-items:center;gap:10px;color:var(--text-dim);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase}
 .setup-or::before,.setup-or::after{content:'';flex:1;height:1px;background:var(--border2)}
-.setup-btn{background:var(--accent);border:none;border-radius:var(--r);color:#000;font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;letter-spacing:.1em;text-transform:uppercase;padding:13px 20px;cursor:pointer;transition:opacity .15s;width:100%}
+.setup-btn{background:var(--accent);border:none;border-radius:var(--r);color:var(--on-accent);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;letter-spacing:.1em;text-transform:uppercase;padding:13px 20px;cursor:pointer;transition:opacity .15s;width:100%}
 .setup-btn:hover{opacity:.85}
 .setup-btn:disabled{opacity:.4;cursor:not-allowed}
 .setup-events-loading{display:flex;align-items:center;gap:8px;font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)}
@@ -545,15 +641,9 @@ body.custom-has-bg[data-theme="custom"] .tp{
   -webkit-backdrop-filter:blur(12px);
   border-color:rgba(255,255,255,0.15);
 }
-/* TJ2 — tye-dye photo in the header */
+/* TJ² — tye-dye photo in the header (via the generalised --hdr-bg-* tokens) */
 [data-theme="tj2"] .hdr{
   background-color:#f5e8d0;
-  background-image:
-    linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)),
-    url('FRC88Background.png');
-  background-size:cover;
-  background-position:center top;
-  background-repeat:no-repeat;
   border-bottom-color:rgba(245,192,0,0.5);
 }
 [data-theme="tj2"] .tab-bar{
@@ -622,10 +712,7 @@ body.custom-has-bg[data-theme="custom"] .tp{
   border-color:#f5c000;
   box-shadow:0 0 0 1px #f5c000;
 }
-[data-theme="tj2"] #setup-page .setup-btn{
-  background:#f5c000;
-  color:#0d1e3d;
-}
+/* (setup button: gold bg = var(--accent), navy text = var(--on-accent) for TJ²) */
 
 [data-theme="tj2"] .hdr *:not(svg):not(ellipse):not(circle):not(path){color:#ffffff}
 
@@ -1002,6 +1089,25 @@ body.custom-has-bg[data-theme="custom"] .tp{
 .theme-swatch-name{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);text-align:center;white-space:nowrap}
 .theme-swatch.active .theme-swatch-name{color:var(--accent)}
 
+/* CUSTOM THEME EDITOR (Settings ▸ Appearance) */
+#custom-theme-editor{border-top:1px solid var(--border);padding-top:12px}
+.cte-group-hdr{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin:14px 0 6px}
+.cte-group-hdr:first-child{margin-top:0}
+.cte-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
+@media(max-width:520px){.cte-grid{grid-template-columns:1fr}}
+.cte-row{display:flex;align-items:center;gap:8px;min-height:26px}
+.cte-lbl{flex:1;font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cte-sw{width:34px;height:24px;padding:0;border:1px solid var(--border2);border-radius:4px;background:var(--surface2);cursor:pointer;flex-shrink:0}
+.cte-hex{width:96px;padding:3px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:var(--fm);font-size:var(--fs-sm)}
+.cte-range{flex:1;min-width:90px;accent-color:var(--accent)}
+.cte-num{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-mid);min-width:44px;text-align:right;flex-shrink:0}
+.cte-hint{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);line-height:1.5;margin:2px 0 8px}
+.cte-file{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-mid);min-width:0}
+.cte-thumb{width:60px;height:38px;object-fit:cover;border:1px solid var(--border2);border-radius:4px;flex-shrink:0}
+.cte-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px}
+.cte-dirty{font-family:var(--fd);font-size:var(--fs-sm);color:var(--yellow)}
+.cte-msg{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);margin-top:8px;min-height:1.2em}
+
 /* PLAYED MATCHES (My Team tab) */
 .played-hdr{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;padding:4px 0 5px;border-bottom:2px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)}
 .played-row{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;transition:background .15s}
@@ -1177,29 +1283,12 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 
     <div class="setup-field theme-switcher">
       <label class="setup-label">Theme</label>
-      <div class="theme-swatches" id="theme-swatches">
-        <div class="theme-swatch active" data-theme="dark" onclick="selectTheme('dark',this)">
-          <div class="theme-swatch-preview" style="background:linear-gradient(135deg,#09090f 50%,#00d4ff 100%)"></div>
-          <div class="theme-swatch-name">Dark</div>
-        </div>
-        <div class="theme-swatch" data-theme="light" onclick="selectTheme('light',this)">
-          <div class="theme-swatch-preview" style="background:linear-gradient(135deg,#f0f2f8 50%,#0077aa 100%)"></div>
-          <div class="theme-swatch-name">Light</div>
-        </div>
-        <div class="theme-swatch" data-theme="tj2" onclick="selectTheme('tj2',this)">
-          <div class="theme-swatch-preview" style="background:radial-gradient(circle at center,#fff8e8 0%,#e86a10 30%,#e8a800 50%,#1a4fa3 75%,#c0311a 100%)"></div>
-          <div class="theme-swatch-name">TJ²</div>
-        </div>
-        <div class="theme-swatch" data-theme="custom" onclick="selectTheme('custom',this)">
-          <div class="theme-swatch-preview" style="background:linear-gradient(135deg,#0d0d0d 50%,#ff9900 100%)"></div>
-          <div class="theme-swatch-name">Custom</div>
-        </div>
-      </div>
+      <div class="theme-swatches" id="theme-swatches"><!-- rendered by renderThemeSwatches() --></div>
     </div>
 
     <button class="setup-btn" id="setup-go" onclick="setupLaunch()">Launch PitFUSION &rarr;</button>
     <div id="setup-keys-row" style="display:none;text-align:center;margin-top:12px">
-      <button class="s-btn" onclick="openSettings()" style="padding:6px 16px">&#9881; API Keys &amp; Connection Check</button>
+      <button class="s-btn" onclick="openSettings()" style="padding:6px 16px">&#9881; Settings &mdash; API Keys &amp; Connection Check</button>
     </div>
   </div>
 </div>
@@ -1221,7 +1310,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     <div class="hdr-cd" id="hdr-cd"></div>
     <div class="hdr-r">
       <button class="help-btn" onclick="document.getElementById('help-overlay').classList.add('show')" title="Help">?</button>
-      <button class="help-btn" onclick="openSettings()" title="API keys &amp; connection check" style="font-size:12px">&#9881;</button>
+      <button class="help-btn" onclick="openSettings()" title="Settings" style="font-size:12px">&#9881;</button>
       <div class="hdr-clk" id="hdr-clk">&mdash;</div>
       <div id="hdr-delay"></div>
       <div class="hdr-team" id="hdr-team">&mdash;</div>
@@ -1350,6 +1439,10 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 
       <h3>Resizing panels</h3>
       <p>Drag the divider bars between panels to resize them on the fly — the sidebar, the stream, and the match list all adjust. Double-click any divider to snap the layout back to its default.</p>
+
+      <h3>Themes</h3>
+      <p>Open <b>&#9881; Settings &rarr; Appearance</b> to switch between Dark, Light, TJ&sup2;, and Custom. Your choice is remembered on this display.</p>
+      <p>Pick <b>Custom</b>, then <b>Edit Custom theme&hellip;</b> to set your own colours, a background image (a URL or an uploaded file), and frosted-panel styling. Changes preview live; press <b>Save</b> to keep them on this browser. <b>Copy CSS</b> exports the block for baking into a self-hosted <code>index.html</code>.</p>
     </div>
   </div>
 
@@ -1359,6 +1452,14 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <button class="help-close" onclick="closeSettings()">&#10005;</button>
       <h2>Settings</h2>
       <p style="margin-bottom:10px"><span style="color:var(--text-dim)">Mode:</span> <span id="set-mode-label"></span></p>
+
+      <h3>Appearance</h3>
+      <div class="theme-swatches" id="settings-theme-swatches" style="margin-bottom:10px"><!-- rendered by renderThemeSwatches() --></div>
+      <button class="s-btn" id="edit-custom-btn" onclick="openCustomThemeEditor()" style="padding:6px 16px">Edit Custom theme&hellip;</button>
+      <div id="custom-theme-editor" hidden style="margin-top:14px"></div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <h3>API keys &amp; connection</h3>
 
       <div id="set-hosted-note" style="display:none">
         <p>API keys are managed on the server for this deployment &mdash; nothing to configure here. Use the connection check below to confirm the proxy is healthy.</p>
@@ -1437,43 +1538,115 @@ const LS_EVENT = 'pitfusion_event';
 
 // ── THEME ──────────────────────────────────────────────────────────────────
 const LS_THEME = 'pitfusion_theme';
-const VALID_THEMES = ['dark','light','tj2','custom'];
+const THEMES = [
+  { id:'dark',   name:'Dark',       swatch:'linear-gradient(135deg,#09090f 50%,#00d4ff 100%)' },
+  { id:'light',  name:'Light',      swatch:'linear-gradient(135deg,#f0f2f8 50%,#0077aa 100%)' },
+  { id:'tj2',    name:'TJ²',   swatch:'radial-gradient(circle at center,#fff8e8 0%,#e86a10 30%,#e8a800 50%,#1a4fa3 75%,#c0311a 100%)' },
+  { id:'custom', name:'Custom',     swatch:'linear-gradient(135deg,#0d0d0d 50%,#ff9900 100%)' },
+];
+const VALID_THEMES = THEMES.map(t => t.id);
 
 function applyTheme(t){
   if(!VALID_THEMES.includes(t)) t = 'dark';
   document.documentElement.setAttribute('data-theme', t);
   document.body.setAttribute('data-theme', t);
+  if(t === 'custom'){
+    const c = customThemeConfig();
+    injectCustomThemeStyle(c ? buildCustomThemeCss(mergedCustomTheme(c)) : '');
+  }
+  applyPageBg();
 }
 
+// ── Custom theme config (localStorage['pitfusion_custom_theme']) ────────────
+const DEFAULT_CUSTOM_THEME = {
+  v: 1,
+  colors: {
+    '--bg':'#0d0d0d','--surface':'#141414','--surface2':'#1c1c1c','--border':'#2a2a2a','--border2':'#3a3a3a',
+    '--accent':'#ff9900','--accent2':'#cc3300','--on-accent':'#000000',
+    '--green':'#00cc44','--yellow':'#ffcc00','--red':'#ff2244','--blue-a':'#1976d2','--red-a':'#c62828',
+    '--text':'#f0f0f0','--text-dim':'#707070','--text-mid':'#a0a0a0',
+  },
+  glass: { bg:'#141414', bgAlpha:0.72, border:'#ffffff', borderAlpha:0.14, blur:12 },
+  bg:    { image:'', pos:'center', washout:0, washoutColor:'#000000' },
+};
 
+function customThemeConfig(){
+  try {
+    const cfg = JSON.parse(localStorage.getItem(LS_CUSTOM_THEME) || 'null');
+    return (cfg && typeof cfg === 'object') ? cfg : null;
+  } catch(e){ return null; }
+}
+function mergedCustomTheme(cfg){
+  cfg = cfg || {};
+  const d = DEFAULT_CUSTOM_THEME;
+  return {
+    v: 1,
+    colors: Object.assign({}, d.colors, cfg.colors || {}),
+    glass:  Object.assign({}, d.glass,  cfg.glass  || {}),
+    bg:     Object.assign({}, d.bg,     cfg.bg     || {}),
+  };
+}
+function applyCustomTheme(cfg){
+  injectCustomThemeStyle(buildCustomThemeCss(mergedCustomTheme(cfg)));
+  applyPageBg();
+}
 
-function applyCustomHasBg(){
+// Build the swatch grid into a container. Used by the setup screen AND the
+// Settings ▸ Appearance section — both stay in sync because selectTheme()
+// re-marks every .theme-swatch in the document.
+function renderThemeSwatches(container){
+  if(!container) return;
+  const active = localStorage.getItem(LS_THEME) || 'dark';
+  container.textContent = '';
+  THEMES.forEach(t => {
+    const cell = document.createElement('div');
+    cell.className = 'theme-swatch' + (t.id === active ? ' active' : '');
+    cell.dataset.theme = t.id;
+    cell.tabIndex = 0;
+    cell.setAttribute('role', 'button');
+    cell.setAttribute('aria-label', t.name + ' theme');
+    const prev = document.createElement('div');
+    prev.className = 'theme-swatch-preview';
+    prev.style.background = t.swatch;
+    const nm = document.createElement('div');
+    nm.className = 'theme-swatch-name';
+    nm.textContent = t.name;
+    cell.append(prev, nm);
+    cell.addEventListener('click', () => selectTheme(t.id));
+    cell.addEventListener('keydown', e => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectTheme(t.id); }
+    });
+    container.appendChild(cell);
+  });
+}
+
+// Toggle body.page-has-bg whenever the active theme resolves --page-bg-image to
+// an actual image (used by the frosted-glass panel rules). Works for any theme.
+function applyPageBg(){
   const val = getComputedStyle(document.documentElement)
-                .getPropertyValue('--custom-bg-image').trim();
-  document.body.classList.toggle('custom-has-bg', !!(val && val !== 'none' && val !== ''));
+                .getPropertyValue('--page-bg-image').trim();
+  document.body.classList.toggle('page-has-bg', !!(val && val !== 'none' && val !== ''));
 }
 
-function selectTheme(t, el){
+function selectTheme(t){
+  if(!VALID_THEMES.includes(t)) return;
   applyTheme(t);
   localStorage.setItem(LS_THEME, t);
-  document.querySelectorAll('.theme-swatch').forEach(s=>s.classList.remove('active'));
-  if(el) el.classList.add('active');
-  else {
-    const s = document.querySelector(`.theme-swatch[data-theme="${t}"]`);
-    if(s) s.classList.add('active');
-  }
-  if(t === 'custom') applyCustomHasBg();
+  // Keep every swatch group (setup screen + Settings) in sync.
+  document.querySelectorAll('.theme-swatch').forEach(s => {
+    s.classList.toggle('active', s.dataset.theme === t);
+  });
 }
 
 // Apply saved theme immediately on load (before paint)
 (function(){
   const saved = localStorage.getItem(LS_THEME) || 'dark';
   applyTheme(saved);
-  // Mark correct swatch active once DOM is ready (swatches may not exist yet)
+  // Populate swatch grids once the DOM is ready.
   document.addEventListener('DOMContentLoaded', ()=>{
-    const s = document.querySelector(`.theme-swatch[data-theme="${saved}"]`);
-    if(s){ document.querySelectorAll('.theme-swatch').forEach(x=>x.classList.remove('active')); s.classList.add('active'); }
-    if(saved === 'custom') applyCustomHasBg();
+    renderThemeSwatches(document.getElementById('theme-swatches'));
+    renderThemeSwatches(document.getElementById('settings-theme-swatches'));
+    applyPageBg();
   });
 })();
 
@@ -1682,6 +1855,10 @@ function setupLaunch(){
 
 // ── SETTINGS PANEL (API keys + connection check) ─────────────────────────────
 function openSettings(){
+  // The overlay markup lives inside #app (display:none until launch); reparent it
+  // to <body> on first open so Settings also works from the setup screen.
+  const _ov = document.getElementById('settings-overlay');
+  if(_ov.parentElement !== document.body) document.body.appendChild(_ov);
   const sh = MODE !== 'hosted';
   document.getElementById('set-mode-label').textContent = sh
     ? 'Self-hosted — keys stored in this browser'
@@ -1695,9 +1872,241 @@ function openSettings(){
     document.getElementById('set-youtube').value = KEYS.youtube  || '';
   }
   document.getElementById('set-results').innerHTML = '';
+  renderThemeSwatches(document.getElementById('settings-theme-swatches'));
   document.getElementById('settings-overlay').classList.add('show');
 }
 function closeSettings(){ document.getElementById('settings-overlay').classList.remove('show'); }
+
+// ── Custom theme editor ────────────────────────────────────────────────────
+let _cteDraft = null;
+let _cteDirty = false;
+let _cteTimer = null;
+
+const CTE_COLOR_GROUPS = [
+  ['Base',     [['--bg','Page background'],['--surface','Panel'],['--surface2','Panel — inner'],['--border','Divider'],['--border2','Border — strong']]],
+  ['Text',     [['--text','Text'],['--text-mid','Text — mid'],['--text-dim','Text — dim']]],
+  ['Accent',   [['--accent','Accent'],['--accent2','Accent 2'],['--on-accent','Text on accent']]],
+  ['Status',   [['--green','Good / win'],['--yellow','Your team'],['--red','Alert']]],
+  ['Alliance', [['--blue-a','Blue alliance'],['--red-a','Red alliance']]],
+];
+
+function _lsWritable(){
+  try { localStorage.setItem('__pf_probe','1'); localStorage.removeItem('__pf_probe'); return true; }
+  catch(e){ return false; }
+}
+function _cteMsg(text, isErr){
+  const el = document.getElementById('cte-msg');
+  if(!el) return;
+  el.textContent = text || '';
+  el.style.color = isErr ? 'var(--red)' : 'var(--text-dim)';
+  el.dataset.err = isErr ? '1' : '';
+}
+function _cteMarkDirty(){
+  _cteDirty = true;
+  const d = document.getElementById('cte-dirty');
+  if(d) d.hidden = false;
+  const m = document.getElementById('cte-msg');
+  if(!m || m.dataset.err !== '1') _cteMsg('Changes preview live. Press Save to keep them.');
+}
+function _cteLiveApply(){
+  clearTimeout(_cteTimer);
+  _cteTimer = setTimeout(() => applyCustomTheme(_cteDraft), 40);
+}
+
+function openCustomThemeEditor(){
+  const box = document.getElementById('custom-theme-editor');
+  const btn = document.getElementById('edit-custom-btn');
+  if(box && !box.hidden){                       // open → collapse
+    box.hidden = true;
+    if(btn) btn.textContent = 'Edit Custom theme…';
+    return;
+  }
+  selectTheme('custom');
+  renderThemeSwatches(document.getElementById('settings-theme-swatches'));
+  if(!_cteDraft || !_cteDirty) _cteDraft = mergedCustomTheme(customThemeConfig());
+  if(box){ box.hidden = false; renderCustomEditor(); box.scrollIntoView({block:'nearest'}); }
+  if(btn) btn.textContent = 'Hide editor';
+}
+
+function renderCustomEditor(){
+  const box = document.getElementById('custom-theme-editor');
+  if(!box) return;
+  box.textContent = '';
+  const canSave = _lsWritable();
+
+  const h = (tag, props, kids) => {
+    const el = document.createElement(tag);
+    if(props) for(const k in props){
+      if(k === 'class') el.className = props[k];
+      else if(k === 'text') el.textContent = props[k];
+      else if(k in el) el[k] = props[k];
+      else el.setAttribute(k, props[k]);
+    }
+    (kids || []).forEach(c => c != null && el.append(c));
+    return el;
+  };
+
+  // ── colours ──
+  const isHex = v => /^#[0-9a-f]{6}$/i.test(String(v||'').trim());
+  const colorRow = (key, label) => {
+    const val = _cteDraft.colors[key] || '';
+    const sw  = h('input', { type:'color', class:'cte-sw', value: isHex(val) ? val : '#000000' });
+    const hex = h('input', { type:'text', class:'cte-hex', value: val, spellcheck:false, 'aria-label':label });
+    sw.addEventListener('input', () => {
+      _cteDraft.colors[key] = sw.value; hex.value = sw.value;
+      _cteMarkDirty(); _cteLiveApply();
+    });
+    hex.addEventListener('input', () => {
+      _cteDraft.colors[key] = hex.value.trim();
+      if(isHex(hex.value)) sw.value = hex.value.trim();
+      _cteMarkDirty(); _cteLiveApply();
+    });
+    return h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:label }), sw, hex ]);
+  };
+  CTE_COLOR_GROUPS.forEach(([group, items]) => {
+    box.append(h('div', { class:'cte-group-hdr', text:group }));
+    box.append(h('div', { class:'cte-grid' }, items.map(([k,l]) => colorRow(k,l))));
+  });
+
+  // slider row with a live numeric readout
+  const slider = (label, min, max, step, val, onInput, fmt) => {
+    fmt = fmt || (v => String(v));
+    const rng = h('input', { type:'range', class:'cte-range', min:String(min), max:String(max), step:String(step), value:String(val) });
+    const out = h('span', { class:'cte-num', text:fmt(+val) });
+    rng.addEventListener('input', () => { out.textContent = fmt(+rng.value); onInput(+rng.value); _cteMarkDirty(); _cteLiveApply(); });
+    return h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:label }), rng, out ]);
+  };
+  const pct = v => Math.round(v * 100) + '%';
+
+  // ── frosted panels ──
+  box.append(h('div', { class:'cte-group-hdr', text:'Frosted panels' }));
+  box.append(h('div', { class:'cte-hint', text:'Only visible when a background image is set. Lower the panel opacity to let more of the image show through.' }));
+  const gTint = h('input', { type:'color', class:'cte-sw', value: isHex(_cteDraft.glass.bg) ? _cteDraft.glass.bg : '#141414' });
+  gTint.addEventListener('input', () => { _cteDraft.glass.bg = gTint.value; _cteMarkDirty(); _cteLiveApply(); });
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Panel tint' }), gTint ]));
+  box.append(slider('Panel opacity', 0.2, 1, 0.02, _cteDraft.glass.bgAlpha, v => { _cteDraft.glass.bgAlpha = v; }, pct));
+  box.append(slider('Panel blur', 0, 24, 1, _cteDraft.glass.blur, v => { _cteDraft.glass.blur = v; }, v => v + 'px'));
+
+  // ── background image ──
+  box.append(h('div', { class:'cte-group-hdr', text:'Background image' }));
+  box.append(h('div', { class:'cte-hint', text:'Shows behind the panels while the app is running (not on this setup screen). Wash strength dims it so text stays readable — turn it down to make the image bolder.' }));
+  const img = _cteDraft.bg.image || '';
+  const isData = img.startsWith('data:');
+  const urlIn = h('input', { type:'text', class:'cte-hex', style:'flex:1', placeholder:'https://… or a filename in this folder',
+                             value: isData ? '' : img, spellcheck:false, disabled: isData });
+  urlIn.addEventListener('input', () => { _cteDraft.bg.image = urlIn.value.trim(); _cteMarkDirty(); _cteLiveApply(); });
+  urlIn.addEventListener('change', () => {
+    const u = urlIn.value.trim();
+    if(!u) return;
+    const probe = new Image();
+    probe.onload  = () => _cteMsg('Image URL loaded OK. Press Save to keep it.');
+    probe.onerror = () => _cteMsg('That URL did not load as an image — check the link (some hosts block hotlinking).', true);
+    probe.src = u;
+  });
+  const fileIn = h('input', { type:'file', accept:'image/*', class:'cte-file' });
+  fileIn.addEventListener('change', () => _cteHandleFile(fileIn.files && fileIn.files[0]));
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Image URL' }), urlIn ]));
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'…or upload' }), fileIn ]));
+  if(img){
+    const thumb = h('img', { src:img, class:'cte-thumb', alt:'' });
+    const rm = h('button', { class:'s-btn', type:'button', text:'Remove image' });
+    rm.addEventListener('click', () => { _cteDraft.bg.image = ''; _cteMarkDirty(); applyCustomTheme(_cteDraft); renderCustomEditor(); _cteMsg('Background image removed.'); });
+    box.append(h('div', { class:'cte-row', style:'margin-top:4px' }, [ thumb, rm ]));
+  }
+  const posSel = h('select', { class:'cte-hex' });
+  ['center','top','bottom','left','right','center top','center bottom'].forEach(p => {
+    const o = h('option', { value:p, text:p }); if(_cteDraft.bg.pos === p) o.selected = true; posSel.append(o);
+  });
+  posSel.addEventListener('change', () => { _cteDraft.bg.pos = posSel.value; _cteMarkDirty(); _cteLiveApply(); });
+  const wCol = h('input', { type:'color', class:'cte-sw', value: isHex(_cteDraft.bg.washoutColor) ? _cteDraft.bg.washoutColor : '#000000' });
+  wCol.addEventListener('input', () => { _cteDraft.bg.washoutColor = wCol.value; _cteMarkDirty(); _cteLiveApply(); });
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Position' }), posSel ]));
+  box.append(slider('Wash strength', 0, 1, 0.02, _cteDraft.bg.washout, v => { _cteDraft.bg.washout = v; }, pct));
+  box.append(h('div', { class:'cte-row' }, [ h('span', { class:'cte-lbl', text:'Wash colour' }), wCol ]));
+
+  // ── actions ──
+  const mkBtn = (label, fn) => { const b = h('button', { class:'s-btn', type:'button', text:label }); b.addEventListener('click', fn); return b; };
+  const saveBtn = mkBtn('Save', _cteSave);
+  if(!canSave){ saveBtn.disabled = true; saveBtn.title = 'Browser storage is disabled'; }
+  const actions = h('div', { class:'cte-actions' }, [
+    saveBtn,
+    mkBtn('Reset to defaults', _cteReset),
+    mkBtn('Copy CSS', _cteCopyCss),
+    h('span', { id:'cte-dirty', class:'cte-dirty', text:'• unsaved changes', hidden: !_cteDirty }),
+  ]);
+  box.append(actions);
+  box.append(h('div', { id:'cte-msg', class:'cte-msg' }));
+  if(!canSave) _cteMsg('Browser storage is off — changes preview live but can’t be saved. Use “Copy CSS”.', true);
+  else _cteMsg('Changes preview live. Press Save to keep them.');
+}
+
+// Accept any image the browser can decode; downscale to a sane size and
+// re-encode as JPEG so it's small enough to store and always renders.
+function _cteHandleFile(file){
+  if(!file) return;
+  if(file.type && !/^image\//.test(file.type)){ _cteMsg('That file is not an image.', true); return; }
+  if(file.size > 30 * 1024 * 1024){ _cteMsg('That file is over 30 MB — pick a smaller one.', true); return; }
+  _cteMsg('Processing image…');
+  const rd = new FileReader();
+  rd.onerror = () => _cteMsg('Could not read that file.', true);
+  rd.onload = () => {
+    const im = new Image();
+    im.onerror = () => _cteMsg('That image could not be decoded — HEIC/HEIF and some formats are not supported. Try a JPG or PNG, or paste an image URL.', true);
+    im.onload = () => {
+      const MAX = 1920;
+      const s = Math.min(1, MAX / Math.max(im.naturalWidth, im.naturalHeight) || 1);
+      const w = Math.max(1, Math.round(im.naturalWidth  * s));
+      const hgt = Math.max(1, Math.round(im.naturalHeight * s));
+      let out;
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = hgt;
+        cv.getContext('2d').drawImage(im, 0, 0, w, hgt);
+        out = cv.toDataURL('image/jpeg', 0.82);
+      } catch(e){ _cteMsg('Could not process that image.', true); return; }
+      if(!out || out.length > 3.5 * 1024 * 1024){
+        _cteMsg('Image is still too large after resizing — try a smaller one or an image URL.', true); return;
+      }
+      _cteDraft.bg.image = out;
+      _cteMarkDirty();
+      applyCustomTheme(_cteDraft);
+      renderCustomEditor();
+      _cteMsg('Image added — ' + w + '×' + hgt + ', ' + Math.round(out.length / 1024) + ' KB. Press Save to keep it.');
+    };
+    im.src = String(rd.result || '');
+  };
+  rd.readAsDataURL(file);
+}
+function _cteSave(){
+  clearTimeout(_cteTimer);
+  applyCustomTheme(_cteDraft);           // flush any pending debounced preview
+  try {
+    localStorage.setItem(LS_CUSTOM_THEME, JSON.stringify(_cteDraft));
+    localStorage.setItem(LS_THEME, 'custom');
+    _cteDirty = false;
+    const d = document.getElementById('cte-dirty'); if(d) d.hidden = true;
+    _cteMsg('Saved.');
+  } catch(e){
+    _cteMsg('Could not save — storage is full or disabled. Try a smaller image, or use “Copy CSS”.', true);
+  }
+}
+function _cteReset(){
+  _cteDraft = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_THEME));
+  try { localStorage.removeItem(LS_CUSTOM_THEME); } catch(e){}
+  _cteDirty = false;
+  applyCustomTheme(_cteDraft);
+  renderCustomEditor();
+  _cteMsg('Reset to the built-in Custom defaults.');
+}
+function _cteCopyCss(){
+  const css = buildCustomThemeCss(mergedCustomTheme(_cteDraft), '[data-theme="custom"]');
+  const ok = () => _cteMsg('CSS copied — paste it over the [data-theme="custom"] block in index.html.');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(css).then(ok, () => window.prompt('Copy this CSS:', css));
+  } else {
+    window.prompt('Copy this CSS:', css);
+  }
+}
 
 function saveSettings(){
   saveKeys({
