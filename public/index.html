@@ -2246,9 +2246,11 @@ async function fEv(){try{const ev=await get(`https://www.thebluealliance.com/api
 // Fetched once at launch (ranks barely move during an event), not on the refresh loop.
 async function fMyYear(){
   try{
-    const r=await fetchWithRetry(`https://api.statbotics.io/v3/team_year/${C.team}/${new Date().getFullYear()}`,8000,2);
-    sbMyYear=await r.json();
-  }catch{ sbMyYear=null; }
+    // Shared SWR cache. On a fresh hit this is instant with no network; on a stale
+    // hit it serves stale now and revalidates in the background, re-rendering the
+    // My Team tab when the fresh data lands.
+    sbMyYear = await getTeamYear(C.team, ty => { sbMyYear = ty; rTeam(); });
+  }catch{ sbMyYear = sbMyYear || null; }
 }
 // Our team's FRC district / regional-pool standing. Fetched once, after fEv() so the
 // district fast-path can use tbaEvent; re-renders the My Team tab when it lands.
@@ -2264,7 +2266,7 @@ async function init(){
   renderAll(); startCd();
   fMyAdv().then(()=>rTeam());   // once, non-blocking; updates the My Team tab when ready
   setInterval(async()=>{await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();},15000);
-  setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi()]);rMl();rRank();rTeam();if(bracketView)rBracket();updateBumperBox();stamp();},30000);
+  setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear()]);rMl();rRank();rTeam();if(bracketView)rBracket();updateBumperBox();stamp();},30000);
 }
 
 function renderAll(){rQ();rMl();rRank();rUpcoming();rTeam();rAlerts();rStream();updateBumperBox();stamp();}
@@ -3737,29 +3739,21 @@ async function openAllianceEpa(blueTeams, redTeams, matchLabel){
   const eventKey = C.event || '';
   const allTeams = [...(blueTeams||[]), ...(redTeams||[])];
 
-  // Fetch all 6 teams in parallel — use cache where available
+  // Fetch all 6 teams in parallel — the shared SWR cache serves prior views instantly.
   const teamData = {};
   await Promise.all(allTeams.map(async t=>{
-    const ck=`${t}_${year}`;
-    if(epaCache[ck]&&(Date.now()-epaCache[ck].ts<EPA_CACHE_MS)){
-      teamData[t]=epaCache[ck]; return;
-    }
     try {
-      const [tyR,tmR] = await Promise.all([
-        fetchWithRetry(`https://api.statbotics.io/v3/team_year/${t}/${year}`,8000,2),
-        fetchWithRetry(`https://api.statbotics.io/v3/team_matches?team=${t}&year=${year}&limit=200`,12000,2)
+      const [teamYear, matches] = await Promise.all([
+        getTeamYear(t),
+        getTeamMatches(t,'all').catch(()=>[]),
       ]);
-      const teamYear = await tyR.json();
-      const matches  = tmR.ok ? await tmR.json() : [];
-      const sorted   = (matches||[]).filter(m=>m.epa!=null&&m.status==='Completed').sort((a,b)=>{
+      const sorted = (matches||[]).filter(m=>m.epa!=null&&m.status==='Completed').sort((a,b)=>{
         const ta=a.time||a.predicted_time||0, tb=b.time||b.predicted_time||0;
         if(ta&&tb&&ta!==tb) return ta-tb;
         const ek=(a.event||'').localeCompare(b.event||'');
         return ek!==0?ek:(a.match_number||0)-(b.match_number||0);
       });
-      const cached={teamYear,matches:sorted,ts:Date.now()};
-      epaCache[ck]=cached;
-      teamData[t]=cached;
+      teamData[t]={teamYear,matches:sorted};
     } catch(err){
       teamData[t]=null;
     }
@@ -3951,8 +3945,78 @@ function closeAllianceEpa(){
 // Alliance overlay countdown sync removed (countdown now in main header only)
 
 // ── EPA STATS OVERLAY ────────────────────────────────────────────────────────
-const epaCache   = {};
-const EPA_CACHE_MS = 30 * 60 * 1000;
+
+// ── Statbotics cache: persisted, stale-while-revalidate, shared by every caller ──
+// Survives a page reload; on a stale entry it paints instantly then revalidates
+// in the background. Year-namespaced so last season's data drops on its own.
+const SB_LS          = `pitfusion_sb_${new Date().getFullYear()}`;
+const SB_TTL_YEAR    = 2*60*60*1000;   // team_year  — EPA aggregates move slowly
+const SB_TTL_MATCHES = 20*60*1000;     // team_matches — grows as matches are played
+const SB_MAX         = 40;             // LRU cap per sub-store
+const _sb = { year:{}, matches:{} };   // key -> { d:<json>, ts:<ms> }
+(function _sbLoad(){
+  try {
+    const raw = JSON.parse(localStorage.getItem(SB_LS) || 'null');
+    if(raw && typeof raw==='object'){
+      if(raw.year)    Object.assign(_sb.year, raw.year);
+      if(raw.matches) Object.assign(_sb.matches, raw.matches);
+    }
+  } catch(e){}
+})();
+let _sbSaveT=null;
+function _sbSave(){
+  clearTimeout(_sbSaveT);
+  _sbSaveT=setTimeout(()=>{
+    try {
+      for(const store of ['year','matches']){
+        const keys=Object.keys(_sb[store]);
+        if(keys.length>SB_MAX){
+          keys.sort((a,b)=>_sb[store][a].ts-_sb[store][b].ts)
+              .slice(0, keys.length-SB_MAX)
+              .forEach(k=>delete _sb[store][k]);
+        }
+      }
+      localStorage.setItem(SB_LS, JSON.stringify(_sb));
+    } catch(e){}
+  }, 500);
+}
+// Generic SWR getter. onFresh(d) fires once if a stale entry is revalidated.
+async function _sbGet(store, key, url, ttl, timeoutMs, onFresh){
+  const hit = _sb[store][key];
+  if(hit && Date.now()-hit.ts < ttl) return hit.d;   // fresh
+  const p = (async()=>{
+    try {
+      const r = await fetchWithRetry(url, timeoutMs, 3);
+      const d = await r.json();
+      _sb[store][key] = { d, ts: Date.now() };
+      _sbSave();
+      if(hit && onFresh) onFresh(d);
+      return d;
+    } catch(err){
+      if(hit) return hit.d;        // keep serving stale on failure
+      throw err;
+    }
+  })();
+  return hit ? hit.d : p;          // stale → instant; cold → await the fetch
+}
+const _yr = () => new Date().getFullYear();
+function getTeamYear(team, onFresh){
+  return _sbGet('year', String(team),
+    `https://api.statbotics.io/v3/team_year/${team}/${_yr()}`,
+    SB_TTL_YEAR, 8000, onFresh);
+}
+function getTeamMatches(team, scope, onFresh){
+  const q = scope==='all' ? '&limit=200' : `&event=${scope}`;
+  return _sbGet('matches', `${team}|${scope||'all'}`,
+    `https://api.statbotics.io/v3/team_matches?team=${team}&year=${_yr()}${q}`,
+    SB_TTL_MATCHES, 12000, onFresh);
+}
+function bustTeamCache(team){
+  team=String(team);
+  delete _sb.year[team];
+  Object.keys(_sb.matches).forEach(k=>{ if(k.startsWith(team+'|')) delete _sb.matches[k]; });
+  _sbSave();
+}
 
 function getPath(obj, path){
   return path.split('.').reduce((o,k)=>(o==null?null:o[k]), obj);
@@ -3999,23 +4063,18 @@ async function openEpa(team, forceReload=false){
   teamDisp.textContent='Team '+team;
   setEpaStatus('Connecting to Statbotics\u2026');
 
-  const year     = new Date().getFullYear();
-  const cacheKey = `${team}_${year}`;
+  const year = new Date().getFullYear();
 
   if(forceReload){
-    delete epaCache[cacheKey];
+    bustTeamCache(team);
     delete recordsCache[team]; delete advCache[team]; delete teamDistrictCache[team];
-  }
-  if(!forceReload && epaCache[cacheKey]&&(Date.now()-epaCache[cacheKey].ts<EPA_CACHE_MS)){
-    renderEpa(epaCache[cacheKey], team, year); return;
   }
 
   // ── Step 1: Fetch team_year summary ─────────────────────────────────────────
   let teamYear;
   try {
     setEpaStatus('Loading team summary\u2026');
-    const tyResp = await fetchWithRetry(`https://api.statbotics.io/v3/team_year/${team}/${year}`);
-    teamYear = await tyResp.json();
+    teamYear = await getTeamYear(team);   // shared SWR cache \u2014 instant on a warm entry
   } catch(err){
     const isTimeout = err.name==='AbortError'||err.message?.includes('abort');
     document.getElementById('epa-body').innerHTML=
@@ -4034,11 +4093,8 @@ async function openEpa(team, forceReload=false){
   // ── Step 3: Fetch match history — render each chart as data arrives ──────────
   let matches=[];
   try {
-    // Default: fetch only current event (fast). Full season loads on toggle.
-    const evParam = epaShowCurrentOnly ? `&event=${C.event}` : `&limit=200`;
-    const tmResp = await fetchWithRetry(
-      `https://api.statbotics.io/v3/team_matches?team=${team}&year=${year}${evParam}`, 12000, 3);
-    matches = await tmResp.json();
+    // Default: current-event slice (fast). Full season loads on the toggle.
+    matches = await getTeamMatches(team, epaShowCurrentOnly ? C.event : 'all');
   } catch(e){
     // Timed out — charts stay as skeletons with current values, offer retry
     const note=document.getElementById('epa-match-status');
@@ -4067,9 +4123,6 @@ async function openEpa(team, forceReload=false){
       if(ek!==0) return ek;
       return (a.match_number||0)-(b.match_number||0);
     });
-
-  const cached={teamYear, matches, ts:Date.now(), eventOnly:epaShowCurrentOnly};
-  epaCache[cacheKey]=cached;
 
   // Fill in charts one at a time with a small delay so the browser paints each
   const cfgFields=(typeof EPA_FIELDS!=='undefined')
@@ -4499,54 +4552,31 @@ async function toggleEpaCurrentOnly(){
   const team=teamDisp?.textContent.replace('Team ','').trim();
   if(!team) return;
   const year=new Date().getFullYear();
-  const cacheKey=`${team}_${year}`;
-  const cached=epaCache[cacheKey];
+  const cfgFields=(typeof EPA_FIELDS!=='undefined')
+    ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
+    :null;
+  if(cfgFields) cfgFields.forEach((_,fi)=>{
+    const slot=document.getElementById(`epa-slot-${fi}`);
+    if(slot) slot.innerHTML=`<div style="height:40px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)">Loading${epaShowCurrentOnly?'':' full season'}…</span></div>`;
+  });
 
-  // If switching to full season and we only have current-event data, fetch the rest
-  if(!epaShowCurrentOnly && cached && cached.eventOnly){
-    // Reset slots to skeleton while loading
-    const cfgFields=(typeof EPA_FIELDS!=='undefined')
-      ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
-      :null;
-    if(cfgFields) cfgFields.forEach((_,fi)=>{
-      const slot=document.getElementById(`epa-slot-${fi}`);
-      if(slot) slot.innerHTML=`<div style="height:40px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)">Loading full season…</span></div>`;
+  try {
+    const [teamYear, raw] = await Promise.all([
+      getTeamYear(team),
+      getTeamMatches(team, epaShowCurrentOnly ? C.event : 'all'),
+    ]);
+    const matches=(raw||[]).filter(m=>m.epa!=null&&m.status==='Completed').sort((a,b)=>{
+      const ta=a.time||a.predicted_time||0, tb=b.time||b.predicted_time||0;
+      if(ta&&tb&&ta!==tb) return ta-tb;
+      return (a.event||'').localeCompare(b.event||'')||(a.match_number||0)-(b.match_number||0);
     });
-    // Fetch full season
-    try {
-      const tmResp=await fetchWithRetry(
-        `https://api.statbotics.io/v3/team_matches?team=${team}&year=${year}&limit=200`,12000,3);
-      const allMatches=await tmResp.json();
-      cached.matches=(allMatches||[]).filter(m=>m.epa!=null&&m.status==='Completed')
-        .sort((a,b)=>{
-          const ta=a.time||0,tb=b.time||0;
-          if(ta&&tb&&ta!==tb) return ta-tb;
-          return (a.event||'').localeCompare(b.event||'')||(a.match_number||0)-(b.match_number||0);
-        });
-      cached.eventOnly=false;
-    } catch(e){
-      const note=document.getElementById('epa-match-status');
-      if(note) note.textContent='Could not load full season data';
-    }
-  }
-
-  if(cached){
-    const cfgFields=(typeof EPA_FIELDS!=='undefined')
-      ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
-      :null;
-    if(cfgFields) cfgFields.forEach((_,fi)=>{
-      const slot=document.getElementById(`epa-slot-${fi}`);
-      if(slot) slot.innerHTML=`<div style="height:40px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)">Loading…</span></div>`;
-    });
-    _fillEpaCharts(cached, team, year);
+    _fillEpaCharts({teamYear, matches, eventOnly:epaShowCurrentOnly}, team, year);
+  } catch(e){
+    const note=document.getElementById('epa-match-status');
+    if(note) note.textContent='Could not load match data';
   }
 }
 
-function renderEpa(cached, team, year){
-  // Render shell first (instant), then fill charts progressively
-  renderEpaShell(cached.teamYear, team, year);
-  _fillEpaCharts(cached, team, year);
-}
 
 async function _fillEpaCharts(cached, team, year){
   const matches=(cached.matches||[])

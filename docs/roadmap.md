@@ -14,7 +14,8 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 4 | ~~Replacement tab for the freed "My Team" slot~~ | scrapped | — | My Team tab stays (has next-match + match history not duplicated elsewhere); #3 rescoped to add-only |
 | 5 | Multi-event support (district playoffs, Worlds divisions → merged playoffs) | designing | L | [features/05-multi-event.md](features/05-multi-event.md) |
 | 6 | Help overlay (repurpose the "?" button) — documents panel resizing | done | XS | [features/06-help-overlay.md](features/06-help-overlay.md) |
-| 7 | Better Statbotics caching (persist + revalidate) | designing | S–M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
+| 7 | Better Statbotics caching (persist + revalidate) | built (PR open) | S–M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
+| 7b | Migrate off the removed `/v3/team_matches` → `/v3/matches` (fixes the broken EPA line charts; also lands the `pred` data #1 needs) | **urgent — designing** | M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
 | 8 | Theme rework — generalised tokens, in-app Custom theme editor, theme picker in Settings | shipped (V3.1.0, #20) | M–L | [features/08-theme-rework.md](features/08-theme-rework.md) |
 | 8b | TJ² CSS collapse — fold hand-written `[data-theme="tj2"]` overrides into tokens | building (PR open) | S | [features/08-theme-rework.md](features/08-theme-rework.md) |
 
