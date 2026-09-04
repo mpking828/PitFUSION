@@ -6,7 +6,7 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 
 | # | Feature | Status | Size | Design doc |
 |---|---------|--------|------|------------|
-| 1 | Enhanced Statbotics mode — predicted match winners (opt-in) | designing — **unblocked** (`pred` now cached in `_sb.matches` via 7b) | M | [features/01-statbotics-predictions.md](features/01-statbotics-predictions.md) |
+| 1 | Enhanced Statbotics mode — predicted match winners (opt-in) | built (PR open) — V3.2.0, `feat/match-predictions` | M | [features/01-statbotics-predictions.md](features/01-statbotics-predictions.md) |
 | 2 | 2027 season support | designing | S–M | [features/02-2027-season.md](features/02-2027-season.md) |
 | 3 | Rank data on My Team tab + EPA overlay (World/Country/District/State EPA ranks; overlay also gets event rank, RP, district points) | shipped | S–M | [features/03-team-ranks.md](features/03-team-ranks.md) |
 | 3b | FRC advancement points — real district points/rank **and** regional-championship-pool points/rank, on both views | shipped | S | [features/03-team-ranks.md](features/03-team-ranks.md) |
@@ -37,10 +37,7 @@ Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, m
 
 1. **#2 (2027 season)** — blocked until the Jan 9 2027 kickoff; do the non-blocked prep
    now (audit for hardcoded `2026`, confirm year is always dynamic).
-2. **#7 (caching)** — small, isolated, improves the worst current pain (EPA load time);
-   #1 leans on Statbotics so it benefits.
-3. **#1 (predictions)** — builds on #7's caching; needs the UX decision first.
-4. **#5 (multi-event)** — largest, most invasive to the data model; do it last and
+2. **#5 (multi-event)** — largest, most invasive to the data model; do it last and
    probably split into its own mini-roadmap.
 
-Done: #3 (PR open), #6, #8 (PR open).
+Done / PR open: #1, #3, #3b, #3c, #6, #7, #7b, #8, #8b.

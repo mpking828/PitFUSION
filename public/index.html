@@ -8,7 +8,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V3.1.1';
+const VERSION = 'V3.2.0';
 // ─────────────────────────────────────────────────────────────
 
 // ── Hosting mode ─────────────────────────────────────────────
@@ -383,6 +383,33 @@ body.page-has-bg .tp{
 .sc-l{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:2px}
 .sc-v{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text)}
 .sc-v.on{color:var(--green)}
+
+/* MATCH PREDICTIONS (opt-in) */
+.pred-bar{font-family:var(--fd)}
+.pred-lg{margin-top:8px}
+.pred-track{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--surface2)}
+.pb-seg{height:100%}
+.pb-seg.b{background:var(--blue-a)}
+.pb-seg.r{background:var(--red-a)}
+.pred-labels{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:3px}
+.pb-l{font-size:var(--fs-sm);font-weight:700;color:var(--text-dim);white-space:nowrap}
+.pb-l.b.fav{color:#64b5f6}
+.pb-l.r.fav{color:#ef9a9a}
+.pb-l.fav{font-weight:900}
+.pred-cap{font-size:var(--fs-sm);letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim);opacity:.6;font-weight:700}
+.pred-sm{display:flex;align-items:center;gap:6px;justify-content:flex-end;white-space:nowrap}
+.pred-sm .pb-l{font-size:var(--fs-sm);font-weight:800}
+.pb-dot{width:8px;height:8px;border-radius:999px;flex-shrink:0}
+.pb-dot.b{background:#64b5f6}
+.pb-dot.r{background:#ef9a9a}
+[data-theme="light"] .pb-dot.b{background:#1565c0}
+[data-theme="light"] .pb-dot.r{background:#c62828}
+.a-blk.bl.fav{border-color:#64b5f6;box-shadow:0 0 16px -3px rgba(100,181,246,.55)}
+.a-blk.rd.fav{border-color:#ef9a9a;box-shadow:0 0 16px -3px rgba(239,154,154,.55)}
+[data-theme="tj2"] .pred-track{background:rgba(0,0,0,.12)}
+[data-theme="light"] .pred-track{background:var(--border)}
+[data-theme="light"] .pb-l.b.fav{color:#1565c0}
+[data-theme="light"] .pb-l.r.fav{color:#c62828}
 
 /* MATCH LIST */
 .panel-m{flex:1;overflow-y:auto;padding:var(--pad);background:var(--bg);min-height:0;scroll-behavior:smooth}
@@ -1274,6 +1301,13 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <div class="theme-swatches" id="theme-swatches"><!-- rendered by renderThemeSwatches() --></div>
     </div>
 
+    <div class="setup-field">
+      <label class="setup-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0">
+        <input type="checkbox" class="pred-toggle-cb" onchange="setPredict(this.checked)">
+        <span>Show match predictions <span style="font-weight:400;color:var(--text-dim)">&mdash; win probability from Statbotics</span></span>
+      </label>
+    </div>
+
     <button class="setup-btn" id="setup-go" onclick="setupLaunch()">Launch PitFUSION &rarr;</button>
     <div id="setup-keys-row" style="display:none;text-align:center;margin-top:12px">
       <button class="s-btn" onclick="openSettings()" style="padding:6px 16px">&#9881; Settings &mdash; API Keys &amp; Connection Check</button>
@@ -1445,6 +1479,16 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <div class="theme-swatches" id="settings-theme-swatches" style="margin-bottom:10px"><!-- rendered by renderThemeSwatches() --></div>
       <button class="s-btn" id="edit-custom-btn" onclick="openCustomThemeEditor()" style="padding:6px 16px">Edit Custom theme&hellip;</button>
       <div id="custom-theme-editor" hidden style="margin-top:14px"></div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <h3>Display</h3>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px">
+        <input type="checkbox" class="pred-toggle-cb" onchange="setPredict(this.checked)">
+        Show match predictions
+      </label>
+      <p style="color:var(--text-dim);font-size:var(--fs-sm);margin:0">
+        Win probability and favored alliance from <a href="https://www.statbotics.io/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">Statbotics</a>, shown on the queuing card, match list, and My Team for upcoming matches. Off by default.
+      </p>
 
       <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
       <h3>API keys &amp; connection</h3>
@@ -1861,6 +1905,7 @@ function openSettings(){
   }
   document.getElementById('set-results').innerHTML = '';
   renderThemeSwatches(document.getElementById('settings-theme-swatches'));
+  document.querySelectorAll('.pred-toggle-cb').forEach(cb => { cb.checked = PREDICT; });
   document.getElementById('settings-overlay').classList.add('show');
 }
 function closeSettings(){ document.getElementById('settings-overlay').classList.remove('show'); }
@@ -2261,13 +2306,13 @@ async function init(){
   document.getElementById('hdr-team').textContent='#'+C.team;
   resetPitMap();
   await fNexus(); // resolve Nexus alias first so fPits uses correct key
-  await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv(),fMyYear()]);
+  await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv(),fMyYear(),fPred()]);
   if(tbaTi) teamInfoCache[C.team]=tbaTi;   // seed EPA-overlay identity cache for our team
   document.getElementById('lo').style.display='none';
   renderAll(); startCd();
   fMyAdv().then(()=>rTeam());   // once, non-blocking; updates the My Team tab when ready
   setInterval(async()=>{await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();},15000);
-  setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear()]);rMl();rRank();rTeam();if(bracketView)rBracket();updateBumperBox();stamp();},30000);
+  setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();updateBumperBox();stamp();},30000);
 }
 
 function renderAll(){rQ();rMl();rRank();rUpcoming();rTeam();rAlerts();rStream();updateBumperBox();stamp();}
@@ -2369,7 +2414,9 @@ function rQ(){
     const rJ=JSON.stringify(r).replace(/"/g,'&quot;');
     const mlJ=(myNextFinal?.label||'').replace(/'/g,"\\'");
     const mkAt=(t,side)=>`<div class="a-team${t===myT?' me':''}" style="cursor:pointer" title="View alliance EPA comparison" onclick="openAllianceEpa(${blJ},${rJ},'${mlJ}')">${e(t)}</div>`;
-    html+=`<div class="a-row"><div class="a-blk bl"><div class="a-label">Blue</div>${bl.map(t=>mkAt(t,'bl')).join('')}</div><div class="vs">VS</div><div class="a-blk rd"><div class="a-label">Red</div>${r.map(t=>mkAt(t,'rd')).join('')}</div></div>`;
+    const qp=predFor(myNextFinal.label);
+    html+=`<div class="a-row"><div class="a-blk bl${qp&&qp.winner==='blue'?' fav':''}"><div class="a-label">Blue</div>${bl.map(t=>mkAt(t,'bl')).join('')}</div><div class="vs">VS</div><div class="a-blk rd${qp&&qp.winner==='red'?' fav':''}"><div class="a-label">Red</div>${r.map(t=>mkAt(t,'rd')).join('')}</div></div>`;
+    if(qp) html+=predBar(qp,'lg');
   }
 
   if(nowQ){
@@ -2415,7 +2462,8 @@ function rMl(){
     if(isAct) scrollId=id;
     else if(!scrollId&&isMe&&!isDn) scrollId=id;
     const mkC=(ts,cls)=>ts.map(t=>`<span class="chip ${t===myT?'cm':cls}">${e(t)}</span>`).join('');
-    const right=sc?`<div class="mscore"><span class="scb">${sc.blue}</span><span class="scs">&ndash;</span><span class="scr">${sc.red}</span></div>`:`<div class="mtime"></div>`;
+    const mp=(!isDn&&!sc)?predFor(m.label):null;
+    const right=sc?`<div class="mscore"><span class="scb">${sc.blue}</span><span class="scs">&ndash;</span><span class="scr">${sc.red}</span></div>`:(mp?predBar(mp,'sm'):`<div class="mtime"></div>`);
     const actDisplay=isAct&&!isDn; // only show active glow if truly in progress
     let cls='mr';if(isMe)cls+=' my';if(actDisplay)cls+=' act';if(isDn)cls+=' dn';
     return`<div class="${cls}" id="${id}"><div class="ml-lbl">${e(m.label)}</div><div class="ml-teams">${mkC(bl,'cb')}${mkC(r,'cr')}</div>${right}${mkBadge(m,!!sc)}</div>`;
@@ -2706,6 +2754,7 @@ function rTeam(){
         ${mkBadge(nxt,!!sm[nl(nxt.label)])}
       </div>
       <div class="nm-alliance ${isR?'nm-al-red':'nm-al-blue'}">${al}</div>
+      ${(()=>{const np=predFor(nxt.label);return np?`<div class="nm-section-lbl" style="margin-top:6px">Prediction</div>${predBar(np,'lg')}`:'';})()}
       <div class="nm-section-lbl">Partners</div>
       <div class="nm-chips">${part.map(t=>`<span class="chip ${isR?'cr':'cb'}">${e(t)}</span>`).join('')||'<span class="nm-none">TBD</span>'}</div>
       <div class="nm-section-lbl" style="margin-top:8px">Opponents</div>
@@ -3545,7 +3594,80 @@ function togglePitFont(){
 document.addEventListener('DOMContentLoaded', ()=>{
   const btn = document.getElementById('font-size-btn');
   if(btn) btn.textContent = pitFontXL ? '🔤 Normal Text' : '🔤 Bigger Text';
+  document.querySelectorAll('.pred-toggle-cb').forEach(cb => { cb.checked = PREDICT; });
 });
+
+// ── MATCH PREDICTIONS (opt-in) ───────────────────────────────────────────────
+// Win probability + favored alliance from Statbotics /v3/matches `pred`. Off by
+// default; toggled from the setup screen and ⚙ Settings ▸ Display (no reload).
+const LS_PREDICT = 'pitfusion_predictions';
+let PREDICT  = localStorage.getItem(LS_PREDICT) === '1';
+let predMap  = null;   // normalized match key (see nl()/sbMl()) -> { rp, winner, played }
+function setPredict(on){
+  PREDICT = !!on;
+  try { localStorage.setItem(LS_PREDICT, PREDICT ? '1' : '0'); } catch(e){}
+  document.querySelectorAll('.pred-toggle-cb').forEach(cb => { cb.checked = PREDICT; });
+  if(PREDICT){ fPred().then(paintPred); }
+  else { predMap = null; paintPred(); }
+}
+function paintPred(){ rQ(); rMl(); rTeam(); }
+
+async function fPred(){
+  if(!PREDICT || !C.event){ predMap = null; return; }
+  try {
+    const list = await getEventMatches(C.event, d => { predMap = buildPredMap(d); paintPred(); });
+    predMap = buildPredMap(list);
+  } catch(e){ /* keep last good predMap */ }
+}
+function buildPredMap(list){
+  const map = {};
+  (list||[]).forEach(m => {
+    if(!m || !m.pred) return;
+    map[sbMl(m)] = {
+      rp:     m.pred.red_win_prob,
+      winner: m.pred.winner,
+      played: m.status === 'Completed' || !!m.result,
+    };
+  });
+  return map;
+}
+// Statbotics match -> the same normalized key nl() derives from a Nexus/TBA label
+function sbMl(m){
+  if(m.comp_level === 'qm') return `qual_${m.match_number}`;
+  if(m.comp_level === 'sf') return `sf_${m.set_number}`;
+  if(m.comp_level === 'f')  return `f_${m.match_number}`;
+  return `${m.comp_level}_${m.match_number}`;
+}
+// prediction for a match label, or null when nothing should be drawn
+function predFor(label){
+  if(!PREDICT || !predMap) return null;
+  const p = predMap[nl(label)];
+  return (p && !p.played && typeof p.rp === 'number') ? p : null;
+}
+// win-probability readout. size = 'lg' (full split bar, for cards)
+// | 'sm' (compact favored-only chip, for match-list rows)
+function predBar(p, size){
+  const rPct = Math.round(p.rp * 100), bPct = 100 - rPct;
+  const redFav = p.winner === 'red';
+  if(size === 'sm'){
+    const favPct = redFav ? rPct : bPct;
+    return `<div class="pred-bar pred-sm" title="Predicted winner: ${redFav?'Red':'Blue'} ${favPct}% (Statbotics)">
+      <span class="pb-dot ${redFav?'r':'b'}"></span>
+      <span class="pb-l ${redFav?'r':'b'} fav">${redFav?'Red':'Blue'} ${favPct}%</span>
+    </div>`;
+  }
+  return `<div class="pred-bar pred-lg">
+    <div class="pred-track">
+      <div class="pb-seg b" style="width:${bPct}%"></div>
+      <div class="pb-seg r" style="width:${rPct}%"></div>
+    </div>
+    <div class="pred-labels">
+      <span class="pb-l b${redFav?'':' fav'}">Blue ${bPct}%</span>
+      <span class="pred-cap">prediction</span>
+      <span class="pb-l r${redFav?' fav':''}">${rPct}% Red</span>
+    </div>
+  </div>`;
+}
 
 // ── PIT MAP OVERLAY ──────────────────────────────────────────────────────────
 let nexusPitMap = null;         // cached map data for current event
@@ -4004,6 +4126,13 @@ function getTeamMatches(team, scope, onFresh){
   const q = (scope && scope!=='all') ? `event=${scope}` : `year=${_yr()}&limit=200`;
   return _sbGet('matches', `${team}|${scope||'all'}`,
     `https://api.statbotics.io/v3/matches?team=${team}&${q}`,
+    SB_TTL_MATCHES, 12000, onFresh);
+}
+// Every match at an event (for match predictions — carries the `pred` object).
+// Shares the _sb.matches SWR store under an `event|` key; bustTeamCache ignores it.
+function getEventMatches(evKey, onFresh){
+  return _sbGet('matches', `event|${evKey}`,
+    `https://api.statbotics.io/v3/matches?event=${evKey}&limit=200`,
     SB_TTL_MATCHES, 12000, onFresh);
 }
 function bustTeamCache(team){
