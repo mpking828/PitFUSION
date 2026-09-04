@@ -59,6 +59,18 @@ pitfusion.com — Cloudflare managed
 ## Team config
 Default team: 88, event key format: e.g. 2025cthar
 
+## Statbotics data
+- Persisted SWR cache `_sb` (`localStorage['pitfusion_sb_<year>']`): `getTeamYear()`,
+  `getTeamMatches()`, `getEventMatches()`. Stale entries paint instantly + revalidate
+  in the background; never polled on a fixed cadence.
+- EPA overlay charts read per-match EPA from `/v3/matches` → `m.epas["<team>"]`.
+- **Match predictions** (feature #1): opt-in, **off by default**, `localStorage`
+  `pitfusion_predictions` (`'1'`/`'0'`), toggled on the setup screen + ⚙ Settings ▸
+  Display. Win probability + favored alliance from `/v3/matches` → `m.pred`
+  (`red_win_prob`, `winner`). `predMap` keyed like `nl(label)` (`qual_N`/`sf_N`/`f_N`);
+  shown on the queuing card, match list, and My Team next-match for unplayed matches
+  only. No predicted scores.
+
 ## Roadmap
 Future features: docs/roadmap.md (index) + docs/features/*.md (per-feature design).
 Build one feature per PR against main.

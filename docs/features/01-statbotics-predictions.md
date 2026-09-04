@@ -1,6 +1,53 @@
 # Feature 1 — Enhanced Statbotics mode (predicted match winners)
 
-Status: **designing**. Size: M.
+Status: **built** (`feat/match-predictions`). Size: M.
+
+## Shipped (V3.2.0)
+
+Opt-in win-probability display, **off by default**, toggled from the setup screen and
+⚙ Settings ▸ Display (live, no reload). Decisions locked via Q&A:
+
+- **Shows:** a win-probability split bar (`Blue 62% — 38% Red`) with a favored-alliance
+  highlight on the queuing card / My Team next-match card, and a compact favored-only
+  chip (`● Red 63%`) on match-list rows. **No predicted scores** (deliberately — they
+  read as more authoritative than they are).
+- **Where:** queuing "Your Next Match" card, match-list rows, My Team "Next Match" card.
+- **Coverage:** quals **and** playoffs.
+
+### Implementation (`public/index.html`)
+
+- State: `PREDICT` + `localStorage['pitfusion_predictions']` (`'1'`/`'0'`), near
+  `pitFontXL`. `setPredict(on)` persists, syncs every `.pred-toggle-cb`, and either
+  `fPred().then(paintPred)` or clears `predMap` + `paintPred()`.
+- Data: `getEventMatches(evKey)` — new getter on the existing `_sb.matches` SWR store
+  (key `event|<key>`, 20-min TTL, stale-while-revalidate). `bustTeamCache` ignores it
+  (only strips `team|` keys).
+- `fPred()` runs in `init()`'s `Promise.all` and on the 30 s TBA loop — cheap: served
+  from cache with no network until the TTL, then one background revalidate + `paintPred`
+  via the `onFresh` callback (same pattern as `fMyYear` in feature 7). **No new polling.**
+- `buildPredMap(list)` → `{ <normKey>: {rp, winner, played} }`. `sbMl(m)` produces the
+  same normalized key (`qual_N` / `sf_N` / `f_N`) that the existing `nl(label)` derives
+  from a Nexus/TBA label, so the lookup is `predMap[nl(match.label)]` everywhere.
+- `predFor(label)` returns the prediction only when `PREDICT`, not played, and `rp` is
+  numeric. `predBar(p, size)` renders `'lg'` (split bar) or `'sm'` (favored chip).
+- Render hooks: `rQ()` (after `.a-row`, plus `.fav` on the winning `.a-blk`), `rMl()`
+  `mkRow` (replaces the empty `.mtime` cell), `rTeam()` (inside `.nm-card`).
+- Toggle UI: a `.setup-field` checkbox on the setup screen and a new "Display" section
+  in Settings (both `.pred-toggle-cb`, `onchange="setPredict(this.checked)"`);
+  `openSettings()` + the setup `DOMContentLoaded` handler sync `.checked` from `PREDICT`.
+- CSS: `.pred-bar` / `.pred-track` / `.pb-seg` / `.pb-l` / `.pred-cap` / `.pb-dot` /
+  `.a-blk.fav`, with `[data-theme="light"]` and `[data-theme="tj2"]` tweaks.
+
+### Verification done
+
+Logic tested against `2025necmp2` (has playoffs): `getEventMatches` → 112 matches,
+`buildPredMap` keys `qual_N`/`sf_N`/`f_N` match `nl()` output; played matches → `predFor`
+returns null. `predBar` renders legibly in dark / light / TJ². Setup + Settings toggles
+persist and stay in sync. Not yet exercised against live Nexus data at an event.
+
+---
+
+## Original design notes (kept for reference)
 
 ## Context
 

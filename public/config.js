@@ -25,6 +25,10 @@
 // The core fields are year-agnostic: `epa` (total), `auto_epa`, `teleop_epa`,
 // `endgame_epa`, `rp_1_epa`, `rp_2_epa`, `rp_3_epa`. For a new season the only
 // change is usually the RP labels (each game names its ranking points differently).
+//
+// The same /v3/matches response also carries a per-match `pred` object
+// (win probability + predicted score) — consumed by the opt-in match-predictions
+// feature (⚙ Settings ▸ Display). Nothing to configure here for that.
 const EPA_FIELDS = {
   2026: [
     { key: 'epa',         label: 'Total EPA',       color: '#00d4ff' },
