@@ -1304,14 +1304,23 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   .drag-handle-v, .drag-handle-h{ display:none }
   .col-l{ flex:0 0 auto; border-right:none; overflow:visible }
   .top-row{ display:flex; flex-direction:column; height:auto; overflow:visible }
-  /* Video gives up space before the queuing card does — 16:9 at full width
-     would eat 26vh, and queuing is the more important surface on a phone. */
-  .stream-half{ aspect-ratio:16/9; max-height:20vh;
+  .stream-half{ aspect-ratio:16/9; max-height:24vh;
                 border-right:none; border-bottom:2px solid var(--border) }
-  .q-half{ max-height:34vh }
+  /* The two section labels are redundant on a phone — the hero text and the
+     header's queue pill already say it. Dropping them buys the stream ~44px. */
+  .q-half > .sec-lbl, #q-display .sec-lbl{ display:none }
+  .q-half{ max-height:32vh }
   .panel-m{ display:none }            /* Match Schedule lives in the menu */
   .sidebar{ flex:1; min-height:0 }    /* tabs + Upcoming take the rest */
-  .upcoming-panel{ max-height:18vh; overflow-y:auto }
+
+  /* Upcoming: compact enough that two whole matches fit. rUpcoming() also
+     renders 2 instead of 3 on mobile, so a pill is never sliced in half. */
+  .upcoming-panel{ padding:6px var(--pad) 8px }
+  .upcoming-hdr{ padding-bottom:5px; margin-bottom:5px }
+  .up-row{ padding:5px 8px; margin-bottom:4px }
+  .up-teams{ flex-direction:row; flex-wrap:wrap; gap:3px }
+  .up-alliance{ flex:1 1 calc(50% - 3px); gap:3px }
+  .up-chip{ padding:2px 4px }
 
   /* Match Schedule / Playoff Bracket promoted to full screen from the menu */
   body.mobile-panel-open .panel-m{
@@ -1353,6 +1362,11 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   .mm-ctx{
     font-family:var(--fd); font-size:var(--fs-sm); color:var(--text-dim);
     margin-bottom:12px; letter-spacing:.06em; text-transform:uppercase;
+  }
+  .mm-ver{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    font-family:var(--fm); font-size:var(--fs-sm); color:var(--text-dim);
+    margin-top:14px;
   }
 }
 </style>
@@ -1526,7 +1540,28 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <button class="mm-row" onclick="openMobilePanel('bracket')">&#127942; Playoff Bracket</button>
       <button class="mm-row" onclick="closeMobileMenu();openSchedule()">&#128203; Our Schedule</button>
       <button class="mm-row" onclick="closeMobileMenu();document.getElementById('help-overlay').classList.add('show')">&#10067; Help</button>
-      <button class="mm-row" style="margin-bottom:0" onclick="closeMobileMenu();openSettings()">&#9881; Settings</button>
+      <button class="mm-row" onclick="closeMobileMenu();openSettings()">&#9881; Settings</button>
+      <button class="mm-row" style="margin-bottom:0" onclick="openMobileAbout()">&#8505;&#65039; About &amp; Credits</button>
+      <div class="mm-ver"><span id="mm-ver-num">&mdash;</span><span id="mm-ver-badge"></span></div>
+    </div>
+  </div>
+
+  <!-- MOBILE ABOUT — the attribution + version that live in the desktop footer -->
+  <div class="help-overlay" id="about-overlay" onclick="if(event.target===this)closeMobileAbout()">
+    <div class="help-card" style="max-width:420px">
+      <button class="help-close" onclick="closeMobileAbout()">&#10005;</button>
+      <h2>PitFUSION</h2>
+      <p style="margin-bottom:16px"><span style="color:var(--text-dim)">Version</span>
+        <b id="about-ver" style="color:var(--accent);margin-left:6px">&mdash;</b></p>
+      <h3>Data sources</h3>
+      <p>Match schedule and queuing data from
+        <a href="https://frc.nexus/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">Nexus</a>.</p>
+      <p>Event, ranking and match results from
+        <a href="https://www.thebluealliance.com/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">The Blue Alliance</a>.</p>
+      <p>EPA ratings and match predictions from
+        <a href="https://www.statbotics.io/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">Statbotics</a>.</p>
+      <h3>Project</h3>
+      <p><a href="https://github.com/mpking828/PitFUSION" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">github.com/mpking828/PitFUSION</a></p>
     </div>
   </div>
 
@@ -2858,7 +2893,9 @@ function rUpcoming(){
 
   // All non-practice upcoming matches (full list to find breaks between team matches)
   const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!SKIP.has(m.status));
-  const myUpcoming=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT)).slice(0,3);
+  // Two on mobile — three won't fit the compact panel without slicing a pill.
+  const upMax=(typeof isMobile==='function'&&isMobile())?2:3;
+  const myUpcoming=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT)).slice(0,upMax);
 
   if(!myUpcoming.length){el.innerHTML='<div style="color:var(--text-dim);font-size:var(--fs-sm);padding:8px 0">No upcoming matches</div>';return;}
 
@@ -3824,10 +3861,39 @@ function openMobileMenu(){
     const ev = document.getElementById('hdr-ev')?.textContent || '';
     ctx.textContent = ['#' + C.team, ev].filter(s=>s && s !== '\u2014').join(' \u00b7 ');
   }
+  fillMobileVersion();
   document.getElementById('mobile-menu-overlay').classList.add('show');
 }
 function closeMobileMenu(){
   document.getElementById('mobile-menu-overlay').classList.remove('show');
+}
+
+// Version + attribution live in the desktop footer, which mobile hides — the
+// version goes in the menu, the credits behind an About sheet.
+function _mobileVersionText(){ return (typeof VERSION!=='undefined' && VERSION) ? VERSION : ''; }
+function fillMobileVersion(){
+  const v = _mobileVersionText();
+  const n = document.getElementById('mm-ver-num');
+  if(n) n.textContent = v || '—';
+  const a = document.getElementById('about-ver');
+  if(a) a.textContent = v || '—';
+  // Mirror the self-hosted update badge if checkForUpdate() raised one.
+  const badge = document.getElementById('update-badge');
+  const slot  = document.getElementById('mm-ver-badge');
+  if(slot){
+    const live = badge && badge.style.display !== 'none' && badge.textContent.trim();
+    slot.innerHTML = live
+      ? `<a href="${badge.href}" target="_blank" rel="noopener" style="color:#2ecc71;text-decoration:none;font-family:var(--fd);font-weight:700">${e(badge.textContent.trim())}</a>`
+      : '';
+  }
+}
+function openMobileAbout(){
+  closeMobileMenu();
+  fillMobileVersion();
+  document.getElementById('about-overlay').classList.add('show');
+}
+function closeMobileAbout(){
+  document.getElementById('about-overlay').classList.remove('show');
 }
 
 // Promote #panel-m (which already holds both #ml and #bracket-panel) to a

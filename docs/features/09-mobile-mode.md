@@ -40,10 +40,22 @@ Settings.
   squeezed tab pane at once.
 - **Stack:** `.body` → flex column, drag handles hidden, `.top-row` → flex column,
   `.panel-m` hidden, `.sidebar` takes the remainder.
-- **Space budget at 375×812:** header 46 + video 162 + queuing 276 + tab bar 52 +
-  tabs 132 + Upcoming 142. The video is capped at `max-height:20vh` rather than its
-  full 16:9 26vh — it gives up space before the queuing card does, since queuing is the
-  more important surface on a phone.
+- **Space budget at 375×812:** header 46 + video 195 + queuing 260 + tab bar 52 +
+  tabs 97 + Upcoming 161 = 811.
+  - The queuing card's two section labels ("Queuing Status" / "Your Next Match") are
+    hidden — the hero text and the header's queue pill already say it. That bought the
+    ~44px that took the video from 162 → 195 (`max-height:24vh`).
+  - The queuing card still overflows slightly (260 visible / 333 natural) and scrolls
+    internally. That's the accepted cost of the larger video.
+- **Upcoming** is compacted so two *whole* matches fit: the alliance chips go on one
+  wrapped line instead of two stacked rows (row 80px → 53px), the header and row padding
+  shrink, and `rUpcoming()` renders 2 instead of 3 on mobile. Sizing it by a `max-height`
+  alone clipped a match pill in half, which is what it looked like to the user —
+  `scrollHeight` (159) is now ≤ the visible height (161), so nothing is cut.
+- **Version and attribution**, which live in the desktop footer, move into the menu: the
+  version prints under the menu rows (mirroring the self-hosted update badge when one is
+  raised), and an **About & Credits** row opens `#about-overlay` with the Nexus / Blue
+  Alliance / Statbotics attribution and the project link.
 - **Match rows** (`.mr`) reflow from the desktop grid (220px label + chips + score +
   badge) to flex-wrap: label + score on one line, six team chips wrapping beneath.
   Switching to flex also neutralises `body.pit-xl .mr{grid-template-columns:… !important}`.
@@ -54,7 +66,8 @@ Settings.
 ### Markup — three additive elements, hidden on desktop by a plain rule
 
 `#mobile-menu-btn` (☰, in `.hdr-r`), `#mobile-panel-close` (in `#panel-m`'s title row),
-and `#mobile-menu-overlay` (built on the existing `.help-overlay`/`.help-card` pattern).
+`#mobile-menu-overlay` and `#about-overlay` (both built on the existing
+`.help-overlay`/`.help-card` pattern).
 
 Both buttons are hidden via a real CSS rule — `#mobile-menu-btn,#mobile-panel-close{display:none}`
 — **not** `style="display:none"`. An inline style outranks the media query, which is
