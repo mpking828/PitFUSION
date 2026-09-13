@@ -18,6 +18,7 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 7b | Migrate off the removed `/v3/team_matches` → `/v3/matches` (fixes the broken EPA line charts) | built (PR open) | M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
 | 8 | Theme rework — generalised tokens, in-app Custom theme editor, theme picker in Settings | shipped (V3.1.0, #20) | M–L | [features/08-theme-rework.md](features/08-theme-rework.md) |
 | 8b | TJ² CSS collapse — fold hand-written `[data-theme="tj2"]` overrides into tokens | shipped (#23, 197→166 rules) | S | [features/08-theme-rework.md](features/08-theme-rework.md) |
+| 10 | Match Schedule scroll lock — polls stop yanking you back; ⇩ Current button | built (PR open) | S | [features/10-match-list-scroll-lock.md](features/10-match-list-scroll-lock.md) |
 
 Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, may split.
 
