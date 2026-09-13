@@ -102,3 +102,22 @@ proper, on both views, and handles regional teams.
   overlay session, never on a loop. `↻ Reload` clears `epaCache` + `recordsCache` +
   `advCache` + `teamDistrictCache` for the team (fixes the old dead-code
   `if(forceReload) delete` after a `return`).
+
+---
+
+## Follow-up — decouple the overlay from Statbotics availability (V3.2.1)
+
+Found live at a 2026 event during a Statbotics outage: `openEpa()` fetched `team_year`
+first and, on any failure (timeout/500), replaced the whole `#epa-body` with a full-page
+error and returned — before `renderEpaShell()` (and its `fillAdvancement()` /
+`fillRecords()` / `fillIdentity()` calls) ever ran. Since Event/Records/FRC Advancement
+are all TBA data, a Statbotics-only outage was taking out sections that didn't depend on
+it at all — confirmed live: My Team's FRC Advancement pill kept working from TBA while the
+EPA overlay showed nothing but an error.
+
+Fixed: `openEpa()` no longer returns early — a `team_year` failure sets `teamYear=null`
+and `sbError=<err>`, and `renderEpaShell(teamYear, team, year, sbError)` always runs.
+Identity/Event/Records/Advancement render from whatever's available (`teamYear?.` throughout);
+only the **EPA Ranks** section shows a scoped "Statbotics is unavailable right now." +
+↺ Retry in place of the rank pills. Chart skeletons + Step 3 (`getTeamMatches`) are
+unaffected — they already had their own timeout/error handling.
