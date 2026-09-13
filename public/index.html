@@ -3995,7 +3995,7 @@ function openSchedule(){
   const nxMx=(nxData?.matches||[]).filter(m=>!/^practice/i.test(m.label));
   // All my matches from Nexus
   const myMx=nxMx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
-  const SKIP=new Set(['Completed','On field']);
+  const nowQ=nxData?.nowQueuing;
   // Build RP map from TBA
   const rpMap={};
   (tbaMx||[]).filter(m=>m.comp_level==='qm'&&m.score_breakdown).forEach(m=>{
@@ -4006,9 +4006,10 @@ function openSchedule(){
 
   let rows='';
   myMx.forEach(m=>{
-    const isDone=!SKIP.has(m.status);
     const sc=sm[nl(m.label)];
-    const isPlayed=!!sc||(m.status==='Completed');
+    const isPlayed=m.status==='Completed'
+      ||(m.status==='On field'&&(!!sc||!nowQ))
+      ||(m.status==='On deck'&&!nowQ);
     const red=m.redTeams||[], blue=m.blueTeams||[];
     const iAmRed=red.includes(myT);
     const mkChip=(t,side)=>`<span class="sched-chip ${t===myT?'me':side}">${e(t)}</span>`;
@@ -4024,6 +4025,9 @@ function openSchedule(){
       const rpKey=nl(m.label);
       const rp=rpMap[rpKey];
       if(rp) rpCell=(iAmRed?rp.red:rp.blue)??'&mdash;';
+    } else if(isPlayed){
+      // Nexus/queue position says it's done, but TBA hasn't posted a score yet
+      resultCell='<span class="sched-time">&mdash;</span>';
     } else {
       // Upcoming — show time
       const t=m.times?.estimatedQueueTime||m.times?.estimatedStartTime;
