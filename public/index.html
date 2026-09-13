@@ -8,7 +8,7 @@
 <script src="config.js"></script>
 <script>
 // ── Version ──────────────────────────────────────────────────
-const VERSION = 'V3.2.0';
+const VERSION = 'V3.2.1';
 // ─────────────────────────────────────────────────────────────
 
 // ── Hosting mode ─────────────────────────────────────────────
@@ -4218,24 +4218,20 @@ async function openEpa(team, forceReload=false){
   }
 
   // ── Step 1: Fetch team_year summary ─────────────────────────────────────────
-  let teamYear;
+  // A Statbotics outage/timeout here must NOT block the rest of the overlay —
+  // Identity, Event, Records, and FRC Advancement are all TBA data and load fine
+  // on their own. Only the Statbotics-sourced EPA Ranks + charts degrade.
+  let teamYear=null, sbError=null;
   try {
     setEpaStatus('Loading team summary\u2026');
     teamYear = await getTeamYear(team);   // shared SWR cache \u2014 instant on a warm entry
   } catch(err){
-    const isTimeout = err.name==='AbortError'||err.message?.includes('abort');
-    document.getElementById('epa-body').innerHTML=
-      `<div class="epa-err">${isTimeout?'Statbotics timed out — try again in a moment.':'Could not load EPA data.'}<br>
-       <span style="font-size:var(--fs-sm);color:var(--text-dim)">${e(err.message||'')}</span><br>
-       <button onclick="openEpa('${team}')" style="margin-top:12px;font-family:var(--fd);font-size:var(--fs-lbl);
-         font-weight:700;padding:5px 16px;background:var(--surface2);border:2px solid var(--border2);
-         border-radius:var(--r);color:var(--text);cursor:pointer">\u21ba Retry</button></div>`;
-    return;
+    sbError = err;
   }
 
   // ── Step 2: Render header + chart skeletons immediately ─────────────────────
   // User sees the team card and labelled placeholders while match data loads
-  renderEpaShell(teamYear, team, year);
+  renderEpaShell(teamYear, team, year, sbError);
 
   // ── Step 3: Fetch match history — render each chart as data arrives ──────────
   let matches=[];
@@ -4316,21 +4312,21 @@ async function openEpa(team, forceReload=false){
 }
 
 // Render the shell: header card + toggle + labelled skeleton placeholders
-function renderEpaShell(teamYear, team, year){
+function renderEpaShell(teamYear, team, year, sbError){
   const body=document.getElementById('epa-body');
   const cfgFields=(typeof EPA_FIELDS!=='undefined')
     ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
     :null;
 
-  const name = teamYear.name||teamYear.team_name||'';
+  const name = teamYear?.name||teamYear?.team_name||'';
 
   // Own team: full address from tbaTi immediately. Others: state/country from teamYear
   // now, city added by fillIdentity() once /team/frc<t> loads.
   const info = teamInfoCache[team] || (String(team)===String(C.team) ? tbaTi : null);
-  const rookie = (info && info.rookie_year) || teamYear.rookie_year;
+  const rookie = (info && info.rookie_year) || teamYear?.rookie_year;
   const place = info
     ? [info.city, info.state_prov, info.country].filter(Boolean).join(', ')
-    : [teamYear.state, teamYear.country].filter(Boolean).join(', ');
+    : [teamYear?.state, teamYear?.country].filter(Boolean).join(', ');
   const subParts=[];
   if(place)  subParts.push(place);
   if(rookie) subParts.push(`Rookie ${rookie}`);
@@ -4367,16 +4363,24 @@ function renderEpaShell(teamYear, team, year){
 
   // ── EPA Ranks ──────────────────────────────────────────────────────────────
   {
-    const rk = teamYear.epa?.ranks;
+    const rk = teamYear?.epa?.ranks;
     const pills=[];
     if(rk?.total?.rank!=null)       pills.push(['World','#'+rk.total.rank]);
-    if(rk?.country?.rank!=null && teamYear.country) pills.push([e(teamYear.country),'#'+rk.country.rank]);
-    if(rk?.state?.rank!=null && teamYear.state)     pills.push([e(teamYear.state),'#'+rk.state.rank]);
+    if(rk?.country?.rank!=null && teamYear?.country) pills.push([e(teamYear.country),'#'+rk.country.rank]);
+    if(rk?.state?.rank!=null && teamYear?.state)     pills.push([e(teamYear.state),'#'+rk.state.rank]);
     if(rk?.district?.rank!=null && epaDistrictMeaningful(teamYear)) pills.push([e(String(teamYear.district).toUpperCase()),'#'+rk.district.rank]);
     if(pills.length){
       html+=`<div class="epa-sect"><div class="epa-sect-h">EPA Ranks</div><div class="epa-stats">`
         +pills.map(([l,v])=>`<div class="epa-stat-pill"><span class="esp-l">${l}</span><span class="esp-v">${v}</span></div>`).join('')
         +`</div></div>`;
+    } else if(sbError){
+      // Same outage that failed team_year almost certainly also fails match
+      // history, but this section only speaks to what it knows: EPA ranks.
+      const isTimeout = sbError.name==='AbortError'||sbError.message?.includes('abort');
+      html+=`<div class="epa-sect"><div class="epa-sect-h">EPA Ranks</div>
+        <span style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)">${isTimeout?'Statbotics timed out.':'Statbotics is unavailable right now.'}</span>
+        <button onclick="openEpa('${team}',true)" style="margin-left:8px;font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;padding:2px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);cursor:pointer">\u21ba Retry</button>
+      </div>`;
     }
   }
 
