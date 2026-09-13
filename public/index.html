@@ -416,10 +416,16 @@ body.page-has-bg .tp{
 .panel-m::-webkit-scrollbar{width:4px}
 .panel-m::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 .ml{display:flex;flex-direction:column;gap:4px;overflow-y:auto;min-height:0;padding:var(--pad)}
-/* The header sits inside #panel-m, which is the element that actually scrolls —
-   sticky keeps it (and the jump button) pinned while the list scrolls under it. */
-#panel-m-hdr{position:sticky;top:0;z-index:5;background:var(--bg)}
-#ml-jump-btn{display:none;padding:3px 10px;font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;white-space:nowrap}
+/* The jump button floats over the top-right of the list rather than sitting in a
+   header bar: #panel-m is the element that scrolls, so the only way to pin
+   something inside it is position:sticky — and a full-width sticky bar sliding
+   over the rows is distracting. A zero-height sticky strip lets just the button
+   overhang, and it collapses to nothing whenever the button is hidden. */
+#panel-m-hdr{position:sticky;top:0;z-index:5;height:0;display:flex;justify-content:flex-end;
+  padding:0 var(--pad);pointer-events:none;overflow:visible}
+#ml-jump-btn{display:none;margin-top:4px;padding:3px 10px;font-family:var(--fd);
+  font-size:var(--fs-sm);font-weight:700;white-space:nowrap;pointer-events:auto;
+  box-shadow:0 2px 8px rgba(0,0,0,.45)}
 #ml-jump-btn.show{display:inline-block}
 .ml-break{display:flex;align-items:center;gap:8px;padding:5px 10px;color:var(--yellow);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:rgba(255,214,0,.07);border-radius:4px;border-left:3px solid rgba(255,214,0,.4)}
 [data-theme="tj2"] .ml-break{background:rgba(245,192,0,.1);border-left-color:#f5c000}
@@ -1376,9 +1382,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <div class="drag-handle-h" id="drag-h" title="Drag to resize; double-click to reset"></div>
 
       <div class="panel-m" id="panel-m">
-        <div id="panel-m-hdr" style="margin-bottom:7px;padding:var(--pad) var(--pad) 0;flex-shrink:0;display:flex;align-items:center;gap:10px">
-          <div class="sec-lbl" id="panel-m-title">Match Schedule</div>
-          <div style="flex:1"></div>
+        <div id="panel-m-hdr">
           <button class="s-btn" id="ml-jump-btn" onclick="jumpToCurrentMatch()" title="Jump to the current match">&#8681; Current</button>
         </div>
         <div class="ml" id="ml"></div>
@@ -3203,7 +3207,6 @@ function toggleBracket(){
   const ml     = document.getElementById('ml');
   const bktPnl = document.getElementById('bracket-panel');
   const panelM = document.getElementById('panel-m');
-  const pTitle = document.getElementById('panel-m-title');
 
   btn.textContent = bracketView ? '📋 Match List' : '🏆 Playoff Bracket';
 
@@ -3228,7 +3231,6 @@ function toggleBracket(){
 
     // 3. Replace panel-m contents with bracket
     panelM.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:0;background:var(--bg)';
-    pTitle.style.display = 'none';
     ml.style.display     = 'none';
     bktPnl.style.flex    = '1';
     bktPnl.style.minHeight = '0';
@@ -3260,7 +3262,6 @@ function toggleBracket(){
     bktPnl.classList.remove('bracket-mode');
 
     panelM.style.cssText = '';
-    pTitle.style.display = '';
     ml.style.display     = 'flex';
     bktPnl.style.flex    = '';
     bktPnl.style.minHeight = '';

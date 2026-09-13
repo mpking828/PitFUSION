@@ -31,8 +31,13 @@ and a **⇩ Current** button in the panel header jumps straight back to it.
   reading it straight back returns the old value. Restores use
   `scrollTo({top, behavior:'instant'})`.
 - **The header row lives inside the scroll container**, so it scrolled away with the list.
-  It's now `position:sticky; top:0`, which is what keeps the button in the "top right".
-  (Side benefit: the "Match Schedule" title stays visible while scrolling.)
+  `#panel-m` is what scrolls, so the only way to pin something inside it is
+  `position:sticky`. A first pass made the whole header sticky, but a full-width bar
+  sliding over the rows is distracting — and the "Match Schedule" title wasn't earning
+  its space. The title is now **removed** and `#panel-m-hdr` is a **zero-height sticky
+  strip** (`height:0; pointer-events:none; overflow:visible`) that lets just the button
+  overhang and collapses to nothing whenever the button is hidden.
+  `toggleBracket()`'s `pTitle` references went with the title.
 - **Replacing `#ml.innerHTML` does not itself reset `scrollTop`** — verified 2000 → 2000
   across a render. The jump was entirely the `scrollIntoView`. The explicit restore is
   kept anyway as a cheap guard for when the list shrinks and the browser clamps.
