@@ -18,13 +18,12 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 7b | Migrate off the removed `/v3/team_matches` → `/v3/matches` (fixes the broken EPA line charts) | shipped (#28) | M | [features/07-statbotics-caching.md](features/07-statbotics-caching.md) |
 | 8 | Theme rework — generalised tokens, in-app Custom theme editor, theme picker in Settings | shipped (V3.1.0, #20) | M–L | [features/08-theme-rework.md](features/08-theme-rework.md) |
 | 8b | TJ² CSS collapse — fold hand-written `[data-theme="tj2"]` overrides into tokens | shipped (#23, 197→166 rules) | S | [features/08-theme-rework.md](features/08-theme-rework.md) |
+| 9 | Mobile display mode — single-column stack under 768px, secondary surfaces behind a ☰ menu | shipped (#37) | M | [features/09-mobile-mode.md](features/09-mobile-mode.md) |
 | 10 | Match Schedule scroll lock — polls stop yanking you back; ⇩ Current button | shipped (#39) | S | [features/10-match-list-scroll-lock.md](features/10-match-list-scroll-lock.md) |
 | 11 | Playoff Bracket sidebar overflow — the Queuing tab's bumper box forces a scroll bar | idea | XS–S | — |
 
 Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, may split.
 
-**#9 (mobile display mode) is in flight** on `feat/mobile-mode` / PR #37 and adds its own
-row here when it merges — hence the gap between 8b and 10.
 
 ## Known issues
 
@@ -73,4 +72,4 @@ Found and fixed live at 2026mifli2; no design docs, see the PRs:
 3. **#5 (multi-event)** — largest, most invasive to the data model; do it last and
    probably split into its own mini-roadmap.
 
-In flight: #9 (PR #37). Shipped: #1, #3, #3b, #3c, #6, #7, #7b, #8, #8b, #10.
+Shipped: #1, #3, #3b, #3c, #6, #7, #7b, #8, #8b, #9, #10.
