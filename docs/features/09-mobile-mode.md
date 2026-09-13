@@ -135,6 +135,33 @@ Six issues came back from using it on a phone; five are fixed here, the sixth
   grid track). Mobile additionally tightens table padding and drops the chips a size, so
   the table fits 359px instead of overflowing at 475.
 
+## Mobile Playoff Bracket (dedicated view)
+
+The desktop bracket is a fixed ~1400×580 canvas of absolutely-positioned cards joined by
+SVG bezier connectors, with geometry from hardcoded constants (`CARD_W 172`, 6 columns,
+4 bands). There is no width at which that reads on a phone — scaling it down makes the
+text unreadable and panning a 1400px canvas is what made it unusable. So mobile gets a
+**separate renderer over the same data**, `rBracketMobile()`, rather than a restyling.
+
+- **`BKT_ROUNDS`** is now the single source of truth for the double-elim structure
+  (R1 `M1 1v8`/`M2 4v5`/`M3 2v7`/`M4 3v6` → R5 → Finals). The desktop canvas maps it to
+  columns; the mobile view walks it top to bottom. `rBracket()`'s inline `colDefs` was
+  replaced by it — that's the only change to the desktop renderer.
+- **Your path** (pinned at top): your alliance's seed, its three teams, and its live
+  state and record straight from TBA's `alliances[].status` (`double_elim_round`,
+  `record`, `eliminated`/`won`) — no need to derive it. Then every match your alliance
+  has played or is about to, with W/L, score and opponent seed.
+  Sorted by **play order, not bracket order** — Round 2 runs M7, M8, M5, M6, so the
+  bracket's own ordering reads wrong as a timeline.
+- **Full bracket** below: each round as a header plus vertical cards, reusing the
+  existing `.bkt-card` / `.bkt-row` styling (they were already vertical — only the
+  desktop layout absolutely-positions them), so the two views stay visually consistent
+  for free. Your matches get the accent border; the on-field match is flagged live using
+  the app's positional `nowQueuing` logic rather than Nexus statuses.
+
+`openMobilePanel('bracket')` and both poll intervals route to `rBracketMobile()`; desktop
+still calls `rBracket()`.
+
 ## Verification
 
 Verified at 375×812 and 1440×900 against a local server with mocked Nexus/TBA data.

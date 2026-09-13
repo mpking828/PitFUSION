@@ -1337,6 +1337,31 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   .cd-match{ display:none }
   .cd-lbl{ min-width:0; flex-shrink:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 
+  /* Mobile bracket: a vertical round-by-round list, reusing the .bkt-card /
+     .bkt-row styling but statically positioned instead of on a 1400px canvas. */
+  .bkt-mob{ padding:10px var(--pad) 20px; overflow-y:auto; height:100% }
+  .bkt-mob-sect{ margin-bottom:16px }
+  .bkt-mob-hdr{ font-family:var(--fd); font-size:var(--fs-sm); font-weight:700;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--text-dim);
+    border-bottom:2px solid var(--border); padding-bottom:5px; margin-bottom:8px }
+  .bkt-mob .bkt-card{ margin-bottom:8px }
+  .bkt-mob-teams{ font-family:var(--fm); font-size:var(--fs-sm); color:var(--text-dim); margin-top:1px }
+  .bkt-mob-me{ color:var(--accent); font-weight:700 }
+  .bkt-path-card{ background:var(--surface); border:2px solid var(--accent); border-radius:var(--r); padding:8px 10px }
+  .bkt-path-top{ display:flex; justify-content:space-between; align-items:baseline; gap:8px;
+    padding-bottom:6px; margin-bottom:4px; border-bottom:1px solid var(--border) }
+  .bkt-path-teams{ font-family:var(--fm); font-size:var(--fs-sm); color:var(--text) }
+  .bkt-path-state{ font-family:var(--fd); font-size:var(--fs-sm); font-weight:700; color:var(--green); white-space:nowrap }
+  .bkt-path-state.out{ color:var(--red) }
+  .bkt-path-row{ display:flex; align-items:baseline; gap:8px; padding:3px 0;
+    font-family:var(--fd); font-size:var(--fs-lbl) }
+  .bkt-path-m{ font-weight:900; min-width:34px }
+  .bkt-path-opp{ flex:1; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .bkt-path-res{ font-weight:900; white-space:nowrap }
+  .bkt-path-res.w{ color:var(--green) }
+  .bkt-path-res.l{ color:var(--red) }
+  .bkt-path-res.next{ color:var(--text-mid); font-weight:700 }
+
   /* Our Schedule: five columns of 1rem text overran 375px (the table measured
      475), so the alliance cells were crushed and the numbers collided. Tighten
      the cell padding and drop the chips a size — the flex alliance cells above
@@ -2499,8 +2524,8 @@ async function init(){
   document.getElementById('lo').style.display='none';
   renderAll(); startCd();
   fMyAdv().then(()=>rTeam());   // once, non-blocking; updates the My Team tab when ready
-  setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView||mobilePanel==='bracket')rBracket();},15000);
-  setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView||mobilePanel==='bracket')rBracket();updateBumperBox();stamp();},30000);
+  setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();},15000);
+  setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();updateBumperBox();stamp();},30000);
 }
 
 function renderAll(){rQ();rMl();rRank();rUpcoming();rTeam();rAlerts();rStream();updateBumperBox();stamp();}
@@ -3513,6 +3538,138 @@ function syncQueueingToSidebar(){
   if(srcB&&dstB){dstB.textContent=srcB.textContent;dstB.className=srcB.className;}
 }
 
+// ── Double-elim bracket structure (8 alliances, playoff_type 10) ─────────────
+// Single source of truth for both renderers: the desktop canvas maps these to
+// columns, the mobile view walks them top to bottom as rounds.
+const BKT_ROUNDS = [
+  { name:'Round 1', matches:[
+    {key:'sf1',label:'M1',note:'1v8'},{key:'sf2',label:'M2',note:'4v5'},
+    {key:'sf3',label:'M3',note:'2v7'},{key:'sf4',label:'M4',note:'3v6'}]},
+  { name:'Round 2', matches:[
+    {key:'sf7',label:'M7',note:'Upper'},{key:'sf8',label:'M8',note:'Upper'},
+    {key:'sf5',label:'M5',note:'Lower'},{key:'sf6',label:'M6',note:'Lower'}]},
+  { name:'Round 3', matches:[
+    {key:'sf10',label:'M10',note:'Lower'},{key:'sf9',label:'M9',note:'Lower'}]},
+  { name:'Round 4', matches:[
+    {key:'sf11',label:'M11',note:'Upper'},{key:'sf12',label:'M12',note:'Lower'}]},
+  { name:'Round 5', matches:[
+    {key:'sf13',label:'M13',note:'Lower Final'}]},
+];
+
+// ── Mobile bracket ───────────────────────────────────────────────────────────
+// The desktop bracket is a fixed ~1400px canvas of absolutely-positioned cards
+// and SVG connectors — there is no width at which that reads on a phone. This is
+// a separate renderer over the same data: your alliance's path pinned at the
+// top, then every match as a vertical round-by-round list.
+function bktKeyFromLabel(label){
+  const k=nl(label);                       // "Playoff 7" -> "sf_7", "Final 1" -> "f_1"
+  return /^(sf|f)_\d+$/.test(k) ? k.replace('_','') : null;
+}
+function rBracketMobile(){
+  const el=document.getElementById('bracket-panel');
+  if(!el) return;
+  const myTeam=C.team;
+  const alliances=tbaAlliances||[];
+
+  const mxByNum={};
+  (tbaMx||[]).filter(m=>m.comp_level==='sf').forEach(m=>{ mxByNum[`sf${m.set_number}`]=m; });
+  (tbaMx||[]).filter(m=>m.comp_level==='f' ).forEach(m=>{ mxByNum[`f${m.match_number}`]=m; });
+
+  const teamToSeed={};
+  alliances.forEach((a,i)=>{ (a.picks||[]).forEach(tk=>{ teamToSeed[tk.replace('frc','')]=i+1; }); });
+
+  // Which match is on the field right now — reuse the app's positional logic
+  // rather than trusting Nexus statuses, which go stale.
+  const allMx=nxData?.matches||[];
+  const nq=nxData?.nowQueuing||'';
+  const nqPos=nq?allMx.findIndex(m=>m.label===nq):-1;
+  const activeKey=nqPos>0?bktKeyFromLabel(allMx[nqPos-1].label):null;
+
+  const sideOf=(mx,side)=>{
+    const keys=(mx?.alliances?.[side]?.team_keys||[]).map(k=>k.replace('frc',''));
+    if(!keys.length) return null;
+    return {keys, seed:teamToSeed[keys[0]]??'?', score:mx.alliances?.[side]?.score};
+  };
+
+  const finals=[{key:'f1',label:'Final 1'},{key:'f2',label:'Final 2'},{key:'f3',label:'Final 3'},{key:'f4',label:'Final 4'}]
+    .filter((c,i)=>mxByNum[c.key]||i<2);
+
+  // ── Card ────────────────────────────────────────────────────────────────
+  function card(c){
+    const mx=mxByNum[c.key];
+    const isActive=activeKey===c.key;
+    const head=`<div class="bkt-card-lbl"><span>${e(c.label)}${c.note?` <span style="opacity:.5">${e(c.note)}</span>`:''}</span>${isActive?'<span style="color:var(--green)">● live</span>':''}</div>`;
+    if(!mx) return `<div class="bkt-card">${head}<div class="bkt-row"><span class="bkt-tbd">TBD</span></div></div>`;
+    const red=sideOf(mx,'red'), blue=sideOf(mx,'blue');
+    const done=!!mx.winning_alliance && red?.score!=null && red.score>=0;
+    const mine=(red?.keys||[]).includes(myTeam)||(blue?.keys||[]).includes(myTeam);
+    const row=(al,isRed)=>{
+      if(!al) return `<div class="bkt-row"><span class="bkt-tbd">TBD</span></div>`;
+      const won=done&&mx.winning_alliance===(isRed?'red':'blue');
+      const isMe=al.keys.includes(myTeam);
+      return `<div class="bkt-row${done?(won?' bkt-row-winner':' bkt-row-loser'):''}${isRed?' bkt-row-red':' bkt-row-blue'}">
+        <div class="bkt-row-seed">${al.seed}</div>
+        <div class="bkt-row-body">
+          <div class="bkt-row-alliance${isMe?' bkt-my':''}">Alliance ${al.seed}</div>
+          <div class="bkt-mob-teams">${al.keys.map(t=>`<span class="${t===myTeam?'bkt-mob-me':''}">${e(t)}</span>`).join(' · ')}</div>
+        </div>${done&&al.score!=null&&al.score>=0?`<div class="bkt-row-pts">${al.score}</div>`:''}
+      </div>`;
+    };
+    return `<div class="bkt-card${mine?' bkt-card-my':''}${isActive?' bkt-card-active':''}">${head}${row(red,true)}${row(blue,false)}</div>`;
+  }
+
+  // ── Your path ───────────────────────────────────────────────────────────
+  const myIdx=alliances.findIndex(a=>(a.picks||[]).some(tk=>tk.replace('frc','')===myTeam));
+  let pathHtml='';
+  if(myIdx>-1){
+    const seed=myIdx+1, st=alliances[myIdx].status||{};
+    const rec=st.record?`${st.record.wins}–${st.record.losses}`:'—';
+    const state=st.status==='won'?'Winner':st.status==='eliminated'?'Eliminated':st.double_elim_round||'Playing';
+    const mates=(alliances[myIdx].picks||[]).map(tk=>tk.replace('frc','')).join(' · ');
+    // Every bracket slot this alliance appears in, in bracket order
+    const all=[...BKT_ROUNDS.flatMap(r=>r.matches), ...finals];
+    // Bracket order is not play order — Round 2 runs M7,M8,M5,M6. Your path
+    // should read chronologically, which for double-elim is sf1..sf13 then f1..
+    const playOrder=c=>{ const m=c.key.match(/^(sf|f)(\d+)$/); return m?(m[1]==='sf'?0:100)+ +m[2]:999; };
+    const mine=all.filter(c=>{
+      const mx=mxByNum[c.key]; if(!mx) return false;
+      return sideOf(mx,'red')?.seed===seed || sideOf(mx,'blue')?.seed===seed;
+    }).sort((a,b)=>playOrder(a)-playOrder(b));
+    const rows=mine.map(c=>{
+      const mx=mxByNum[c.key];
+      const isRed=sideOf(mx,'red')?.seed===seed;
+      const me=sideOf(mx,isRed?'red':'blue'), opp=sideOf(mx,isRed?'blue':'red');
+      const done=!!mx.winning_alliance && me?.score!=null && me.score>=0;
+      const won=done&&mx.winning_alliance===(isRed?'red':'blue');
+      const res=done?`<span class="bkt-path-res ${won?'w':'l'}">${won?'W':'L'} ${me.score}–${opp?.score??'?'}</span>`
+                    :`<span class="bkt-path-res next">${activeKey===c.key?'On field':'Upcoming'}</span>`;
+      return `<div class="bkt-path-row"><span class="bkt-path-m">${e(c.label)}</span>
+        <span class="bkt-path-opp">vs Alliance ${opp?.seed??'?'}</span>${res}</div>`;
+    }).join('');
+    pathHtml=`<div class="bkt-mob-sect">
+      <div class="bkt-mob-hdr">Your path — Alliance ${seed}</div>
+      <div class="bkt-path-card">
+        <div class="bkt-path-top"><span class="bkt-path-teams">${e(mates)}</span>
+          <span class="bkt-path-state${st.status==='eliminated'?' out':''}">${e(state)} · ${rec}</span></div>
+        ${rows||'<div class="bkt-path-row"><span class="bkt-tbd">No matches yet</span></div>'}
+      </div>
+    </div>`;
+  }
+
+  if(!alliances.length && !Object.keys(mxByNum).length){
+    el.innerHTML=`<div class="bkt-mob"><div class="epa-loading">Playoffs haven't started yet.</div></div>`;
+    return;
+  }
+
+  const roundsHtml=[...BKT_ROUNDS, {name:'Finals', matches:finals}]
+    .map(r=>`<div class="bkt-mob-sect">
+      <div class="bkt-mob-hdr">${e(r.name)}</div>
+      ${r.matches.map(card).join('')}
+    </div>`).join('');
+
+  el.innerHTML=`<div class="bkt-mob">${pathHtml}${roundsHtml}</div>`;
+}
+
 function rBracket(){
   const el = document.getElementById('bracket-panel');
   const myTeam = C.team;
@@ -3818,14 +3975,8 @@ function rBracket(){
     cards+=`<div style="position:absolute;left:${finalsX}px;top:${PAD}px;width:${CARD_W}px;${hdrStyle}">Finals</div>`;
   }
 
-  // Match cards — cols 0-4
-  const colDefs=[
-    [{key:'sf1',label:'M1',note:'1v8'},{key:'sf2',label:'M2',note:'4v5'},{key:'sf3',label:'M3',note:'2v7'},{key:'sf4',label:'M4',note:'3v6'}],
-    [{key:'sf7',label:'M7',note:'Upper'},{key:'sf8',label:'M8',note:'Upper'},{key:'sf5',label:'M5',note:'Lower'},{key:'sf6',label:'M6',note:'Lower'}],
-    [{key:'sf10',label:'M10',note:'Lower'},{key:'sf9',label:'M9',note:'Lower'}],
-    [{key:'sf11',label:'M11',note:'Upper'},{key:'sf12',label:'M12',note:'Lower'}],
-    [{key:'sf13',label:'M13',note:'Lower Final'}],
-  ];
+  // Match cards — cols 0-4 (BKT_ROUNDS is shared with the mobile bracket)
+  const colDefs=BKT_ROUNDS.map(r=>r.matches);
   colDefs.forEach((col,ci)=>{
     col.forEach((c,si)=>{ cards+=cardHtml(colX(ci),getCardY(ci,si),c.key,c.label,c.note); });
   });
@@ -3947,7 +4098,7 @@ function openMobilePanel(which){
   if(ml) ml.style.display = which === 'bracket' ? 'none' : 'flex';
   if(bk){
     bk.style.display = which === 'bracket' ? 'block' : 'none';
-    if(which === 'bracket'){ bk.style.overflow = 'auto'; rBracket(); }
+    if(which === 'bracket'){ bk.style.overflow = 'auto'; rBracketMobile(); }
   }
   document.body.classList.add('mobile-panel-open');
   // The sheet is display:none until now, so rMl()'s scroll at render time was a
