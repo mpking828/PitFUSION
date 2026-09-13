@@ -76,6 +76,20 @@ Default team: 88, event key format: e.g. 2025cthar
   Retry in their place. ⚙ Settings ▸ Run connection check includes a Statbotics probe
   (`team_year/254/<year>`, keyless, same in both modes) alongside Nexus/TBA/YouTube.
 
+## Mobile mode
+- Automatic at `<=768px` — one `@media` block at the end of the stylesheet plus
+  additive markup/JS; the desktop cascade is untouched. See docs/features/09.
+- Overriding `--hdr-h`/`--ftr-h` re-flows `#app` *and* every overlay (they all use
+  `top:var(--hdr-h)`). The `--fs-*` tokens are also re-tuned: they're
+  `clamp(min,vw,max)` sized for a pit TV and pin to their large minimum on a phone.
+- Stack: header (Queue-Now + delay + live + ☰) → video → queuing → tabs → Upcoming.
+  `#panel-m` (Match Schedule) and the Bracket are promoted to a fixed full-screen
+  panel from the ☰ menu via `openMobilePanel()` — which must **not** call
+  `toggleBracket()` (desktop-only DOM shuffle).
+- Mobile-only controls hide via a real CSS rule, never `style="display:none"` —
+  inline styles outrank the media query. Same trap applies to `applyLayout()`'s
+  inline grid sizes, which it now clears on mobile.
+
 ## Roadmap
 Future features: docs/roadmap.md (index) + docs/features/*.md (per-feature design).
 Build one feature per PR against main.

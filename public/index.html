@@ -1267,6 +1267,114 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 #pitmap-svg-wrap{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:16px;min-height:0;box-sizing:border-box}
 [data-theme="tj2"] #pitmap-overlay .epa-team-num{color:#7ec8ff}
 
+/* Mobile-only controls — hidden on desktop, revealed by the media query below.
+   Declared as real rules (not inline style="display:none") so the media query
+   can override them without !important. */
+#mobile-menu-btn, #mobile-panel-close, #panel-m-title{ display:none }
+
+/* ============================================================
+   MOBILE DISPLAY MODE  (<= 768px)
+   Single-column stack: video -> queuing -> tabs -> Upcoming.
+   Match Schedule / EPA Stats / Playoff Bracket / Our Schedule /
+   Help / Settings all move behind the header's hamburger menu.
+   Everything here is scoped to the media query, so the desktop
+   cascade above is untouched.
+   ============================================================ */
+@media (max-width:768px){
+  /* #app's grid rows and every overlay's top offset key off these.
+     The font tokens are clamp(min,vw,max) tuned for a pit TV — at 375px the vw
+     term is tiny so they all pin to their (large) minimum. Re-scale for a phone
+     held at arm's length; this is also what frees the vertical space the stack
+     needs. */
+  :root{
+    --hdr-h:46px; --ftr-h:0px; --pad:10px;
+    --fs-hero:2.2rem; --fs-big:1.35rem; --fs-cd:1.35rem; --fs-hdr:1rem;
+    --fs-pit:1rem; --fs-pit-xl:1.3rem; --fs-lbl:0.85rem; --fs-body:0.9rem;
+  }
+  .footer{ display:none }
+
+  /* Header: Queue-Now pill + schedule delay + live dot + menu only */
+  .hdr{ gap:8px; padding:0 8px }
+  .hdr-l, .hdr-clk, .hdr-team, .hdr-r .help-btn{ display:none }
+  .hdr-r{ gap:8px }
+  #mobile-menu-btn{ display:flex }
+
+  /* Body: single column stack */
+  .body{ display:flex; flex-direction:column }
+  .drag-handle-v, .drag-handle-h{ display:none }
+  .col-l{ flex:0 0 auto; border-right:none; overflow:visible }
+  .top-row{ display:flex; flex-direction:column; height:auto; overflow:visible }
+  /* 28vh never binds at 375x812 — aspect-ratio caps the height at 211 (full
+     16:9) — but it does keep the video sane on a short phone. */
+  .stream-half{ aspect-ratio:16/9; max-height:28vh;
+                border-right:none; border-bottom:2px solid var(--border) }
+  /* The two section labels are redundant on a phone — the hero text and the
+     header's queue pill already say it. */
+  .q-half > .sec-lbl, #q-display .sec-lbl{ display:none }
+  /* Deliberately cut the card just under the alliance blocks (they end at 193;
+     the On Field/On Deck/Queuing strip starts at 197), so the strip sits below
+     the scroll line and the video gets the space instead. The px term pins that
+     boundary on tall phones; the vh term shrinks the card on short ones. */
+  .q-half{ max-height:min(24vh, 196px) }
+  .panel-m{ display:none }            /* Match Schedule lives in the menu */
+  .sidebar{ flex:1; min-height:0 }    /* tabs + Upcoming take the rest */
+
+  /* Upcoming: compact enough that two whole matches fit. rUpcoming() also
+     renders 2 instead of 3 on mobile, so a pill is never sliced in half. */
+  .upcoming-panel{ padding:6px var(--pad) 8px }
+  .upcoming-hdr{ padding-bottom:5px; margin-bottom:5px }
+  .up-row{ padding:5px 8px; margin-bottom:4px }
+  .up-teams{ flex-direction:row; flex-wrap:wrap; gap:3px }
+  .up-alliance{ flex:1 1 calc(50% - 3px); gap:3px }
+  .up-chip{ padding:2px 4px }
+
+  /* Match Schedule / Playoff Bracket promoted to full screen from the menu */
+  body.mobile-panel-open .panel-m{
+    display:flex; flex-direction:column; position:fixed;
+    top:var(--hdr-h); left:0; right:0; bottom:0;
+    z-index:7500; background:var(--bg);
+  }
+  /* On desktop #panel-m-hdr is a zero-height strip that just floats the jump
+     button. The promoted sheet needs a real bar: it has to say which of the two
+     panels you opened, and carry Close. */
+  body.mobile-panel-open #panel-m-hdr{
+    position:static; height:auto; pointer-events:auto;
+    justify-content:flex-start; align-items:center; gap:8px;
+    padding:10px var(--pad); background:var(--bg);
+    border-bottom:2px solid var(--border);
+  }
+  body.mobile-panel-open #panel-m-title{ display:block }
+  body.mobile-panel-open #mobile-panel-close{ display:inline-block }
+  body.mobile-panel-open #ml-jump-btn{ margin-top:0; margin-left:auto; box-shadow:none }
+
+  /* Match rows: the desktop grid (220px label + chips + score + badge) can't
+     fit 375px, so reflow to label+score on one line and the six team chips
+     wrapping beneath. Switching to flex also neutralises the
+     `body.pit-xl .mr{grid-template-columns:… !important}` rule. */
+  .mr{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:10px 12px }
+  .ml-lbl{ flex:1 1 auto; white-space:normal }
+  .ml-teams{ flex:1 1 100%; order:3 }
+  .mscore, .mtime, .pred-bar{ margin-left:auto }
+  .chip{ padding:4px 10px }
+
+  /* Menu sheet rows */
+  .mm-row{
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+    background:var(--surface2); border:2px solid var(--border2); border-radius:var(--r);
+    color:var(--text); font-family:var(--fd); font-size:var(--fs-lbl); font-weight:700;
+    padding:12px 14px; margin-bottom:8px; cursor:pointer;
+  }
+  .mm-row:active{ border-color:var(--accent) }
+  .mm-ctx{
+    font-family:var(--fd); font-size:var(--fs-sm); color:var(--text-dim);
+    margin-bottom:12px; letter-spacing:.06em; text-transform:uppercase;
+  }
+  .mm-ver{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    font-family:var(--fm); font-size:var(--fs-sm); color:var(--text-dim);
+    margin-top:14px;
+  }
+}
 </style>
 </head>
 <body>
@@ -1351,6 +1459,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <div id="hdr-delay"></div>
       <div class="hdr-team" id="hdr-team">&mdash;</div>
       <div class="live-pill"><div class="ldot" id="ldot"></div><span id="ltxt">Live</span></div>
+      <button class="help-btn" id="mobile-menu-btn" onclick="openMobileMenu()" title="Menu" aria-label="Menu">&#9776;</button>
     </div>
   </div>
 
@@ -1386,7 +1495,9 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 
       <div class="panel-m" id="panel-m">
         <div id="panel-m-hdr">
+          <div class="sec-lbl" id="panel-m-title">Match Schedule</div>
           <button class="s-btn" id="ml-jump-btn" onclick="jumpToCurrentMatch()" title="Jump to the current match">&#8681; Current</button>
+          <button class="s-btn" id="mobile-panel-close" onclick="closeMobilePanel()">&#10005; Close</button>
         </div>
         <div class="ml" id="ml"></div>
         <div id="bracket-panel" style="display:none;height:100%;overflow:hidden"></div>
@@ -1421,6 +1532,42 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
         <div class="upcoming-hdr">Upcoming</div>
         <div id="upcoming-content"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- MOBILE MENU (hamburger) — only reachable below the mobile breakpoint -->
+  <div class="help-overlay" id="mobile-menu-overlay" onclick="if(event.target===this)closeMobileMenu()">
+    <div class="help-card" style="max-width:420px;padding:22px 22px 16px">
+      <button class="help-close" onclick="closeMobileMenu()">&#10005;</button>
+      <h2>Menu</h2>
+      <div class="mm-ctx" id="mm-ctx">&mdash;</div>
+      <button class="mm-row" onclick="openMobilePanel('matches')">&#128203; Match Schedule</button>
+      <button class="mm-row" onclick="closeMobileMenu();openEpa(C.team)">&#128200; EPA Stats</button>
+      <button class="mm-row" onclick="openMobilePanel('bracket')">&#127942; Playoff Bracket</button>
+      <button class="mm-row" onclick="closeMobileMenu();openSchedule()">&#128203; Our Schedule</button>
+      <button class="mm-row" onclick="closeMobileMenu();document.getElementById('help-overlay').classList.add('show')">&#10067; Help</button>
+      <button class="mm-row" onclick="closeMobileMenu();openSettings()">&#9881; Settings</button>
+      <button class="mm-row" style="margin-bottom:0" onclick="openMobileAbout()">&#8505;&#65039; About &amp; Credits</button>
+      <div class="mm-ver"><span id="mm-ver-num">&mdash;</span><span id="mm-ver-badge"></span></div>
+    </div>
+  </div>
+
+  <!-- MOBILE ABOUT — the attribution + version that live in the desktop footer -->
+  <div class="help-overlay" id="about-overlay" onclick="if(event.target===this)closeMobileAbout()">
+    <div class="help-card" style="max-width:420px">
+      <button class="help-close" onclick="closeMobileAbout()">&#10005;</button>
+      <h2>PitFUSION</h2>
+      <p style="margin-bottom:16px"><span style="color:var(--text-dim)">Version</span>
+        <b id="about-ver" style="color:var(--accent);margin-left:6px">&mdash;</b></p>
+      <h3>Data sources</h3>
+      <p>Match schedule and queuing data from
+        <a href="https://frc.nexus/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">Nexus</a>.</p>
+      <p>Event, ranking and match results from
+        <a href="https://www.thebluealliance.com/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">The Blue Alliance</a>.</p>
+      <p>EPA ratings and match predictions from
+        <a href="https://www.statbotics.io/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">Statbotics</a>.</p>
+      <h3>Project</h3>
+      <p><a href="https://github.com/mpking828/PitFUSION" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">github.com/mpking828/PitFUSION</a></p>
     </div>
   </div>
 
@@ -2330,8 +2477,8 @@ async function init(){
   document.getElementById('lo').style.display='none';
   renderAll(); startCd();
   fMyAdv().then(()=>rTeam());   // once, non-blocking; updates the My Team tab when ready
-  setInterval(async()=>{await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();},15000);
-  setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();updateBumperBox();stamp();},30000);
+  setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView||mobilePanel==='bracket')rBracket();},15000);
+  setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView||mobilePanel==='bracket')rBracket();updateBumperBox();stamp();},30000);
 }
 
 function renderAll(){rQ();rMl();rRank();rUpcoming();rTeam();rAlerts();rStream();updateBumperBox();stamp();}
@@ -2752,7 +2899,9 @@ function rUpcoming(){
 
   // All non-practice upcoming matches (full list to find breaks between team matches)
   const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!SKIP.has(m.status));
-  const myUpcoming=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT)).slice(0,3);
+  // Two on mobile — three won't fit the compact panel without slicing a pill.
+  const upMax=(typeof isMobile==='function'&&isMobile())?2:3;
+  const myUpcoming=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT)).slice(0,upMax);
 
   if(!myUpcoming.length){el.innerHTML='<div style="color:var(--text-dim);font-size:var(--fs-sm);padding:8px 0">No upcoming matches</div>';return;}
 
@@ -3702,6 +3851,109 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if(btn) btn.textContent = pitFontXL ? '🔤 Normal Text' : '🔤 Bigger Text';
   document.querySelectorAll('.pred-toggle-cb').forEach(cb => { cb.checked = PREDICT; });
 });
+
+// ── MOBILE DISPLAY MODE ──────────────────────────────────────────────────────
+// Layout itself is pure CSS (see the max-width:768px block). This is the small
+// amount of state the CSS can't express: the hamburger menu, and promoting the
+// Match Schedule / Playoff Bracket panel to full screen on demand.
+const MOBILE_MQ = window.matchMedia('(max-width:768px)');
+function isMobile(){ return MOBILE_MQ.matches; }
+
+let mobilePanel = null;   // null | 'matches' | 'bracket'
+
+function openMobileMenu(){
+  const ctx = document.getElementById('mm-ctx');
+  if(ctx){
+    const ev = document.getElementById('hdr-ev')?.textContent || '';
+    ctx.textContent = ['#' + C.team, ev].filter(s=>s && s !== '\u2014').join(' \u00b7 ');
+  }
+  fillMobileVersion();
+  document.getElementById('mobile-menu-overlay').classList.add('show');
+}
+function closeMobileMenu(){
+  document.getElementById('mobile-menu-overlay').classList.remove('show');
+}
+
+// Version + attribution live in the desktop footer, which mobile hides — the
+// version goes in the menu, the credits behind an About sheet.
+function _mobileVersionText(){ return (typeof VERSION!=='undefined' && VERSION) ? VERSION : ''; }
+function fillMobileVersion(){
+  const v = _mobileVersionText();
+  const n = document.getElementById('mm-ver-num');
+  if(n) n.textContent = v || '—';
+  const a = document.getElementById('about-ver');
+  if(a) a.textContent = v || '—';
+  // Mirror the self-hosted update badge if checkForUpdate() raised one.
+  const badge = document.getElementById('update-badge');
+  const slot  = document.getElementById('mm-ver-badge');
+  if(slot){
+    const live = badge && badge.style.display !== 'none' && badge.textContent.trim();
+    slot.innerHTML = live
+      ? `<a href="${badge.href}" target="_blank" rel="noopener" style="color:#2ecc71;text-decoration:none;font-family:var(--fd);font-weight:700">${e(badge.textContent.trim())}</a>`
+      : '';
+  }
+}
+function openMobileAbout(){
+  closeMobileMenu();
+  fillMobileVersion();
+  document.getElementById('about-overlay').classList.add('show');
+}
+function closeMobileAbout(){
+  document.getElementById('about-overlay').classList.remove('show');
+}
+
+// Promote #panel-m (which already holds both #ml and #bracket-panel) to a
+// full-screen sheet. No DOM relocation and no call into toggleBracket() — that
+// function is desktop-specific (it moves #stream-half, rewrites #panel-m's
+// cssText and rebuilds the tab bar) and would corrupt the stacked layout.
+function openMobilePanel(which){
+  closeMobileMenu();
+  mobilePanel = which;
+  const ml = document.getElementById('ml');
+  const bk = document.getElementById('bracket-panel');
+  const title = document.getElementById('panel-m-title');
+  if(title) title.textContent = which === 'bracket' ? 'Playoff Bracket' : 'Match Schedule';
+  if(ml) ml.style.display = which === 'bracket' ? 'none' : 'flex';
+  if(bk){
+    bk.style.display = which === 'bracket' ? 'block' : 'none';
+    if(which === 'bracket'){ bk.style.overflow = 'auto'; rBracket(); }
+  }
+  document.body.classList.add('mobile-panel-open');
+}
+function closeMobilePanel(){
+  mobilePanel = null;
+  const ml = document.getElementById('ml');
+  const bk = document.getElementById('bracket-panel');
+  const title = document.getElementById('panel-m-title');
+  if(title) title.textContent = 'Match Schedule';
+  if(ml) ml.style.display = '';
+  if(bk){ bk.style.display = 'none'; bk.style.overflow = ''; }
+  document.body.classList.remove('mobile-panel-open');
+}
+
+// Crossing the breakpoint: hand layout control back and forth cleanly.
+// Driven by both the media-query change event and a plain resize listener —
+// the change event doesn't fire under some viewport-emulation paths, and
+// leaving a mobile panel promoted on a desktop viewport hides the match list.
+// The wasMobile guard means this only does work on an actual crossing.
+let _wasMobile = MOBILE_MQ.matches;
+function syncMobileState(){
+  const nowMobile = isMobile();
+  if(nowMobile === _wasMobile) return;
+  _wasMobile = nowMobile;
+  if(nowMobile){
+    // Desktop bracket mode scatters inline styles the mobile CSS can't override.
+    if(typeof bracketView !== 'undefined' && bracketView) toggleBracket();
+  } else {
+    closeMobilePanel();
+    closeMobileMenu();
+  }
+  if(typeof window.applyLayout === 'function') window.applyLayout();
+}
+MOBILE_MQ.addEventListener('change', syncMobileState);
+window.addEventListener('resize', syncMobileState);
+// …and once per 15s poll, so the state self-heals even if neither event fires
+// (some embedded/emulated viewports dispatch neither on a size change).
 
 // ── MATCH PREDICTIONS (opt-in) ───────────────────────────────────────────────
 // Win probability + favored alliance from Statbotics /v3/matches `pred`. Off by
@@ -4960,6 +5212,12 @@ async function checkForUpdate(){
   function applyLayout(){
     const body=document.getElementById('body-row');
     const topRow=document.getElementById('top-row');
+    // Mobile owns the layout via CSS; inline styles would outrank the media query.
+    if(typeof isMobile==='function' && isMobile()){
+      if(body) body.style.gridTemplateColumns='';
+      if(topRow){ topRow.style.gridTemplateColumns=''; topRow.style.height=''; }
+      return;
+    }
     if(body) body.style.gridTemplateColumns=`1fr 5px ${sizes.sidebarW}px`;
     if(topRow){
       topRow.style.gridTemplateColumns=`${sizes.streamW}% 5px ${100-sizes.streamW}%`;
@@ -5033,6 +5291,9 @@ async function checkForUpdate(){
 
   // Apply on load
   applyLayout();
+
+  // Mobile mode re-applies (or clears) this when the breakpoint is crossed.
+  window.applyLayout = applyLayout;
 })();
 </script>
 </body>
