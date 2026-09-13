@@ -421,8 +421,11 @@ body.page-has-bg .tp{
    something inside it is position:sticky — and a full-width sticky bar sliding
    over the rows is distracting. A zero-height sticky strip lets just the button
    overhang, and it collapses to nothing whenever the button is hidden. */
+/* align-items:flex-start is load-bearing: the default `stretch` collapses the
+   button's border box to the strip's 0px height, leaving its label spilling out
+   underneath the pill. flex-start lets it keep its natural height and overhang. */
 #panel-m-hdr{position:sticky;top:0;z-index:5;height:0;display:flex;justify-content:flex-end;
-  padding:0 var(--pad);pointer-events:none;overflow:visible}
+  align-items:flex-start;padding:0 var(--pad);pointer-events:none;overflow:visible}
 #ml-jump-btn{display:none;margin-top:4px;padding:3px 10px;font-family:var(--fd);
   font-size:var(--fs-sm);font-weight:700;white-space:nowrap;pointer-events:auto;
   box-shadow:0 2px 8px rgba(0,0,0,.45)}
