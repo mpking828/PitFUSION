@@ -2180,6 +2180,10 @@ async function runChecks(){
     tests.push(['YouTube', 'https://www.googleapis.com/youtube/v3/videos?part=id&id=dQw4w9WgXcQ'
       + (hosted ? '' : `&key=${encodeURIComponent(kb.youtube)}`), {}]);
   }
+  // Statbotics is keyless and goes direct in both modes — no header, no proxy rewrite.
+  // Team 254 always has a team_year record, so this exercises the same endpoint
+  // shape (team_year) the EPA overlay and My Team ranks actually depend on.
+  tests.push(['Statbotics', `https://api.statbotics.io/v3/team_year/254/${yr}`, {}]);
   const rows = [];
   for(const [label, url, h] of tests){
     const r = await _probe(url, h);

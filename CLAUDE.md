@@ -70,6 +70,11 @@ Default team: 88, event key format: e.g. 2025cthar
   (`red_win_prob`, `winner`). `predMap` keyed like `nl(label)` (`qual_N`/`sf_N`/`f_N`);
   shown on the queuing card, match list, and My Team next-match for unplayed matches
   only. No predicted scores.
+- The EPA overlay degrades gracefully when Statbotics is down: `openEpa()` never
+  returns early on a `team_year` failure — Identity/Event/Records/FRC Advancement
+  (all TBA data) still render; only the EPA Ranks section shows an "unavailable" +
+  Retry in their place. ⚙ Settings ▸ Run connection check includes a Statbotics probe
+  (`team_year/254/<year>`, keyless, same in both modes) alongside Nexus/TBA/YouTube.
 
 ## Roadmap
 Future features: docs/roadmap.md (index) + docs/features/*.md (per-feature design).
