@@ -2454,14 +2454,10 @@ function rMl(){
     const isMe=r.includes(myT)||bl.includes(myT);
     const isAct=['Now queuing','On deck','On field'].includes(m.status);
     const sc=sm[nl(m.label)];
-    // Done if Nexus says Completed AND statuses are reliable, or TBA has a score
-    const nowQ=nxData?.nowQueuing;
-    const mlActiveCount=(nxData?.matches||[]).filter(x=>['On field','On deck','Now queuing'].includes(x.status)).length;
-    const mlStatusReliable=mlActiveCount<=3;
-    const isDn=(m.status==='Completed'&&mlStatusReliable)
-      ||!!sc  // TBA has a score = definitive played signal
-      ||(mlStatusReliable&&m.status==='On field'&&(!!sc||!nowQ))
-      ||(mlStatusReliable&&m.status==='On deck'&&!nowQ);
+    // matchPlayed() is positional, so it stays correct even when Nexus reports a
+    // whole playoff bracket as "On field" at once — which is what the old
+    // mlActiveCount<=3 "statuses look reliable" guard was working around.
+    const isDn=matchPlayed(m,sm);
     const id='mr_'+m.label.replace(/[^a-z0-9]/gi,'_');
     if(isAct) scrollId=id;
     else if(!scrollId&&isMe&&!isDn) scrollId=id;
@@ -2611,6 +2607,38 @@ function nl(label){
 function ts2(m){if(!m.times)return'&mdash;';const t=m.times.actualQueueTime||m.times.estimatedQueueTime;return t?ft(new Date(t)):'&mdash;';}
 function ft(d){return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
+// ── Has this match been played? ──────────────────────────────────────────────
+// Single source of truth for every view (queuing card, match list, My Team,
+// Our Schedule) — they had each grown their own slightly different answer.
+//
+// Neither source alone is sufficient:
+//   • Nexus leaves a played match at status "On field" forever — it never
+//     becomes "Completed" — so status alone never resolves.
+//   • TBA posts the score minutes later, and reports -1/-1 until it does, so a
+//     score alone lags reality.
+// Position is the reliable signal: anything earlier in the schedule than
+// nowQueuing has already been to the field. That's the same inference rQ()
+// makes to find the on-field match.
+//
+// `sm` is a scoreMap(); pass it in so callers don't rebuild it per row.
+function playedList(){
+  return (nxData?.matches||[]).filter(m=>!/^practice/i.test(m.label));
+}
+function matchPlayed(m, sm){
+  if(!m) return false;
+  if(m.status==='Completed') return true;
+  const nowQ = nxData?.nowQueuing;
+  if(nowQ){
+    const list = playedList();
+    const qIdx = list.findIndex(x=>x.label===nowQ);
+    const mIdx = list.findIndex(x=>x.label===m.label);
+    if(qIdx>-1 && mIdx>-1 && mIdx<qIdx) return true;   // schedule has moved past it
+  }
+  if(sm && sm[nl(m.label)]) return true;               // TBA posted a score
+  if(!nowQ && (m.status==='On field'||m.status==='On deck')) return true;  // break
+  return false;
+}
+
 // RANKINGS
 function rRank(){
   const el=document.getElementById('rank-content');
@@ -2691,10 +2719,7 @@ function rTeam(){
   const mx=(nxData?.matches||[]).filter(m=>!/^practice/i.test(m.label)&&[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
   const nowQ=nxData?.nowQueuing;
   const sm=scoreMap();
-  // A match is played if Nexus says Completed, or On field + TBA has score, or event not actively queuing
-  const isPlayed=m=>m.status==='Completed'
-    ||(m.status==='On field'&&(!!sm[nl(m.label)]||!nowQ))
-    ||(m.status==='On deck'&&!nowQ);
+  const isPlayed=m=>matchPlayed(m,sm);
   const played=mx.filter(isPlayed);
   // A match is next only when event is actively queuing and it's genuinely upcoming
   const nxt=nowQ ? mx.find(m=>!isPlayed(m)) : null;
@@ -3995,7 +4020,6 @@ function openSchedule(){
   const nxMx=(nxData?.matches||[]).filter(m=>!/^practice/i.test(m.label));
   // All my matches from Nexus
   const myMx=nxMx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
-  const nowQ=nxData?.nowQueuing;
   // Build RP map from TBA
   const rpMap={};
   (tbaMx||[]).filter(m=>m.comp_level==='qm'&&m.score_breakdown).forEach(m=>{
@@ -4007,9 +4031,7 @@ function openSchedule(){
   let rows='';
   myMx.forEach(m=>{
     const sc=sm[nl(m.label)];
-    const isPlayed=m.status==='Completed'
-      ||(m.status==='On field'&&(!!sc||!nowQ))
-      ||(m.status==='On deck'&&!nowQ);
+    const isPlayed=matchPlayed(m,sm);
     const red=m.redTeams||[], blue=m.blueTeams||[];
     const iAmRed=red.includes(myT);
     const mkChip=(t,side)=>`<span class="sched-chip ${t===myT?'me':side}">${e(t)}</span>`;
