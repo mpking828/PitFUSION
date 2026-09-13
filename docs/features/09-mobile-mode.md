@@ -105,6 +105,36 @@ and a mobile panel left promoted on a desktop viewport hides the match list.
 Untouched: `rMl()`, `rBracket()`, `rQ()`, `rTeam()`, `switchTab()`, `rebuildTabBar()`,
 `toggleBracket()`, and every overlay.
 
+## Follow-up fixes (first real-device pass)
+
+Six issues came back from using it on a phone; five are fixed here, the sixth
+(Playoff Bracket) needs its own design.
+
+- **Scroll lock did nothing on mobile, and the sheet didn't scroll to the current
+  match on open.** Same root cause: in the promoted sheet `.panel-m` is a flex column,
+  so **`#ml` becomes the scroller** while `.panel-m` doesn't scroll at all — but the
+  listener and all the scroll maths were hardcoded to `#panel-m`. `mlPanel()` now
+  resolves the real scroller at call time and the listener is attached to both. Opening
+  the sheet also calls `scrollToCurrentMatch()`, since `rMl()`'s scroll at render time
+  was a no-op while the sheet was `display:none`.
+- **The `requestAnimationFrame` wrapper around `scrollIntoView` is gone.**
+  `scrollIntoView` forces its own layout so the rAF bought nothing, and rAF never fires
+  in a backgrounded or non-rendering tab — which silently killed the auto-scroll.
+- **Upcoming dropped on mobile.** Even compacted it cost ~161px and squeezed the tabs to
+  ~146; they now get 307. Its content is already covered by the queuing card and the
+  Match Schedule sheet. (`rUpcoming()`'s mobile 2-row limit reverted — now dead.)
+- **"NOW!" was clipped in the urgent countdown.** With the delay pill present the pill
+  gets 137px but needs 178; `.cd-lbl` and `.cd-val` are both `flex-shrink:0` and
+  `.cd-match` has already collapsed, so `.cd-pill{overflow:hidden}` clipped the value —
+  the one word that matters. Mobile hides `.cd-match` (the queuing card repeats it
+  directly below) and lets `.cd-lbl` truncate first.
+- **Our Schedule numbers ran together.** The alliance cells hardcoded
+  `grid-template-columns:repeat(4,minmax(0,1fr))` for 3-team alliances — throwing away a
+  quarter of the cell and giving each chip a track narrower than its own text. Now a
+  `.sched-alliance` flex row, which also widens the chips on desktop (121px vs a cramped
+  grid track). Mobile additionally tightens table padding and drops the chips a size, so
+  the table fits 359px instead of overflowing at 475.
+
 ## Verification
 
 Verified at 375×812 and 1440×900 against a local server with mocked Nexus/TBA data.

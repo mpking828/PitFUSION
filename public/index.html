@@ -537,6 +537,11 @@ body.page-has-bg .tp{
 .sched-table tr.played{opacity:1}
 .sched-table tr.upcoming td{background:rgba(0,212,255,.03)}
 .sched-chip{display:inline-block;font-family:var(--fd);font-size:var(--fs-pit);font-weight:700;padding:2px 7px;border-radius:3px;margin:1px 2px}
+/* Flex, not a fixed 4-column grid: alliances are 3 teams, so the old
+   repeat(4,…) threw away a quarter of the cell and squeezed 4-digit numbers
+   into tracks narrower than the text, running them together. */
+.sched-alliance{display:flex;flex-wrap:wrap;gap:2px}
+.sched-alliance .sched-chip{flex:1 1 auto;text-align:center;margin:0;min-width:0}
 .sched-chip.red{background:rgba(198,40,40,.25);color:#ef9a9a}
 .sched-chip.blue{background:rgba(25,118,210,.25);color:#90caf9}
 .sched-chip.me{background:var(--accent);color:#000;font-weight:900}
@@ -1317,16 +1322,30 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
      boundary on tall phones; the vh term shrinks the card on short ones. */
   .q-half{ max-height:min(24vh, 196px) }
   .panel-m{ display:none }            /* Match Schedule lives in the menu */
-  .sidebar{ flex:1; min-height:0 }    /* tabs + Upcoming take the rest */
+  .sidebar{ flex:1; min-height:0 }    /* the tabs take the rest */
 
-  /* Upcoming: compact enough that two whole matches fit. rUpcoming() also
-     renders 2 instead of 3 on mobile, so a pill is never sliced in half. */
-  .upcoming-panel{ padding:6px var(--pad) 8px }
-  .upcoming-hdr{ padding-bottom:5px; margin-bottom:5px }
-  .up-row{ padding:5px 8px; margin-bottom:4px }
-  .up-teams{ flex-direction:row; flex-wrap:wrap; gap:3px }
-  .up-alliance{ flex:1 1 calc(50% - 3px); gap:3px }
-  .up-chip{ padding:2px 4px }
+  /* Upcoming is dropped on mobile. Even compacted it cost ~161px and squeezed
+     Rankings/My Team/Alerts down to ~146 — and it says nothing the queuing card
+     above and the Match Schedule sheet don't already show. */
+  .upcoming-panel{ display:none }
+
+  /* The urgent countdown ("Queue Now! … NOW!") overflows a header narrowed by
+     the delay pill: .cd-lbl and .cd-val are both flex-shrink:0, .cd-match has
+     already collapsed, and .cd-pill{overflow:hidden} then clips the value —
+     exactly the word you need. Drop the match name (the queuing card repeats it
+     immediately below) and let the label truncate before the value does. */
+  .cd-match{ display:none }
+  .cd-lbl{ min-width:0; flex-shrink:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+
+  /* Our Schedule: five columns of 1rem text overran 375px (the table measured
+     475), so the alliance cells were crushed and the numbers collided. Tighten
+     the cell padding and drop the chips a size — the flex alliance cells above
+     then have room to lay 3 teams out properly. */
+  .sched-body{ padding:8px }
+  .sched-table th{ padding:0 4px 8px; font-size:var(--fs-sm) }
+  .sched-table td{ padding:7px 4px }
+  .sched-chip{ font-size:var(--fs-sm); padding:2px 3px }
+  .sched-lbl, .sched-wlt, .sched-rp, .sched-time{ font-size:var(--fs-sm) }
 
   /* Match Schedule / Playoff Bracket promoted to full screen from the menu */
   body.mobile-panel-open .panel-m{
@@ -2470,7 +2489,10 @@ async function fMyAdv(){ sbMyAdv=await getAdvancement(C.team); }
 async function init(){
   document.getElementById('hdr-team').textContent='#'+C.team;
   resetPitMap();
-  mlPanel()?.addEventListener('scroll', onMlScroll, {passive:true});
+  // Listen on both candidates — which one scrolls flips with the layout
+  // (see mlPanel()), and only the real scroller ever fires.
+  ['panel-m','ml'].forEach(id=>
+    document.getElementById(id)?.addEventListener('scroll', onMlScroll, {passive:true}));
   await fNexus(); // resolve Nexus alias first so fPits uses correct key
   await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv(),fMyYear(),fPred()]);
   if(tbaTi) teamInfoCache[C.team]=tbaTi;   // seed EPA-overlay identity cache for our team
@@ -2679,7 +2701,7 @@ function rMl(){
     if(f.length){html+=`<div class="msh" style="margin-top:8px">Finals<span class="mc">${f.length}</span></div>`;f.forEach(m=>{html+=tRow(m);});}
   }
 
-  const panel=document.getElementById('panel-m');
+  const panel=mlPanel();
   const prevScroll=panel?panel.scrollTop:0;
   el.innerHTML=html;
   mlScrollId=scrollId;
@@ -2706,7 +2728,15 @@ let mlScrollId = null;
 let mlSuppressUntil = 0;   // ignore the scroll events our own smooth-scroll emits
 let mlScrollTimer = null;
 
-function mlPanel(){ return document.getElementById('panel-m'); }
+// Which element actually scrolls depends on the layout: on desktop .panel-m is
+// the scroller and #ml just grows to fit. In the promoted mobile sheet .panel-m
+// becomes a flex column, so #ml does the scrolling instead. Resolve it at call
+// time — hardcoding #panel-m meant the scroll lock silently did nothing on mobile.
+function mlPanel(){
+  const ml=document.getElementById('ml');
+  if(ml && ml.scrollHeight > ml.clientHeight+1) return ml;
+  return document.getElementById('panel-m');
+}
 
 function currentMatchVisible(){
   const panel=mlPanel();
@@ -2722,7 +2752,10 @@ function scrollToCurrentMatch(){
   // .panel-m sets scroll-behavior:smooth, so this animates — suppress the scroll
   // events it emits, or the button flickers while the row is still off-screen.
   mlSuppressUntil = Date.now()+600;
-  requestAnimationFrame(()=>{ row.scrollIntoView({behavior:'smooth',block:'center'}); });
+  // Called directly rather than inside requestAnimationFrame: scrollIntoView
+  // forces its own layout, so the rAF bought nothing, and rAF never fires in a
+  // backgrounded or non-rendering tab — which silently killed the auto-scroll.
+  row.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
 function updateMlJumpBtn(){
@@ -2899,9 +2932,7 @@ function rUpcoming(){
 
   // All non-practice upcoming matches (full list to find breaks between team matches)
   const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!SKIP.has(m.status));
-  // Two on mobile — three won't fit the compact panel without slicing a pill.
-  const upMax=(typeof isMobile==='function'&&isMobile())?2:3;
-  const myUpcoming=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT)).slice(0,upMax);
+  const myUpcoming=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT)).slice(0,3);
 
   if(!myUpcoming.length){el.innerHTML='<div style="color:var(--text-dim);font-size:var(--fs-sm);padding:8px 0">No upcoming matches</div>';return;}
 
@@ -3919,6 +3950,10 @@ function openMobilePanel(which){
     if(which === 'bracket'){ bk.style.overflow = 'auto'; rBracket(); }
   }
   document.body.classList.add('mobile-panel-open');
+  // The sheet is display:none until now, so rMl()'s scroll at render time was a
+  // no-op — without this you'd stare at match 1 until the next poll.
+  if(which !== 'bracket' && mlFollow) scrollToCurrentMatch();
+  updateMlJumpBtn();
 }
 function closeMobilePanel(){
   mobilePanel = null;
@@ -4388,8 +4423,8 @@ function openSchedule(){
     const rowCls=isPlayed?'played':'upcoming';
     rows+=`<tr class="${rowCls}">
       <td class="sched-lbl">${e(m.label.replace(/^Qualification\s+/i,'Qual '))}</td>
-      <td style="min-width:0"><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px">${blueChips}</div></td>
-      <td style="min-width:0"><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px">${redChips}</div></td>
+      <td style="min-width:0"><div class="sched-alliance">${blueChips}</div></td>
+      <td style="min-width:0"><div class="sched-alliance">${redChips}</div></td>
       <td style="text-align:right">${resultCell}</td>
       <td class="sched-rp">${rpCell||'&mdash;'}</td>
     </tr>`;
