@@ -1304,12 +1304,18 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   .drag-handle-v, .drag-handle-h{ display:none }
   .col-l{ flex:0 0 auto; border-right:none; overflow:visible }
   .top-row{ display:flex; flex-direction:column; height:auto; overflow:visible }
-  .stream-half{ aspect-ratio:16/9; max-height:24vh;
+  /* 28vh never binds at 375x812 — aspect-ratio caps the height at 211 (full
+     16:9) — but it does keep the video sane on a short phone. */
+  .stream-half{ aspect-ratio:16/9; max-height:28vh;
                 border-right:none; border-bottom:2px solid var(--border) }
   /* The two section labels are redundant on a phone — the hero text and the
-     header's queue pill already say it. Dropping them buys the stream ~44px. */
+     header's queue pill already say it. */
   .q-half > .sec-lbl, #q-display .sec-lbl{ display:none }
-  .q-half{ max-height:32vh }
+  /* Deliberately cut the card just under the alliance blocks (they end at 193;
+     the On Field/On Deck/Queuing strip starts at 197), so the strip sits below
+     the scroll line and the video gets the space instead. The px term pins that
+     boundary on tall phones; the vh term shrinks the card on short ones. */
+  .q-half{ max-height:min(24vh, 196px) }
   .panel-m{ display:none }            /* Match Schedule lives in the menu */
   .sidebar{ flex:1; min-height:0 }    /* tabs + Upcoming take the rest */
 

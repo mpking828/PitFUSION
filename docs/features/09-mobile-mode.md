@@ -40,13 +40,18 @@ Settings.
   squeezed tab pane at once.
 - **Stack:** `.body` → flex column, drag handles hidden, `.top-row` → flex column,
   `.panel-m` hidden, `.sidebar` takes the remainder.
-- **Space budget at 375×812:** header 46 + video 195 + queuing 260 + tab bar 52 +
-  tabs 97 + Upcoming 161 = 811.
+- **Space budget at 375×812:** header 46 + video 211 + queuing 195 + tab bar 52 +
+  tabs 146 + Upcoming 161 = 811.
   - The queuing card's two section labels ("Queuing Status" / "Your Next Match") are
-    hidden — the hero text and the header's queue pill already say it. That bought the
-    ~44px that took the video from 162 → 195 (`max-height:24vh`).
-  - The queuing card still overflows slightly (260 visible / 333 natural) and scrolls
-    internally. That's the accepted cost of the larger video.
+    hidden — the hero text and the header's queue pill already say it.
+  - The card is then **deliberately cut just under the alliance blocks**: they end at
+    193 in card coordinates and the On Field/On Deck/Queuing strip starts at 197, so
+    `max-height:min(24vh, 196px)` puts that strip (and the bumper-colour box) below the
+    scroll line. The px term pins the boundary on tall phones; the vh term shrinks the
+    card on short ones. Scrolling the card still reaches both.
+  - That reclaimed 64px: the video reaches its full 16:9 height (211 — `max-height:28vh`
+    never binds at this viewport, it only protects short phones), and the remaining ~48px
+    went to the tabs pane, which was cramped at 97.
 - **Upcoming** is compacted so two *whole* matches fit: the alliance chips go on one
   wrapped line instead of two stacked rows (row 80px → 53px), the header and row padding
   shrink, and `rUpcoming()` renders 2 instead of 3 on mobile. Sizing it by a `max-height`
