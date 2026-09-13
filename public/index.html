@@ -1718,7 +1718,7 @@ let _teamFilterTimer = null;
     const now  = new Date();
     const year = now.getFullYear();
     const res  = await fetch(apiUrl(`https://www.thebluealliance.com/api/v3/events/${year}/simple`),
-      { headers: ht(C.tba) });
+      { headers: ht(C.tba), cache:'no-store' });
     if(!res.ok) throw new Error('TBA error');
     const events = await res.json();
 
@@ -1803,7 +1803,7 @@ async function filterDropdownForTeam(teamNum){
     const year = new Date().getFullYear();
     const res  = await fetch(
       apiUrl(`https://www.thebluealliance.com/api/v3/team/frc${teamNum}/events/${year}/simple`),
-      { headers: ht(C.tba) }
+      { headers: ht(C.tba), cache:'no-store' }
     );
 
     if(!res.ok) throw new Error('not found');
@@ -2245,7 +2245,7 @@ function apiUrl(u){
           .replace('https://www.thebluealliance.com/api/v3','/api/tba')
           .replace('https://www.googleapis.com/youtube/v3','/api/youtube');
 }
-async function get(url,h){const r=await fetch(apiUrl(url),{headers:h});if(!r.ok)throw r.status;return r.json();}
+async function get(url,h){const r=await fetch(apiUrl(url),{headers:h,cache:'no-store'});if(!r.ok)throw r.status;return r.json();}
 
 async function nexusGet(key){return get(`https://frc.nexus/api/v1/event/${key}`,hn(C.nexus));}
 function nxKey(){return C.nexusEvent||C.event;}
@@ -4183,7 +4183,7 @@ async function fetchWithRetry(url, timeoutMs=8000, retries=2){
     const ctrl = new AbortController();
     const tid  = setTimeout(()=>ctrl.abort(), timeoutMs);
     try {
-      const r = await fetch(url, {signal: ctrl.signal});
+      const r = await fetch(url, {signal: ctrl.signal, cache:'no-store'});
       clearTimeout(tid);
       if(r.ok) return r;
       if(r.status===429){ await new Promise(res=>setTimeout(res,2000*(attempt+1))); continue; }
