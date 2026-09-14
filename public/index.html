@@ -1832,6 +1832,15 @@ const C={team:'',event:'',nexus:KEYS.nexus||'',tba:KEYS.tba||'',youtube:KEYS.you
 const LS_TEAM  = 'pitfusion_team';
 const LS_EVENT = 'pitfusion_event';
 
+// localStorage *throws* on an opaque origin (a data: URL, some sandboxed or
+// embedded contexts) — not merely when storage is full. Several reads below run
+// at top level, so an unguarded one takes the entire script down with it and the
+// app never initialises. Every read goes through here; writes are already
+// wrapped individually.
+function lsGet(key, fallback=null){
+  try { return localStorage.getItem(key) ?? fallback; } catch(e){ return fallback; }
+}
+
 // ── THEME ──────────────────────────────────────────────────────────────────
 const LS_THEME = 'pitfusion_theme';
 const THEMES = [
@@ -1892,7 +1901,7 @@ function applyCustomTheme(cfg){
 // re-marks every .theme-swatch in the document.
 function renderThemeSwatches(container){
   if(!container) return;
-  const active = localStorage.getItem(LS_THEME) || 'dark';
+  const active = lsGet(LS_THEME, 'dark');
   container.textContent = '';
   THEMES.forEach(t => {
     const cell = document.createElement('div');
@@ -1936,7 +1945,7 @@ function selectTheme(t){
 
 // Apply saved theme immediately on load (before paint)
 (function(){
-  const saved = localStorage.getItem(LS_THEME) || 'dark';
+  const saved = lsGet(LS_THEME, 'dark');
   applyTheme(saved);
   // Populate swatch grids once the DOM is ready.
   document.addEventListener('DOMContentLoaded', ()=>{
@@ -1962,8 +1971,8 @@ function selectTheme(t){
 
 // Restore saved values
 (function restoreSaved(){
-  const t = localStorage.getItem(LS_TEAM);
-  const ev = localStorage.getItem(LS_EVENT);
+  const t = lsGet(LS_TEAM);
+  const ev = lsGet(LS_EVENT);
   if(t)  document.getElementById('setup-team').value  = t;
   if(ev) document.getElementById('setup-event-manual').value = ev;
 })();
@@ -2004,7 +2013,7 @@ let _teamFilterTimer = null;
     populateDropdown(_allWeekEvents, null);
 
     // If we have a saved event key, try to pre-select it
-    const savedEv = localStorage.getItem(LS_EVENT);
+    const savedEv = lsGet(LS_EVENT);
     if(savedEv){
       const opt = dropEl.querySelector(`option[value="${savedEv}"]`);
       if(opt){ dropEl.value = savedEv; document.getElementById('setup-event-manual').value = ''; }
@@ -2034,9 +2043,11 @@ function populateDropdown(evList, teamNum){
     return;
   }
 
+  // TBA event names are external data — escape them like every other render in
+  // this file does. An unescaped `&` in a name (common enough) renders wrong.
   dropEl.innerHTML = `<option value="">— Select an event —</option>` +
     evList.map(ev =>
-      `<option value="${ev.key}">${ev.name} (${ev.key})</option>`
+      `<option value="${e(ev.key)}">${e(ev.name)} (${e(ev.key)})</option>`
     ).join('');
 
   if(teamNum){
@@ -2462,6 +2473,11 @@ async function runChecks(){
   box.innerHTML = rows.join('');
 }
 
+// Statuses that mean "not a future match". Nexus leaves every played match at
+// "On field" forever, so these two together are the skip set everywhere a view
+// looks for the next upcoming match.
+const PLAYED_STATUS = new Set(['Completed','On field']);
+
 let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,nexusPits=null,nexusPitsUnavailable=false;
 let tbaEvent=null;   // full TBA event object (for event.district etc.)
 let sbMyYear=null;   // Statbotics team_year for our own team (world/country/district/state EPA ranks)
@@ -2602,13 +2618,9 @@ function tickCd(){
   if(!nxData){wrap.innerHTML='';return;}
   // If Nexus isn't actively queuing, don't show countdown
   const nowQ=nxData.nowQueuing;
-  const mx2=nxData.matches||[];
-  const tickEffNowQ = nowQ;
-  if(!tickEffNowQ){wrap.innerHTML='';return;}
-  const mx=mx2;
-  // Nexus-native: skip Completed and On field
-  const SKIP_CD=new Set(['Completed','On field']);
-  const nxt=mx.find(m=>!SKIP_CD.has(m.status)&&[...(m.redTeams||[]),...(m.blueTeams||[])].includes(C.team));
+  if(!nowQ){wrap.innerHTML='';return;}
+  const mx=nxData.matches||[];
+  const nxt=mx.find(m=>!PLAYED_STATUS.has(m.status)&&[...(m.redTeams||[]),...(m.blueTeams||[])].includes(C.team));
   if(!nxt){wrap.innerHTML='';return;}
   if(nxt.status==='Now queuing'){
     wrap.innerHTML=`<div class="cd-pill" style="border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)"><span class="cd-lbl" style="color:var(--red)">&#x1F6A8; Queue Now!</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val urg">NOW!</span></div>`;
@@ -2633,9 +2645,8 @@ function rQ(){
 
   // ── Nexus-native logic (mirrors Nexus's own example code) ─────────────────
   // Skip 'Completed' and 'On field' — everything else is a future/current match
-  const SKIP=new Set(['Completed','On field']);
   const myMxQ=mx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
-  const myNext=myMxQ.find(m=>!SKIP.has(m.status))||null;
+  const myNext=myMxQ.find(m=>!PLAYED_STATUS.has(m.status))||null;
 
   // On field / on deck for the status strip — see fieldState().
   const {onField:onFieldMatch, onDeck:deckMatch} = fieldState();
@@ -2644,13 +2655,13 @@ function rQ(){
   let myNextFinal=myNext;
   if(!myNextFinal&&!nowQ&&tbaMx){
     const tbaMyMx=tbaMx
-      .filter(m=>{const r=(m.alliances?.red?.team_keys||[]).map(k=>k.replace('frc',''));const bl=(m.alliances?.blue?.team_keys||[]).map(k=>k.replace('frc',''));return r.includes(myT)||bl.includes(myT);})
+      .filter(m=>{const r=teamsOf(m,'red'),bl=teamsOf(m,'blue');return r.includes(myT)||bl.includes(myT);})
       .filter(m=>m.actual_time==null)
       .sort((a,b)=>(a.predicted_time||0)-(b.predicted_time||0));
     if(tbaMyMx.length){
       const tm=tbaMyMx[0];
-      const rk=(tm.alliances?.red?.team_keys||[]).map(k=>k.replace('frc',''));
-      const bk=(tm.alliances?.blue?.team_keys||[]).map(k=>k.replace('frc',''));
+      const rk=teamsOf(tm,'red');
+      const bk=teamsOf(tm,'blue');
       const sfNum=tm.comp_level==='sf'?tm.set_number:tm.match_number;
       myNextFinal={
         label:tm.comp_level==='sf'?`Playoff ${sfNum}`:tm.comp_level==='f'?`Final ${tm.match_number}`:`Qual ${tm.match_number}`,
@@ -2665,7 +2676,7 @@ function rQ(){
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const breakBadge=!nowQ?`<div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--yellow);margin-bottom:4px">⏸ On Break</div>`:'';
-  const statusLbl=nowQ?'Your Next Match':'Your Next Match';
+  const statusLbl='Your Next Match';
 
   let html='';
   if(nowQ||myNextFinal){
@@ -2716,6 +2727,10 @@ function rMl(){
 
   let html='',scrollId=null;
 
+  // Alliance chips. Defined once here — the row builders below had three
+  // byte-identical copies of this between them.
+  const mkC=(ts,cls)=>ts.map(t=>`<span class="chip ${t===myT?'cm':cls}">${e(t)}</span>`).join('');
+
   const mkRow=(m)=>{
     const r=m.redTeams||[],bl=m.blueTeams||[];
     const isMe=r.includes(myT)||bl.includes(myT);
@@ -2728,14 +2743,13 @@ function rMl(){
     const id='mr_'+m.label.replace(/[^a-z0-9]/gi,'_');
     if(isAct) scrollId=id;
     else if(!scrollId&&isMe&&!isDn) scrollId=id;
-    const mkC=(ts,cls)=>ts.map(t=>`<span class="chip ${t===myT?'cm':cls}">${e(t)}</span>`).join('');
     const mp=(!isDn&&!sc)?predFor(m.label):null;
     const right=sc?`<div class="mscore"><span class="scb">${sc.blue}</span><span class="scs">&ndash;</span><span class="scr">${sc.red}</span></div>`:(mp?predBar(mp,'sm'):`<div class="mtime"></div>`);
     const actDisplay=isAct&&!isDn; // only show active glow if truly in progress
     let cls='mr';if(isMe)cls+=' my';if(actDisplay)cls+=' act';if(isDn)cls+=' dn';
     return`<div class="${cls}" id="${id}"><div class="ml-lbl">${e(m.label)}</div><div class="ml-teams">${mkC(bl,'cb')}${mkC(r,'cr')}</div>${right}${mkBadge(m,!!sc)}</div>`;
   };
-  const mkBreak=b=>{if(!b)return'';const icon=b==='Lunch'?'🍽':b==='End of day'?'🌙':b==='Awards break'?'🏆':b==='Alliance selection'?'🤝':'⏸';return`<div class="ml-break">${icon} ${e(b)}</div>`;};
+  const mkBreak=b=>{if(!b)return'';const icon=breakIcon(b);return`<div class="ml-break">${icon} ${e(b)}</div>`;};
 
   if(quals.length){html+=`<div class="msh">Qualification<span class="mc">${quals.length}</span></div>`;quals.forEach(m=>{html+=mkRow(m)+mkBreak(m.breakAfter);});}
 
@@ -2750,13 +2764,12 @@ function rMl(){
   // Add any TBA finals beyond what Nexus reports (e.g. tiebreaker Final 4)
   if(tbaFinals.length > nxFinalCount){
     tbaFinals.slice(nxFinalCount).forEach(tm=>{
-      const r=(tm.alliances?.red?.team_keys||[]).map(t=>t.replace('frc',''));
-      const bl=(tm.alliances?.blue?.team_keys||[]).map(t=>t.replace('frc',''));
+      const r=teamsOf(tm,'red');
+      const bl=teamsOf(tm,'blue');
       const done=tm.actual_time!=null;
       const sc=done&&tm.alliances?{blue:tm.alliances.blue?.score,red:tm.alliances.red?.score}:null;
       const mlbl=`Final ${tm.match_number}`;
       const isMe=r.includes(myT)||bl.includes(myT);
-      const mkC=(ts,cls)=>ts.map(t=>`<span class="chip ${t===myT?'cm':cls}">${e(t)}</span>`).join('');
       const right=sc?`<div class="mscore"><span class="scb">${sc.blue}</span><span class="scs">&ndash;</span><span class="scr">${sc.red}</span></div>`:`<div class="mtime"></div>`;
       let cls='mr';if(isMe)cls+=' my';if(done)cls+=' dn';
       allPffs.push({_tbaRow:`<div class="${cls}"><div class="ml-lbl">${e(mlbl)}</div><div class="ml-teams">${mkC(bl,'cb')}${mkC(r,'cr')}</div>${right}</div>`});
@@ -2772,9 +2785,8 @@ function rMl(){
     const srt=[...tbaMx].sort((a,b)=>a.match_number-b.match_number);
     const qm=srt.filter(m=>m.comp_level==='qm'),sf=srt.filter(m=>m.comp_level==='sf'),f=srt.filter(m=>m.comp_level==='f');
     const tRow=(m)=>{
-      const r=(m.alliances?.red?.team_keys||[]).map(k=>k.replace('frc','')),bl=(m.alliances?.blue?.team_keys||[]).map(k=>k.replace('frc',''));
+      const r=teamsOf(m,'red'),bl=teamsOf(m,'blue');
       const isMe=r.includes(myT)||bl.includes(myT),done=m.actual_time!=null;
-      const mkC=(ts,cls)=>ts.map(t=>`<span class="chip ${t===myT?'cm':cls}">${e(t)}</span>`).join('');
       const right=done&&m.alliances?`<div class="mscore"><span class="scb">${m.alliances.blue?.score??'?'}</span><span class="scs">&ndash;</span><span class="scr">${m.alliances.red?.score??'?'}</span></div>`:`<div class="mtime">${m.predicted_time?ft(new Date(m.predicted_time*1000)):'&mdash;'}</div>`;
       const mlbl=m.comp_level==='sf'?`SF ${m.set_number}-${m.match_number}`:m.comp_level==='f'?`Final ${m.match_number}`:`Qual ${m.match_number}`;
       return`<div class="mr${isMe?' my':''}${done?' dn':''}"><div class="ml-lbl">${mlbl}</div><div class="ml-teams">${mkC(bl,'cb')}${mkC(r,'cr')}</div>${right}<span class="badge bx">${done?'Done':'Scheduled'}</span></div>`;
@@ -2924,18 +2936,19 @@ function updateScheduleDelay(mx, nowQ){
   }
 }
 
+// Break markers come from Nexus as match.breakAfter. One icon table; the three
+// views that render them differ only in their wrapper element.
+const BREAK_ICONS = {
+  'Lunch':'🍽', 'End of day':'🌙', 'Awards break':'🏆', 'Alliance selection':'🤝',
+};
+function breakIcon(b){ return BREAK_ICONS[b] || '⏸'; }
 function scoreMap(){
   const map={};
   (tbaMx||[]).forEach(m=>{
     if(!m.alliances) return;
     const bs=m.alliances.blue?.score, rs=m.alliances.red?.score;
     if(bs==null||bs<0||rs==null||rs<0) return;
-    let k;
-    if(m.comp_level==='qm')       k=`qual_${m.match_number}`;
-    else if(m.comp_level==='sf')  k=`sf_${m.set_number}`;   // set_number IS the playoff match# (1-13)
-    else if(m.comp_level==='f')   k=`f_${m.match_number}`;
-    else                           k=`${m.comp_level}_${m.match_number}`;
-    map[k]={blue:bs, red:rs};
+    map[mxKey(m)]={blue:bs, red:rs};
   });
   return map;
 }
@@ -2953,6 +2966,20 @@ function qualRpMap(){
     if(red!=null || blue!=null) map[`qual_${m.match_number}`]={red,blue};
   });
   return map;
+}
+// A TBA or Statbotics match object -> the same normalized key nl() derives from
+// a Nexus/TBA *label*. Both APIs use comp_level / match_number / set_number, and
+// for sf TBA's set_number is the playoff match number (1-13), not match_number.
+// TBA alliance -> bare team numbers ("frc88" -> "88"). Eleven inline copies of
+// this had accumulated, in two spellings of the same map callback.
+function teamsOf(m, side){
+  return (m?.alliances?.[side]?.team_keys||[]).map(k=>k.replace('frc',''));
+}
+function mxKey(m){
+  if(m.comp_level === 'qm') return `qual_${m.match_number}`;
+  if(m.comp_level === 'sf') return `sf_${m.set_number}`;
+  if(m.comp_level === 'f')  return `f_${m.match_number}`;
+  return `${m.comp_level}_${m.match_number}`;
 }
 function nl(label){
   if(!label) return '';
@@ -3059,10 +3086,9 @@ function rUpcoming(){
   if(!el) return;
   const mx=nxData?.matches||[];
   const myT=C.team;
-  const SKIP=new Set(['Completed','On field']);
 
   // All non-practice upcoming matches (full list to find breaks between team matches)
-  const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!SKIP.has(m.status));
+  const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!PLAYED_STATUS.has(m.status));
   // Two rows when the panel is squeezed: on mobile, and in bracket mode where the
   // sidebar also carries the queuing card and the bumper. A third row there clips
   // the queuing card's On Field/On Deck strip by ~17px.
@@ -3072,7 +3098,7 @@ function rUpcoming(){
 
   if(!myUpcoming.length){el.innerHTML='<div style="color:var(--text-dim);font-size:var(--fs-sm);padding:8px 0">No upcoming matches</div>';return;}
 
-  const mkBreakHtml=b=>{if(!b)return'';const icon=b==='Lunch'?'🍽':b==='End of day'?'🌙':b==='Awards break'?'🏆':b==='Alliance selection'?'🤝':'⏸';return`<div class="up-break">${icon} ${e(b)}</div>`;};
+  const mkBreakHtml=b=>{if(!b)return'';const icon=breakIcon(b);return`<div class="up-break">${icon} ${e(b)}</div>`;};
 
   let html='';
   myUpcoming.forEach((m,mi)=>{
@@ -3125,12 +3151,7 @@ function rTeam(){
     if(!m.videos?.length) return;
     const yt=m.videos.find(v=>v.type==='youtube');
     if(!yt) return;
-    let k;
-    if(m.comp_level==='qm') k=`qual_${m.match_number}`;
-    else if(m.comp_level==='sf') k=`sf_${m.set_number}`;
-    else if(m.comp_level==='f') k=`f_${m.match_number}`;
-    else k=`${m.comp_level}_${m.match_number}`;
-    videoMap[k]=yt.key;
+    videoMap[mxKey(m)]=yt.key;
   });
 
   const rpMap=qualRpMap();
@@ -3240,7 +3261,6 @@ function rAlerts(){
       btn.classList.toggle('alert-new', hasNew);
     }
   });
-  document.querySelectorAll('#abadge').forEach(b=>b.style.display='none');
 
   const annHdr=newAnn.length>0?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="alert-dismiss-all" onclick="dismissAllAnn()" title="Dismiss all announcements">Dismiss all</button></div>`:'';;
   document.getElementById('ann-content').innerHTML=ann.length===0
@@ -3333,6 +3353,12 @@ async function isYouTubeLive(videoId) {
   }
 }
 
+// Webcasts with YouTube first. This ordering IS the index space that stIdx and
+// the stream <select> address, so all three callers must agree on it.
+function webcastList(){
+  const w = tbaWc || [];
+  return [...w.filter(x=>x.type==='youtube'), ...w.filter(x=>x.type!=='youtube')];
+}
 async function rStream() {
   const half = document.getElementById('stream-half');
   const emb  = document.getElementById('s-embed');
@@ -3342,8 +3368,8 @@ async function rStream() {
   if (!tbaWc) return;
   if (stHidden) { half.style.display = 'none'; return; }
 
-  const yt  = tbaWc.filter(w => w.type === 'youtube');
-  const all = [...yt, ...tbaWc.filter(w => w.type !== 'youtube')];
+  const all = webcastList();
+  const yt  = all.filter(w => w.type === 'youtube');
 
   if (!all.length) {
     emb.style.display = 'none';
@@ -3382,7 +3408,7 @@ function loadEmbed(w){if(!w)return;const fr=document.getElementById('s-iframe'),
 
 // Restore live stream at current stIdx without re-probing
 function restoreLiveStream(){
-  const yt=(tbaWc||[]).filter(w=>w.type==='youtube'),all=[...yt,...(tbaWc||[]).filter(w=>w.type!=='youtube')];
+  const all=webcastList();
   if(!all.length) return;
   const w=all[Math.min(stIdx,all.length-1)];
   loadEmbed(w);
@@ -3439,7 +3465,7 @@ function exitReplayMode(){
   restoreLiveStream();
 }
 
-function switchStream(idx){stIdx=parseInt(idx);stIdxManual=true;const yt=(tbaWc||[]).filter(w=>w.type==='youtube'),all=[...yt,...(tbaWc||[]).filter(w=>w.type!=='youtube')];if(all[stIdx])loadEmbed(all[stIdx]);}
+function switchStream(idx){stIdx=parseInt(idx);stIdxManual=true;const all=webcastList();if(all[stIdx])loadEmbed(all[stIdx]);}
 function toggleStreamVisibility(){
   const half=document.getElementById('stream-half');
   const btn=document.getElementById('stream-toggle-btn');
@@ -3477,19 +3503,18 @@ function updateBumperBox() {
   const mx=nxData.matches||[];
 
   // Nexus-native: skip Completed and On field, find team's next match
-  const SKIP=new Set(['Completed','On field']);
   const myMx=mx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
-  let myNext=myMx.find(m=>!SKIP.has(m.status))||null;
+  let myNext=myMx.find(m=>!PLAYED_STATUS.has(m.status))||null;
 
   // TBA fallback during break
   if(!myNext&&!nxData.nowQueuing&&tbaMx){
     const tbaNext=tbaMx
       .filter(m=>m.actual_time==null)
-      .filter(m=>{const r=(m.alliances?.red?.team_keys||[]).map(k=>k.replace('frc',''));const bl=(m.alliances?.blue?.team_keys||[]).map(k=>k.replace('frc',''));return r.includes(myT)||bl.includes(myT);})
+      .filter(m=>{const r=teamsOf(m,'red'),bl=teamsOf(m,'blue');return r.includes(myT)||bl.includes(myT);})
       .sort((a,b)=>(a.predicted_time||0)-(b.predicted_time||0))[0];
     if(tbaNext){
-      const rk=(tbaNext.alliances?.red?.team_keys||[]).map(k=>k.replace('frc',''));
-      const bk=(tbaNext.alliances?.blue?.team_keys||[]).map(k=>k.replace('frc',''));
+      const rk=teamsOf(tbaNext,'red');
+      const bk=teamsOf(tbaNext,'blue');
       myNext={label:'',redTeams:rk,blueTeams:bk};
     }
   }
@@ -3608,20 +3633,18 @@ function setStreamHeight(){
 // Recalculate stream height on resize
 window.addEventListener('resize', ()=>{ if(bracketView) setStreamHeight(); });
 
+// The Alerts button is identical in both tab-bar layouts; only the tabs to its
+// left differ (bracket mode hides Rankings and My Team, and adds Queuing).
+const ALERTS_TAB_BTN = `<button class="tab-btn" onclick="switchTabById('tab-alerts',this)">Alerts<div class="alert-icons"><span class="alert-icon-lbl alert-icon-ann dim" style="font-size:11px">📢</span><span class="alert-icon-count alert-count-ann dim" id="alert-count-ann-dyn">0</span><span class="alert-icon-lbl alert-icon-parts dim" style="font-size:11px">🔧</span><span class="alert-icon-count alert-count-parts dim" id="alert-count-parts-dyn">0</span></div></button>`;
 function rebuildTabBar(bracketMode){
   const bar = document.querySelector('.tab-bar');
-  if(bracketMode){
-    bar.innerHTML=`
-      <button class="tab-btn act" onclick="switchTabById('tab-queuing',this)">Queuing</button>
-      <button class="tab-btn" onclick="switchTabById('tab-alerts',this)">Alerts<div class="alert-icons"><span class="alert-icon-lbl alert-icon-ann dim" style="font-size:11px">📢</span><span class="alert-icon-count alert-count-ann dim" id="alert-count-ann-dyn">0</span><span class="alert-icon-lbl alert-icon-parts dim" style="font-size:11px">🔧</span><span class="alert-icon-count alert-count-parts dim" id="alert-count-parts-dyn">0</span></div></button>`;
-  } else {
-    bar.innerHTML=`
-      <button class="tab-btn act" onclick="switchTabById('tab-rankings',this)">Rankings</button>
-      <button class="tab-btn" onclick="switchTabById('tab-team',this)">My Team</button>
-      <button class="tab-btn" onclick="switchTabById('tab-alerts',this)">Alerts<div class="alert-icons"><span class="alert-icon-lbl alert-icon-ann dim" style="font-size:11px">📢</span><span class="alert-icon-count alert-count-ann dim" id="alert-count-ann-dyn">0</span><span class="alert-icon-lbl alert-icon-parts dim" style="font-size:11px">🔧</span><span class="alert-icon-count alert-count-parts dim" id="alert-count-parts-dyn">0</span></div></button>`;
-    // Re-apply alert badge count
-    rAlerts();
-  }
+  const lead = bracketMode
+    ? `<button class="tab-btn act" onclick="switchTabById('tab-queuing',this)">Queuing</button>`
+    : `<button class="tab-btn act" onclick="switchTabById('tab-rankings',this)">Rankings</button>
+      <button class="tab-btn" onclick="switchTabById('tab-team',this)">My Team</button>`;
+  bar.innerHTML = lead + ALERTS_TAB_BTN;
+  // Re-apply alert badge counts to the freshly built buttons.
+  if(!bracketMode) rAlerts();
 }
 
 function switchTabById(id, btn){
@@ -3685,29 +3708,35 @@ function bktKeyFromLabel(label){
   const k=nl(label);                       // "Playoff 7" -> "sf_7", "Final 1" -> "f_1"
   return /^(sf|f)_\d+$/.test(k) ? k.replace('_','') : null;
 }
+// Shared index for both bracket renderers. The desktop canvas and the mobile
+// round-list built these identically and then each defined its own copy of the
+// alliance lookup (as getAlliance / sideOf). teamToSeed stays private - nothing
+// outside the lookup ever used it.
+function bracketIndex(alliances){
+  const mxByNum={};
+  (tbaMx||[]).filter(m=>m.comp_level==='sf').forEach(m=>{ mxByNum[`sf${m.set_number}`]=m; });
+  (tbaMx||[]).filter(m=>m.comp_level==='f' ).forEach(m=>{ mxByNum[`f${m.match_number}`]=m; });
+  const teamToSeed={};
+  (alliances||[]).forEach((a,i)=>{ (a.picks||[]).forEach(tk=>{ teamToSeed[tk.replace('frc','')]=i+1; }); });
+  const allianceOf=(mx,side)=>{
+    const keys=teamsOf(mx,side);
+    if(!keys.length) return null;
+    return {keys, seed:teamToSeed[keys[0]]??'?', score:mx.alliances?.[side]?.score};
+  };
+  return {mxByNum, allianceOf};
+}
 function rBracketMobile(){
   const el=document.getElementById('bracket-panel');
   if(!el) return;
   const myTeam=C.team;
   const alliances=tbaAlliances||[];
 
-  const mxByNum={};
-  (tbaMx||[]).filter(m=>m.comp_level==='sf').forEach(m=>{ mxByNum[`sf${m.set_number}`]=m; });
-  (tbaMx||[]).filter(m=>m.comp_level==='f' ).forEach(m=>{ mxByNum[`f${m.match_number}`]=m; });
-
-  const teamToSeed={};
-  alliances.forEach((a,i)=>{ (a.picks||[]).forEach(tk=>{ teamToSeed[tk.replace('frc','')]=i+1; }); });
+  const {mxByNum, allianceOf} = bracketIndex(alliances);
 
   // Which match is on the field right now — shared with rQ() and the desktop
   // bracket via fieldState(), so all three agree.
   const mobOnField=fieldState().onField;
   const activeKey=mobOnField?bktKeyFromLabel(mobOnField.label):null;
-
-  const sideOf=(mx,side)=>{
-    const keys=(mx?.alliances?.[side]?.team_keys||[]).map(k=>k.replace('frc',''));
-    if(!keys.length) return null;
-    return {keys, seed:teamToSeed[keys[0]]??'?', score:mx.alliances?.[side]?.score};
-  };
 
   const finals=[{key:'f1',label:'Final 1'},{key:'f2',label:'Final 2'},{key:'f3',label:'Final 3'},{key:'f4',label:'Final 4'}]
     .filter((c,i)=>mxByNum[c.key]||i<2);
@@ -3717,11 +3746,11 @@ function rBracketMobile(){
     const mx=mxByNum[c.key];
     const isActive=activeKey===c.key;
     const nexusLabel=c.key.replace(/^sf(\d+)$/,'Playoff $1').replace(/^f(\d+)$/,'Final $1');
-    const mxDone=mx&&mx.winning_alliance&&sideOf(mx,'red')?.score>=0;
+    const mxDone=mx&&mx.winning_alliance&&allianceOf(mx,'red')?.score>=0;
     const tStr=mxDone?'':bktMatchTime(nexusLabel);
     const head=`<div class="bkt-card-lbl"><span>${e(c.label)}${c.note?` <span style="opacity:.5">${e(c.note)}</span>`:''}</span>${isActive?'<span style="color:var(--green)">● live</span>':tStr?`<span class="bkt-card-time">${tStr}</span>`:''}</div>`;
     if(!mx) return `<div class="bkt-card">${head}<div class="bkt-row"><span class="bkt-tbd">TBD</span></div></div>`;
-    const red=sideOf(mx,'red'), blue=sideOf(mx,'blue');
+    const red=allianceOf(mx,'red'), blue=allianceOf(mx,'blue');
     const done=!!mx.winning_alliance && red?.score!=null && red.score>=0;
     const mine=(red?.keys||[]).includes(myTeam)||(blue?.keys||[]).includes(myTeam);
     const row=(al,isRed)=>{
@@ -3754,12 +3783,12 @@ function rBracketMobile(){
     const playOrder=c=>{ const m=c.key.match(/^(sf|f)(\d+)$/); return m?(m[1]==='sf'?0:100)+ +m[2]:999; };
     const mine=all.filter(c=>{
       const mx=mxByNum[c.key]; if(!mx) return false;
-      return sideOf(mx,'red')?.seed===seed || sideOf(mx,'blue')?.seed===seed;
+      return allianceOf(mx,'red')?.seed===seed || allianceOf(mx,'blue')?.seed===seed;
     }).sort((a,b)=>playOrder(a)-playOrder(b));
     const rows=mine.map(c=>{
       const mx=mxByNum[c.key];
-      const isRed=sideOf(mx,'red')?.seed===seed;
-      const me=sideOf(mx,isRed?'red':'blue'), opp=sideOf(mx,isRed?'blue':'red');
+      const isRed=allianceOf(mx,'red')?.seed===seed;
+      const me=allianceOf(mx,isRed?'red':'blue'), opp=allianceOf(mx,isRed?'blue':'red');
       const done=!!mx.winning_alliance && me?.score!=null && me.score>=0;
       const won=done&&mx.winning_alliance===(isRed?'red':'blue');
       const res=done?`<span class="bkt-path-res ${won?'w':'l'}">${won?'W':'L'} ${me.score}–${opp?.score??'?'}</span>`
@@ -3801,12 +3830,7 @@ function rBracket(){
   const myTeam = C.team;
   const alliances = tbaAlliances || [];
 
-  const mxByNum = {};
-  (tbaMx||[]).filter(m=>m.comp_level==='sf').forEach(m=>{ mxByNum[`sf${m.set_number}`]=m; });
-  (tbaMx||[]).filter(m=>m.comp_level==='f' ).forEach(m=>{ mxByNum[`f${m.match_number}`]=m; });
-
-  const teamToSeed = {};
-  alliances.forEach((a,i)=>{ (a.picks||[]).forEach(tk=>{ teamToSeed[tk.replace('frc','')]=i+1; }); });
+  const {mxByNum, allianceOf} = bracketIndex(alliances);
 
   // Which match is on the field — shared with rQ() and the mobile bracket, and
   // computed once per render rather than re-derived inside every card.
@@ -3919,14 +3943,6 @@ function rBracket(){
   const canvasW = finalsX + CARD_W + PAD;
   const canvasH = HDR_H + PAD*2 + innerH + PAD;
 
-  // ── Alliance helper ───────────────────────────────────────────────────────
-  function getAlliance(mx, side){
-    if(!mx) return null;
-    const keys=(mx.alliances?.[side]?.team_keys||[]).map(k=>k.replace('frc',''));
-    if(!keys.length) return null;
-    return {keys, seed:teamToSeed[keys[0]]??'?', score:mx.alliances?.[side]?.score};
-  }
-
   // Absolute Y of the midpoint of a row within a card
   // ci=-1 means finals col
   function rowMid(ci, si, rowIdx){
@@ -3957,7 +3973,7 @@ function rBracket(){
         <div class="bkt-row"><span class="bkt-tbd">TBD</span></div>
       </div>`;
     }
-    const red=getAlliance(mx,'red'), blue=getAlliance(mx,'blue');
+    const red=allianceOf(mx,'red'), blue=allianceOf(mx,'blue');
     const done=!!(mx.winning_alliance)&&red?.score!=null&&red.score>=0;
     const redWon=done&&mx.winning_alliance==='red', blueWon=done&&mx.winning_alliance==='blue';
     const myMatch=(red?.keys||[]).includes(myTeam)||(blue?.keys||[]).includes(myTeam);
@@ -3997,9 +4013,9 @@ function rBracket(){
     return `<path d="${d}" stroke="${color}" stroke-width="1.8" fill="none" stroke-linecap="round" ${dash}/>`;
   }
 
-  // Winner color (cyan), Loser color (dim gray)
-  const CW = 'rgba(220,50,50,0.7)';   // winner lines — red
-  const CL = 'rgba(50,130,220,0.6)';  // loser lines — blue
+  // Winner lines red, loser lines blue.
+  const CW = 'rgba(220,50,50,0.7)';   // winner
+  const CL = 'rgba(50,130,220,0.6)';  // loser
 
   // Corrected connection map:
   // [fromCi, fromSi, fromRow(0=red/top,1=blue/bot), isWinner, toCi, toSi, toRow]
@@ -4032,14 +4048,12 @@ function rBracket(){
     [1,1,1,false,2,0,0],  // M8 loser → M10 red
   ];
 
-  // Finals connections (special handling)
-  // R4 M11 winner → Finals red (row 0)
-  // R4 M12 winner → R5 M13 red (row 0)  [actually M11 loser→M13 red per spec]
-  // Wait — per spec:
-  //   R4 M11 Winner → Finals Red
-  //   R4 M11 Loser  → R5 M13 Red
-  //   R4 M12 Loser  → R5 M13 Blue
-  //   R5 M13 Winner → Finals Blue
+  // Finals connections — handled separately from connMap because they cross
+  // into the finals column rather than spanning one ordinary column gap:
+  //   R4 M11 winner → Finals red
+  //   R4 M11 loser  → R5 M13 red
+  //   R4 M12 winner → R5 M13 blue   (lower-bracket winner advances)
+  //   R5 M13 winner → Finals blue
 
   let svgLines = '';
 
@@ -4145,7 +4159,7 @@ function rBracket(){
 
 
 // PIT FONT SIZE TOGGLE
-let pitFontXL = localStorage.getItem('pitfusion_fontxl') === '1';
+let pitFontXL = lsGet('pitfusion_fontxl') === '1';
 (function(){ if(pitFontXL) document.body.classList.add('pit-xl'); })();
 function togglePitFont(){
   pitFontXL = !pitFontXL;
@@ -4273,8 +4287,8 @@ window.addEventListener('resize', syncMobileState);
 // Win probability + favored alliance from Statbotics /v3/matches `pred`. Off by
 // default; toggled from the setup screen and ⚙ Settings ▸ Display (no reload).
 const LS_PREDICT = 'pitfusion_predictions';
-let PREDICT  = localStorage.getItem(LS_PREDICT) === '1';
-let predMap  = null;   // normalized match key (see nl()/sbMl()) -> { rp, winner, played }
+let PREDICT  = lsGet(LS_PREDICT) === '1';
+let predMap  = null;   // normalized match key (see nl()/mxKey()) -> { rp, winner, played }
 function setPredict(on){
   PREDICT = !!on;
   try { localStorage.setItem(LS_PREDICT, PREDICT ? '1' : '0'); } catch(e){}
@@ -4295,20 +4309,13 @@ function buildPredMap(list){
   const map = {};
   (list||[]).forEach(m => {
     if(!m || !m.pred) return;
-    map[sbMl(m)] = {
+    map[mxKey(m)] = {
       rp:     m.pred.red_win_prob,
       winner: m.pred.winner,
       played: m.status === 'Completed' || !!m.result,
     };
   });
   return map;
-}
-// Statbotics match -> the same normalized key nl() derives from a Nexus/TBA label
-function sbMl(m){
-  if(m.comp_level === 'qm') return `qual_${m.match_number}`;
-  if(m.comp_level === 'sf') return `sf_${m.set_number}`;
-  if(m.comp_level === 'f')  return `f_${m.match_number}`;
-  return `${m.comp_level}_${m.match_number}`;
 }
 // prediction for a match label, or null when nothing should be drawn
 function predFor(label){
@@ -4542,21 +4549,14 @@ async function openAllianceEpa(blueTeams, redTeams, matchLabel){
         getTeamYear(t),
         getTeamMatches(t,'all').catch(()=>[]),
       ]);
-      const sorted = (matches||[]).filter(m=>matchHasEpa(m,t)).sort((a,b)=>{
-        const ta=a.time||a.predicted_time||0, tb=b.time||b.predicted_time||0;
-        if(ta&&tb&&ta!==tb) return ta-tb;
-        const ek=(a.event||'').localeCompare(b.event||'');
-        return ek!==0?ek:(a.match_number||0)-(b.match_number||0);
-      });
+      const sorted = (matches||[]).filter(m=>matchHasEpa(m,t)).sort(byMatchTime);
       teamData[t]={teamYear,matches:sorted};
     } catch(err){
       teamData[t]=null;
     }
   }));
 
-  const cfgFields=(typeof EPA_FIELDS!=='undefined')
-    ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
-    :null;
+  const cfgFields=epaFields(year);
 
   if(!cfgFields){ body.innerHTML='<div class="epa-err" style="grid-column:1/-1">No EPA_FIELDS config. Check config.js.</div>'; return; }
 
@@ -4708,7 +4708,7 @@ function openSchedule(){
     const nIdxAll=nextM?nxMx.indexOf(nextM):nxMx.length;
     for(let i=mIdxAll;i<nIdxAll;i++){
       const bk=nxMx[i]?.breakAfter;
-      if(bk){const icon=bk==='Lunch'?'🍽':bk==='End of day'?'🌙':bk==='Awards break'?'🏆':bk==='Alliance selection'?'🤝':'⏸';rows+=`<tr class="sched-break"><td colspan="5">${icon} ${e(bk)}</td></tr>`;}
+      if(bk){const icon=breakIcon(bk);rows+=`<tr class="sched-break"><td colspan="5">${icon} ${e(bk)}</td></tr>`;}
     }
   });
 
@@ -4829,6 +4829,21 @@ function curEpa(ty, key){
   const b = ty && ty.epa && ty.epa.breakdown;
   return b ? b[SB_YEAR_FIELD[key] || key] : null;
 }
+// EPA_FIELDS for a season, falling back to the newest configured year.
+// config.js is optional (and absent in some self-hosted setups), so its absence
+// has to be tolerated rather than thrown on.
+function epaFields(year){
+  if(typeof EPA_FIELDS === 'undefined') return null;
+  return EPA_FIELDS[year] || EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))] || null;
+}
+// Chronological order for Statbotics match rows: by timestamp when both have
+// one, then by event key, then by match number. Four copies of this had drifted
+// into three different spellings of the same comparison.
+function byMatchTime(a,b){
+  const ta=a.time||a.predicted_time||0, tb=b.time||b.predicted_time||0;
+  if(ta&&tb&&ta!==tb) return ta-tb;
+  return (a.event||'').localeCompare(b.event||'') || (a.match_number||0)-(b.match_number||0);
+}
 function matchHasEpa(m, team){
   return !!(m && m.status==='Completed' && matchEpa(m, team, 'epa') != null);
 }
@@ -4918,9 +4933,7 @@ async function openEpa(team, forceReload=false){
         padding:2px 10px;background:var(--surface2);border:1px solid var(--border2);
         border-radius:4px;color:var(--text);cursor:pointer">↺ Retry</button>`;
     // Show "no data" in each slot instead of endless skeleton
-    const cfgF=(typeof EPA_FIELDS!=='undefined')
-      ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
-      :null;
+    const cfgF=epaFields(year);
     if(cfgF) cfgF.forEach((_,fi)=>{
       const slot=document.getElementById('epa-slot-'+fi);
       if(slot) slot.innerHTML='<div style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);padding:6px 0">Match history unavailable</div>';
@@ -4930,19 +4943,10 @@ async function openEpa(team, forceReload=false){
   // Sort matches chronologically
   matches = (matches||[])
     .filter(m=>matchHasEpa(m,team))
-    .sort((a,b)=>{
-      const ta=a.time||a.predicted_time||0;
-      const tb=b.time||b.predicted_time||0;
-      if(ta&&tb&&ta!==tb) return ta-tb;
-      const ek=(a.event||'').localeCompare(b.event||'');
-      if(ek!==0) return ek;
-      return (a.match_number||0)-(b.match_number||0);
-    });
+    .sort(byMatchTime);
 
   // Fill in charts one at a time with a small delay so the browser paints each
-  const cfgFields=(typeof EPA_FIELDS!=='undefined')
-    ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
-    :null;
+  const cfgFields=epaFields(year);
 
   if(cfgFields && matches.length>=2){
     // Build event bands once
@@ -4986,9 +4990,7 @@ async function openEpa(team, forceReload=false){
 // Render the shell: header card + toggle + labelled skeleton placeholders
 function renderEpaShell(teamYear, team, year, sbError){
   const body=document.getElementById('epa-body');
-  const cfgFields=(typeof EPA_FIELDS!=='undefined')
-    ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
-    :null;
+  const cfgFields=epaFields(year);
 
   const name = teamYear?.name||teamYear?.team_name||'';
 
@@ -5364,9 +5366,7 @@ async function toggleEpaCurrentOnly(){
   const team=teamDisp?.textContent.replace('Team ','').trim();
   if(!team) return;
   const year=new Date().getFullYear();
-  const cfgFields=(typeof EPA_FIELDS!=='undefined')
-    ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
-    :null;
+  const cfgFields=epaFields(year);
   if(cfgFields) cfgFields.forEach((_,fi)=>{
     const slot=document.getElementById(`epa-slot-${fi}`);
     if(slot) slot.innerHTML=`<div style="height:40px;background:var(--surface2);border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim)">Loading${epaShowCurrentOnly?'':' full season'}…</span></div>`;
@@ -5377,11 +5377,7 @@ async function toggleEpaCurrentOnly(){
       getTeamYear(team),
       getTeamMatches(team, epaShowCurrentOnly ? C.event : 'all'),
     ]);
-    const matches=(raw||[]).filter(m=>matchHasEpa(m,team)).sort((a,b)=>{
-      const ta=a.time||a.predicted_time||0, tb=b.time||b.predicted_time||0;
-      if(ta&&tb&&ta!==tb) return ta-tb;
-      return (a.event||'').localeCompare(b.event||'')||(a.match_number||0)-(b.match_number||0);
-    });
+    const matches=(raw||[]).filter(m=>matchHasEpa(m,team)).sort(byMatchTime);
     _fillEpaCharts({teamYear, matches, eventOnly:epaShowCurrentOnly}, team, year);
   } catch(e){
     const note=document.getElementById('epa-match-status');
@@ -5393,18 +5389,9 @@ async function toggleEpaCurrentOnly(){
 async function _fillEpaCharts(cached, team, year){
   const matches=(cached.matches||[])
     .filter(m=>matchHasEpa(m,team))
-    .sort((a,b)=>{
-      const ta=a.time||a.predicted_time||0;
-      const tb=b.time||b.predicted_time||0;
-      if(ta&&tb&&ta!==tb) return ta-tb;
-      const ek=(a.event||'').localeCompare(b.event||'');
-      if(ek!==0) return ek;
-      return (a.match_number||0)-(b.match_number||0);
-    });
+    .sort(byMatchTime);
 
-  const cfgFields=(typeof EPA_FIELDS!=='undefined')
-    ?(EPA_FIELDS[year]||EPA_FIELDS[Math.max(...Object.keys(EPA_FIELDS).map(Number))])
-    :null;
+  const cfgFields=epaFields(year);
   if(!cfgFields) return;
 
   const filteredMatches=epaShowCurrentOnly
@@ -5469,15 +5456,6 @@ function makeTeamsClickable(container){
     }
   });
 }
-
-// Mirror countdown into EPA overlay header on each tick
-const _origTickCd = typeof tickCd === 'function' ? tickCd : null;
-
-// Sync EPA header countdown on interval
-setInterval(()=>{
-  const overlay=document.getElementById('epa-overlay');
-  if(!overlay?.classList.contains('show')) return;
-}, 1000);
 
 // init() is called by setupLaunch() — not auto-invoked here
 
