@@ -2946,6 +2946,21 @@ function scoreMap(){
   });
   return map;
 }
+// Per-match ranking points from TBA score_breakdown, keyed like nl() ("qual_N").
+// Quals only — RP is a qualification concept. `rp` is the only correct field here:
+// totalPoints is the match SCORE, so falling back to it put a 3-digit number in the
+// RP column under a colour scale built for 0-3.
+function qualRpMap(){
+  const map={};
+  (tbaMx||[]).filter(m=>m.comp_level==='qm'&&m.score_breakdown).forEach(m=>{
+    const red  = m.score_breakdown.red?.rp  ?? null;
+    const blue = m.score_breakdown.blue?.rp ?? null;
+    // Zero is a valid RP — only null/undefined means missing. Keep the row when
+    // either side reported, rather than dropping both because red is absent.
+    if(red!=null || blue!=null) map[`qual_${m.match_number}`]={red,blue};
+  });
+  return map;
+}
 function nl(label){
   if(!label) return '';
   const l=label.toLowerCase();
@@ -3094,18 +3109,7 @@ function rTeam(){
     videoMap[k]=yt.key;
   });
 
-  // Build per-match RP map from TBA score_breakdown
-  // TBA stores rp as score_breakdown.[red|blue].rp (works 2016+, field name consistent)
-  const rpMap={};
-  (tbaMx||[]).filter(m=>m.comp_level==='qm'&&m.score_breakdown).forEach(m=>{
-    const key=`qual_${m.match_number}`;
-    rpMap[key]={
-      red:  m.score_breakdown.red?.rp  ?? m.score_breakdown.red?.totalPoints  ?? null,
-      blue: m.score_breakdown.blue?.rp ?? m.score_breakdown.blue?.totalPoints ?? null,
-    };
-    // Zero is a valid RP — only null/undefined means missing
-    if(rpMap[key].red  == null) delete rpMap[key];
-  });
+  const rpMap=qualRpMap();
 
   let html='';
   // Team identity (number / name / address / rookie) lives in the EPA Stats overlay now —
@@ -4645,13 +4649,7 @@ function openSchedule(){
   const nxMx=(nxData?.matches||[]).filter(m=>!/^practice/i.test(m.label));
   // All my matches from Nexus
   const myMx=nxMx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
-  // Build RP map from TBA
-  const rpMap={};
-  (tbaMx||[]).filter(m=>m.comp_level==='qm'&&m.score_breakdown).forEach(m=>{
-    const key=`qual_${m.match_number}`;
-    const rp={red:m.score_breakdown.red?.rp??null,blue:m.score_breakdown.blue?.rp??null};
-    if(rp.red!=null||rp.blue!=null) rpMap[key]=rp;
-  });
+  const rpMap=qualRpMap();
 
   let rows='';
   myMx.forEach(m=>{
