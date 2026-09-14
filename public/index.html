@@ -2543,11 +2543,17 @@ async function init(){
   ['panel-m','ml'].forEach(id=>
     document.getElementById(id)?.addEventListener('scroll', onMlScroll, {passive:true}));
   await fNexus(); // resolve Nexus alias first so fPits uses correct key
-  await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv(),fMyYear(),fPred()]);
+  // Only Nexus and TBA gate the loading screen — they answer in <170ms each.
+  // Statbotics does NOT: measured 20s and 23s here (its own latency, plus the
+  // retry backoff when it 500s), which is what made startup take ~20s. Nothing
+  // it provides is needed to paint — EPA ranks and predictions fill in after.
+  await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv()]);
   if(tbaTi) teamInfoCache[C.team]=tbaTi;   // seed EPA-overlay identity cache for our team
   document.getElementById('lo').style.display='none';
   renderAll(); startCd();
-  fMyAdv().then(()=>rTeam());   // once, non-blocking; updates the My Team tab when ready
+  fMyAdv().then(()=>rTeam());     // once, non-blocking; updates the My Team tab when ready
+  fMyYear().then(()=>rTeam());    // EPA ranks row appears when Statbotics answers
+  fPred().then(paintPred);        // prediction bars likewise
   setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();},15000);
   setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();updateBumperBox();stamp();},30000);
 }
@@ -4765,10 +4771,15 @@ async function fetchWithRetry(url, timeoutMs=8000, retries=2){
       clearTimeout(tid);
       if(r.ok) return r;
       if(r.status===429){ await new Promise(res=>setTimeout(res,2000*(attempt+1))); continue; }
-      throw new Error('HTTP '+r.status);
+      // A definite HTTP error won't resolve in 1.5s. Retrying one turned a
+      // ~1.8s Statbotics 500 into ~10s of backoff; the 15s/30s poll re-tries
+      // anyway, and the SWR cache serves stale data meanwhile. Fail fast.
+      const httpErr=new Error('HTTP '+r.status);
+      httpErr.noRetry=true;
+      throw httpErr;
     } catch(err){
       clearTimeout(tid);
-      if(attempt===retries-1) throw err;
+      if(err.noRetry || attempt===retries-1) throw err;
       await new Promise(res=>setTimeout(res,1500*(attempt+1)));
     }
   }
