@@ -2637,15 +2637,8 @@ function rQ(){
   const myMxQ=mx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
   const myNext=myMxQ.find(m=>!SKIP.has(m.status))||null;
 
-  // On field / on deck for status strip — use nowQ positionally if statuses stale
-  const activeCount=mx.filter(m=>['On field','On deck','Now queuing'].includes(m.status)).length;
-  const statusReliable=activeCount<=3;
-  const allLabels=mx.map(m=>m.label);
-  const nowQIdx=nowQ?allLabels.indexOf(nowQ):-1;
-  const deckMatch=statusReliable?mx.find(m=>m.status==='On deck'):null;
-  const explicitOnField=statusReliable?[...mx].reverse().find(m=>m.status==='On field'):null;
-  const positionalOnField=nowQIdx>0?mx[nowQIdx-1]:null;
-  const onFieldMatch=explicitOnField||positionalOnField;
+  // On field / on deck for the status strip — see fieldState().
+  const {onField:onFieldMatch, onDeck:deckMatch} = fieldState();
 
   // TBA fallback for break mode only (nowQ null and no Nexus next match)
   let myNextFinal=myNext;
@@ -2958,6 +2951,33 @@ function nl(label){
 function ts2(m){if(!m.times)return'&mdash;';const t=m.times.actualQueueTime||m.times.estimatedQueueTime;return t?ft(new Date(t)):'&mdash;';}
 function ft(d){return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
+// ── Which match is on the field / on deck? ───────────────────────────────────
+// Single source of truth for rQ(), the desktop bracket and the mobile bracket.
+//
+// Nexus play order is: On field → On deck → Now queuing → Queuing soon. So
+// nowQueuing is the FURTHEST-OUT active match, not the nearest — "now queuing"
+// is the call to the queuing area for a match several slots out. That is why
+// matches[indexOf(nowQueuing) - 1] resolves to the ON DECK match rather than the
+// one actually on the field.
+//
+// Nexus never clears a played match from "On field", so stale entries pile up —
+// but they are always EARLIER in play order than the live one, which makes "the
+// LAST On field" self-correcting with no staleness heuristic at all. The old
+// activeCount<=3 guard was that heuristic, and it counted the very stale entries
+// it was meant to defend against: it read false from the 4th played match of
+// every event onward (sooner with practice matches), which is why On Deck showed
+// an em-dash all day and On Field fell back to the off-by-one positional guess.
+//
+// Gated on nowQueuing per the project rule — with nothing queuing (break, event
+// over) every status is stale and nothing should report as active.
+function fieldState(){
+  const mx = nxData?.matches || [];
+  if(!nxData?.nowQueuing) return { onField:null, onDeck:null };
+  let onField = null;
+  for(const m of mx) if(m.status === 'On field') onField = m;   // last one wins
+  return { onField, onDeck: mx.find(m => m.status === 'On deck') || null };
+}
+
 // ── Has this match been played? ──────────────────────────────────────────────
 // Single source of truth for every view (queuing card, match list, My Team,
 // Our Schedule) — they had each grown their own slightly different answer.
@@ -2967,9 +2987,12 @@ function ft(d){return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
 //     becomes "Completed" — so status alone never resolves.
 //   • TBA posts the score minutes later, and reports -1/-1 until it does, so a
 //     score alone lags reality.
-// Position is the reliable signal: anything earlier in the schedule than
-// nowQueuing has already been to the field. That's the same inference rQ()
-// makes to find the on-field match.
+// Position is the reliable signal, but the boundary is the ON FIELD match, not
+// nowQueuing — everything between the two (the on-deck match) is still to come.
+// Measuring from nowQueuing marked the on-deck match as already played, which
+// dimmed it in the match list, counted it under My Team's "Played", skipped it
+// when picking Next Match, and suppressed the active glow on the match actually
+// being played (rMl()'s actDisplay = isAct && !isDn).
 //
 // `sm` is a scoreMap(); pass it in so callers don't rebuild it per row.
 function playedList(){
@@ -2979,11 +3002,12 @@ function matchPlayed(m, sm){
   if(!m) return false;
   if(m.status==='Completed') return true;
   const nowQ = nxData?.nowQueuing;
-  if(nowQ){
+  const onField = fieldState().onField;
+  if(onField){
     const list = playedList();
-    const qIdx = list.findIndex(x=>x.label===nowQ);
+    const fIdx = list.findIndex(x=>x.label===onField.label);
     const mIdx = list.findIndex(x=>x.label===m.label);
-    if(qIdx>-1 && mIdx>-1 && mIdx<qIdx) return true;   // schedule has moved past it
+    if(fIdx>-1 && mIdx>-1 && mIdx<fIdx) return true;   // schedule has moved past it
   }
   if(sm && sm[nl(m.label)]) return true;               // TBA posted a score
   if(!nowQ && (m.status==='On field'||m.status==='On deck')) return true;  // break
@@ -3670,12 +3694,10 @@ function rBracketMobile(){
   const teamToSeed={};
   alliances.forEach((a,i)=>{ (a.picks||[]).forEach(tk=>{ teamToSeed[tk.replace('frc','')]=i+1; }); });
 
-  // Which match is on the field right now — reuse the app's positional logic
-  // rather than trusting Nexus statuses, which go stale.
-  const allMx=nxData?.matches||[];
-  const nq=nxData?.nowQueuing||'';
-  const nqPos=nq?allMx.findIndex(m=>m.label===nq):-1;
-  const activeKey=nqPos>0?bktKeyFromLabel(allMx[nqPos-1].label):null;
+  // Which match is on the field right now — shared with rQ() and the desktop
+  // bracket via fieldState(), so all three agree.
+  const mobOnField=fieldState().onField;
+  const activeKey=mobOnField?bktKeyFromLabel(mobOnField.label):null;
 
   const sideOf=(mx,side)=>{
     const keys=(mx?.alliances?.[side]?.team_keys||[]).map(k=>k.replace('frc',''));
@@ -3781,6 +3803,10 @@ function rBracket(){
 
   const teamToSeed = {};
   alliances.forEach((a,i)=>{ (a.picks||[]).forEach(tk=>{ teamToSeed[tk.replace('frc','')]=i+1; }); });
+
+  // Which match is on the field — shared with rQ() and the mobile bracket, and
+  // computed once per render rather than re-derived inside every card.
+  const bktOnFieldLabel=(fieldState().onField?.label||'').trim().toLowerCase();
 
   // Build finals column dynamically — handles tiebreaker (f4+) if it exists in TBA data
   const maxFinal = Math.max(3, ...Object.keys(mxByNum)
@@ -3918,20 +3944,8 @@ function rBracket(){
     const nexusLabel = sfNum ? `Playoff ${sfNum[1]}`
                      : fNum  ? `Final ${fNum[1]}`
                      : label;
-    // Use nowQueuing + on-deck/on-field explicitly — statuses can be stale
-    const nq=nxData?.nowQueuing||'';
-    const allMx=nxData?.matches||[];
-    const explicitOnField=allMx.find(m=>m.status==='On field');
-    // Only trust explicit On field if statuses are reliable (not stale from prior event)
-    const bktActiveCount=allMx.filter(m=>['On field','On deck','Now queuing'].includes(m.status)).length;
-    const bktStatusReliable=bktActiveCount<=3;
-    // Positional on-field: one step back from nowQueuing in full match list
-    const nqPos=nq?allMx.findIndex(m=>m.label===nq):-1;
-    const positionalOnField=nqPos>0?allMx[nqPos-1]:null;
-    const onFieldLabel=((bktStatusReliable&&explicitOnField)||positionalOnField)?.label||'';
-    const nl2=nexusLabel.trim().toLowerCase();
-    // Pulse only the on-field match
-    const isActive=onFieldLabel&&onFieldLabel.trim().toLowerCase()===nl2;
+    // Pulse only the on-field match (bktOnFieldLabel is already normalised)
+    const isActive=!!bktOnFieldLabel && bktOnFieldLabel===nexusLabel.trim().toLowerCase();
     if(!mx){
       return `<div class="bkt-card" style="position:absolute;left:${x}px;top:${y}px;width:${CARD_W}px">
         <div class="bkt-card-lbl">${e(label)}${note?` <span style="opacity:.5;font-size:.85em">${e(note)}</span>`:''}${bktMatchTime(nexusLabel)?`<span class="bkt-card-time">${bktMatchTime(nexusLabel)}</span>`:''}</div>

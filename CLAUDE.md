@@ -50,8 +50,14 @@ Single HTML file, no framework, no build step.
 pitfusion.com — Cloudflare managed
 
 ## Key Nexus API notes
-- nowQueuing is the source of truth for active match state
+- nowQueuing gates whether the event is active at all — but it is **not** the match
+  on the field. Play order is `On field → On deck → Now queuing → Queuing soon`, so
+  nowQueuing is the FURTHEST-OUT active match (the queue call for a match several
+  slots ahead). `matches[indexOf(nowQueuing) - 1]` is the **on-deck** match.
 - Nexus permanently leaves all matches at status "On field" after they're played
+- Stale "On field" entries are always EARLIER in play order than the live one, so the
+  **last** "On field" is the real one — self-correcting, no staleness heuristic needed.
+  `fieldState()` is the single source of truth; use it rather than re-deriving.
 - Never rely on match status alone — gate on nowQueuing being non-null
 - Parts request fields: p.requestedByTeam (team number), p.parts (body text)
 - TBA sf matches use set_number as the playoff match number (1-13), match_number is always 1
