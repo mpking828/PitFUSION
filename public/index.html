@@ -1385,33 +1385,48 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   /* On desktop #panel-m-hdr is a zero-height strip that just floats the jump
      button. The promoted sheet needs a real bar: it has to say which of the two
      panels you opened, and carry Close. */
+  /* Both sheets run full screen below the app header — which stays put, since
+     it carries the queue countdown. Neither gets a title bar: that 48px band is
+     the same wasted space the match list's sticky header was, and the menu row
+     you tapped already said which sheet this is. The header collapses to a
+     zero-height strip and the controls float over the top-right corner. */
   body.mobile-panel-open #panel-m-hdr{
-    position:static; height:auto; pointer-events:auto;
-    justify-content:flex-start; align-items:center; gap:8px;
-    padding:10px var(--pad); background:var(--bg);
-    border-bottom:2px solid var(--border);
-  }
-  body.mobile-panel-open #panel-m-title{ display:block }
-  body.mobile-panel-open #mobile-panel-close{ display:inline-block }
-  body.mobile-panel-open #ml-jump-btn{ margin-top:0; margin-left:auto; box-shadow:none }
-
-  /* The bracket wants every pixel below the app header (which keeps the queue
-     countdown). A 48px title bar is the same wasted band the match list's sticky
-     header was, so for this sheet the header collapses back to a zero-height
-     strip and Close floats over the top-right corner. */
-  body.mobile-panel-bracket #panel-m-hdr{
-    position:sticky; top:0; height:0; padding:0 var(--pad);
-    justify-content:flex-end; align-items:flex-start;
+    position:sticky; top:0; z-index:5; height:0; padding:0 var(--pad);
+    justify-content:flex-end; align-items:flex-start; gap:8px;
     background:none; border-bottom:none; pointer-events:none;
   }
-  body.mobile-panel-bracket #panel-m-title{ display:none }
-  body.mobile-panel-bracket #mobile-panel-close{
-    margin-top:6px; pointer-events:auto; box-shadow:0 2px 8px rgba(0,0,0,.5);
+  body.mobile-panel-open #panel-m-title{ display:none }
+  body.mobile-panel-open #mobile-panel-close,
+  body.mobile-panel-open #ml-jump-btn{
+    display:inline-block; margin-top:6px; margin-left:0;
+    pointer-events:auto; box-shadow:0 2px 8px rgba(0,0,0,.5);
   }
-  /* .panel-m's own padding would inset the sheet by 10px a side — the bracket
-     carries its own padding, so drop it and go edge to edge. */
-  body.mobile-panel-bracket .panel-m{ padding:0 }
-  /* Keep the first round header clear of the floating Close */
+  /* .panel-m's own padding would inset the sheet 10px a side; both sheets carry
+     their own, so drop it and go edge to edge. */
+  body.mobile-panel-open .panel-m{ padding:0 }
+
+  /* The frosted-glass themes (TJ², Custom, anything with page-has-bg) put a
+     backdrop-filter on .col-l — the sheet's PARENT. An ancestor with
+     backdrop-filter becomes the containing block for position:fixed children,
+     which trapped the sheet inside the video+queuing strip (measured 92→454
+     instead of 46→812) and left the Rankings/My Team/Alerts tabs on screen.
+     Drop the filter while a sheet is open — the sheet covers .col-l anyway —
+     and force the sheet opaque, since --glass-bg is semi-transparent. */
+  body.mobile-panel-open .col-l{ backdrop-filter:none; -webkit-backdrop-filter:none }
+  /* !important because [data-theme="tj2"] .panel-m sets its background with it.
+     Two stacked layers of the themed surface, because several themes are
+     translucent by design (TJ² sets --bg:transparent so the photo shows
+     through) — stacking 0.93 twice reads as opaque without hardcoding a colour. */
+  body.mobile-panel-open .panel-m{
+    background-color:var(--surface) !important;
+    background-image:linear-gradient(var(--surface),var(--surface)) !important;
+    backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  }
+  /* Keep TJ²'s royal blue for its sheet, just actually opaque this time. */
+  body.mobile-panel-open[data-theme="tj2"] .panel-m{ background:#1a4fa3 !important }
+  /* Start the content clear of the floating controls (they overlap on scroll,
+     which is what the shadow is for). */
+  body.mobile-panel-open .ml{ padding-top:42px }
   body.mobile-panel-bracket .bkt-mob{ padding-top:6px }
   body.mobile-panel-bracket .bkt-mob > .bkt-mob-sect:first-child .bkt-mob-hdr{ padding-right:92px }
 
