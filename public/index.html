@@ -1339,7 +1339,11 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 
   /* Mobile bracket: a vertical round-by-round list, reusing the .bkt-card /
      .bkt-row styling but statically positioned instead of on a 1400px canvas. */
-  .bkt-mob{ padding:10px var(--pad) 20px; overflow-y:auto; height:100% }
+  /* Deliberately NOT the scroller: rBracketMobile() replaces #bracket-panel's
+     innerHTML on every poll, which destroys this node — and with it the scroll
+     position, snapping you back to the top mid-read. #bracket-panel keeps the
+     scroll instead, since it survives the swap. */
+  .bkt-mob{ padding:10px var(--pad) 20px }
   .bkt-mob-sect{ margin-bottom:16px }
   .bkt-mob-hdr{ font-family:var(--fd); font-size:var(--fs-sm); font-weight:700;
     letter-spacing:.14em; text-transform:uppercase; color:var(--text-dim);
@@ -1390,6 +1394,26 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   body.mobile-panel-open #panel-m-title{ display:block }
   body.mobile-panel-open #mobile-panel-close{ display:inline-block }
   body.mobile-panel-open #ml-jump-btn{ margin-top:0; margin-left:auto; box-shadow:none }
+
+  /* The bracket wants every pixel below the app header (which keeps the queue
+     countdown). A 48px title bar is the same wasted band the match list's sticky
+     header was, so for this sheet the header collapses back to a zero-height
+     strip and Close floats over the top-right corner. */
+  body.mobile-panel-bracket #panel-m-hdr{
+    position:sticky; top:0; height:0; padding:0 var(--pad);
+    justify-content:flex-end; align-items:flex-start;
+    background:none; border-bottom:none; pointer-events:none;
+  }
+  body.mobile-panel-bracket #panel-m-title{ display:none }
+  body.mobile-panel-bracket #mobile-panel-close{
+    margin-top:6px; pointer-events:auto; box-shadow:0 2px 8px rgba(0,0,0,.5);
+  }
+  /* .panel-m's own padding would inset the sheet by 10px a side — the bracket
+     carries its own padding, so drop it and go edge to edge. */
+  body.mobile-panel-bracket .panel-m{ padding:0 }
+  /* Keep the first round header clear of the floating Close */
+  body.mobile-panel-bracket .bkt-mob{ padding-top:6px }
+  body.mobile-panel-bracket .bkt-mob > .bkt-mob-sect:first-child .bkt-mob-hdr{ padding-right:92px }
 
   /* Match rows: the desktop grid (220px label + chips + score + badge) can't
      fit 375px, so reflow to label+score on one line and the six team chips
@@ -2786,7 +2810,9 @@ function scrollToCurrentMatch(){
 function updateMlJumpBtn(){
   const btn=document.getElementById('ml-jump-btn');
   if(!btn) return;
-  const show = !!mlScrollId && !mlFollow && !(typeof bracketView!=='undefined' && bracketView);
+  const show = !!mlScrollId && !mlFollow
+    && !(typeof bracketView!=='undefined' && bracketView)
+    && mobilePanel !== 'bracket';   // the mobile bracket sheet shares this header
   btn.classList.toggle('show', show);
 }
 
@@ -3667,7 +3693,12 @@ function rBracketMobile(){
       ${r.matches.map(card).join('')}
     </div>`).join('');
 
+  // Hold the reader's position across the 15s/30s re-render. Replacing
+  // innerHTML normally keeps scrollTop, but it clamps whenever the new content
+  // is shorter — so restore it explicitly.
+  const prevScroll=el.scrollTop;
   el.innerHTML=`<div class="bkt-mob">${pathHtml}${roundsHtml}</div>`;
+  if(prevScroll) el.scrollTo({top:prevScroll, behavior:'instant'});
 }
 
 function rBracket(){
@@ -4003,8 +4034,13 @@ function rBracket(){
     legendHtml = `<div class="bkt-legend">${legendCards}</div>`;
   }
 
+  // Same re-render problem as the mobile bracket and the match list: this
+  // wrapper is the scroller and gets rebuilt on every 15s/30s poll, dropping
+  // you back to the top-left of the canvas. Remember both axes and restore.
+  const prevBkt=document.getElementById('bkt-scroll');
+  const prevL=prevBkt?prevBkt.scrollLeft:0, prevT=prevBkt?prevBkt.scrollTop:0;
   el.innerHTML=`<div style="overflow:auto;width:100%;height:100%;display:flex;flex-direction:column">
-    <div style="overflow:auto;flex:1;min-height:0">
+    <div id="bkt-scroll" style="overflow:auto;flex:1;min-height:0">
       <div style="position:relative;width:${canvasW}px;height:${canvasH}px">
         <svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none">
           ${svgLines}
@@ -4014,6 +4050,10 @@ function rBracket(){
     </div>
     ${legendHtml}
   </div>`;
+  if(prevL||prevT){
+    const s=document.getElementById('bkt-scroll');
+    if(s) s.scrollTo({left:prevL, top:prevT, behavior:'instant'});
+  }
 }
 
 
@@ -4101,6 +4141,7 @@ function openMobilePanel(which){
     if(which === 'bracket'){ bk.style.overflow = 'auto'; rBracketMobile(); }
   }
   document.body.classList.add('mobile-panel-open');
+  document.body.classList.toggle('mobile-panel-bracket', which === 'bracket');
   // The sheet is display:none until now, so rMl()'s scroll at render time was a
   // no-op — without this you'd stare at match 1 until the next poll.
   if(which !== 'bracket' && mlFollow) scrollToCurrentMatch();
@@ -4114,7 +4155,7 @@ function closeMobilePanel(){
   if(title) title.textContent = 'Match Schedule';
   if(ml) ml.style.display = '';
   if(bk){ bk.style.display = 'none'; bk.style.overflow = ''; }
-  document.body.classList.remove('mobile-panel-open');
+  document.body.classList.remove('mobile-panel-open','mobile-panel-bracket');
 }
 
 // Crossing the breakpoint: hand layout control back and forth cleanly.

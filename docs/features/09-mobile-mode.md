@@ -162,6 +162,21 @@ text unreadable and panning a 1400px canvas is what made it unusable. So mobile 
 `openMobilePanel('bracket')` and both poll intervals route to `rBracketMobile()`; desktop
 still calls `rBracket()`.
 
+**Scroll position across the poll.** Both brackets re-render every 15s/30s, and both were
+snapping you back to the top mid-scroll — the same class of bug #39 fixed for the match
+list. The mobile sheet's `.bkt-mob` was the scroller *and* the node being replaced, so the
+position died with it; it's now a plain content wrapper and `#bracket-panel` (which
+survives the swap) scrolls instead. The desktop canvas has the same problem in both axes,
+so its scrolling wrapper got an id (`#bkt-scroll`) and its `scrollLeft`/`scrollTop` are
+saved and restored around the render.
+
+**Full-screen sheet.** The bracket sheet drops the 48px title bar — that band is the same
+wasted space the match list's sticky header was. The header collapses to a zero-height
+strip with Close floating over the top-right, `.panel-m`'s padding is zeroed, and the
+bracket runs edge to edge for the full height below the app header (which stays, since it
+carries the queue countdown). `updateMlJumpBtn()` also suppresses the ⇩ Current button
+while the bracket sheet is open — it shares the same header and had been leaking through.
+
 ## Verification
 
 Verified at 375×812 and 1440×900 against a local server with mocked Nexus/TBA data.
