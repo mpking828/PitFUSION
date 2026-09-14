@@ -2669,11 +2669,24 @@ function rQ(){
     }
   }
 
-  const myNextQt=myNextFinal?.times?.estimatedQueueTime||myNextFinal?.times?.actualQueueTime;
+  // Suppressed during a break: Nexus stops projecting and collapses every estimate on
+  // the next match to the current instant, so "Est. Queue" just reprints the wall
+  // clock and ticks forward with it. Measured mid-break on a live event — queue,
+  // on-deck and on-field estimates were all within 0s of dataAsOfTime. Reading
+  // "Est. Queue: 5:19 PM" at 5:19 PM invites a crew to head for the field.
+  const myNextQt=nowQ?(myNextFinal?.times?.estimatedQueueTime||myNextFinal?.times?.actualQueueTime):null;
   const myNextTimeStr=myNextQt?ft(new Date(myNextQt)):null;
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  const breakBadge=!nowQ?`<div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--yellow);margin-bottom:4px">⏸ On Break</div>`:'';
+  // Name the break when we can — "On Break — 🍽 Lunch" tells the crew whether they
+  // have forty minutes or four. Falls back to the bare badge when play is paused with
+  // no scheduled break at that point.
+  // Nexus's own generic break is literally named "Break", which would render as
+  // "On Break — ⏸ Break". Only append a name that actually adds something.
+  const abrk=activeBreak();
+  const abrkSuffix=(abrk&&abrk.trim().toLowerCase()!=='break')
+    ? ` &mdash; ${breakIcon(abrk)} ${e(abrk)}` : '';
+  const breakBadge=!nowQ?`<div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--yellow);margin-bottom:4px">⏸ On Break${abrkSuffix}</div>`:'';
   const statusLbl='Your Next Match';
 
   let html='';
@@ -3016,6 +3029,24 @@ function fieldState(){
   let onField = null;
   for(const m of mx) if(m.status === 'On field') onField = m;   // last one wins
   return { onField, onDeck: mx.find(m => m.status === 'On deck') || null };
+}
+
+// The break we are actually sitting in, by name, or null when we aren't on one.
+//
+// Observed on a live event mid-break: Nexus drops `nowQueuing` entirely (the key is
+// absent from the payload, not set to null) and collapses every active status — no
+// "On deck", no "Now queuing" survive, only "On field" and "Queuing soon". So the
+// single marker left is the `breakAfter` of the LAST match still at "On field": the
+// one play stopped after. Same last-wins rule as fieldState(), self-correcting for
+// the same reason — stale "On field" entries are always earlier in play order.
+//
+// Returns null when nothing is on field yet (the event hasn't started, which is not
+// a break) or when play is paused with no scheduled break at that point.
+function activeBreak(){
+  if(nxData?.nowQueuing) return null;
+  let last=null;
+  for(const m of (nxData?.matches||[])) if(m.status==='On field') last=m;
+  return (last&&last.breakAfter)||null;
 }
 
 // Is the event still running practice matches? Practice is noise in every list
