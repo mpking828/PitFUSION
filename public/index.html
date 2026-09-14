@@ -1832,6 +1832,15 @@ const C={team:'',event:'',nexus:KEYS.nexus||'',tba:KEYS.tba||'',youtube:KEYS.you
 const LS_TEAM  = 'pitfusion_team';
 const LS_EVENT = 'pitfusion_event';
 
+// localStorage *throws* on an opaque origin (a data: URL, some sandboxed or
+// embedded contexts) — not merely when storage is full. Several reads below run
+// at top level, so an unguarded one takes the entire script down with it and the
+// app never initialises. Every read goes through here; writes are already
+// wrapped individually.
+function lsGet(key, fallback=null){
+  try { return localStorage.getItem(key) ?? fallback; } catch(e){ return fallback; }
+}
+
 // ── THEME ──────────────────────────────────────────────────────────────────
 const LS_THEME = 'pitfusion_theme';
 const THEMES = [
@@ -1892,7 +1901,7 @@ function applyCustomTheme(cfg){
 // re-marks every .theme-swatch in the document.
 function renderThemeSwatches(container){
   if(!container) return;
-  const active = localStorage.getItem(LS_THEME) || 'dark';
+  const active = lsGet(LS_THEME, 'dark');
   container.textContent = '';
   THEMES.forEach(t => {
     const cell = document.createElement('div');
@@ -1936,7 +1945,7 @@ function selectTheme(t){
 
 // Apply saved theme immediately on load (before paint)
 (function(){
-  const saved = localStorage.getItem(LS_THEME) || 'dark';
+  const saved = lsGet(LS_THEME, 'dark');
   applyTheme(saved);
   // Populate swatch grids once the DOM is ready.
   document.addEventListener('DOMContentLoaded', ()=>{
@@ -1962,8 +1971,8 @@ function selectTheme(t){
 
 // Restore saved values
 (function restoreSaved(){
-  const t = localStorage.getItem(LS_TEAM);
-  const ev = localStorage.getItem(LS_EVENT);
+  const t = lsGet(LS_TEAM);
+  const ev = lsGet(LS_EVENT);
   if(t)  document.getElementById('setup-team').value  = t;
   if(ev) document.getElementById('setup-event-manual').value = ev;
 })();
@@ -2004,7 +2013,7 @@ let _teamFilterTimer = null;
     populateDropdown(_allWeekEvents, null);
 
     // If we have a saved event key, try to pre-select it
-    const savedEv = localStorage.getItem(LS_EVENT);
+    const savedEv = lsGet(LS_EVENT);
     if(savedEv){
       const opt = dropEl.querySelector(`option[value="${savedEv}"]`);
       if(opt){ dropEl.value = savedEv; document.getElementById('setup-event-manual').value = ''; }
@@ -2462,6 +2471,11 @@ async function runChecks(){
   box.innerHTML = rows.join('');
 }
 
+// Statuses that mean "not a future match". Nexus leaves every played match at
+// "On field" forever, so these two together are the skip set everywhere a view
+// looks for the next upcoming match.
+const PLAYED_STATUS = new Set(['Completed','On field']);
+
 let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,nexusPits=null,nexusPitsUnavailable=false;
 let tbaEvent=null;   // full TBA event object (for event.district etc.)
 let sbMyYear=null;   // Statbotics team_year for our own team (world/country/district/state EPA ranks)
@@ -2602,13 +2616,9 @@ function tickCd(){
   if(!nxData){wrap.innerHTML='';return;}
   // If Nexus isn't actively queuing, don't show countdown
   const nowQ=nxData.nowQueuing;
-  const mx2=nxData.matches||[];
-  const tickEffNowQ = nowQ;
-  if(!tickEffNowQ){wrap.innerHTML='';return;}
-  const mx=mx2;
-  // Nexus-native: skip Completed and On field
-  const SKIP_CD=new Set(['Completed','On field']);
-  const nxt=mx.find(m=>!SKIP_CD.has(m.status)&&[...(m.redTeams||[]),...(m.blueTeams||[])].includes(C.team));
+  if(!nowQ){wrap.innerHTML='';return;}
+  const mx=nxData.matches||[];
+  const nxt=mx.find(m=>!PLAYED_STATUS.has(m.status)&&[...(m.redTeams||[]),...(m.blueTeams||[])].includes(C.team));
   if(!nxt){wrap.innerHTML='';return;}
   if(nxt.status==='Now queuing'){
     wrap.innerHTML=`<div class="cd-pill" style="border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)"><span class="cd-lbl" style="color:var(--red)">&#x1F6A8; Queue Now!</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val urg">NOW!</span></div>`;
@@ -2633,9 +2643,8 @@ function rQ(){
 
   // ── Nexus-native logic (mirrors Nexus's own example code) ─────────────────
   // Skip 'Completed' and 'On field' — everything else is a future/current match
-  const SKIP=new Set(['Completed','On field']);
   const myMxQ=mx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
-  const myNext=myMxQ.find(m=>!SKIP.has(m.status))||null;
+  const myNext=myMxQ.find(m=>!PLAYED_STATUS.has(m.status))||null;
 
   // On field / on deck for the status strip — see fieldState().
   const {onField:onFieldMatch, onDeck:deckMatch} = fieldState();
@@ -2665,7 +2674,7 @@ function rQ(){
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const breakBadge=!nowQ?`<div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--yellow);margin-bottom:4px">⏸ On Break</div>`:'';
-  const statusLbl=nowQ?'Your Next Match':'Your Next Match';
+  const statusLbl='Your Next Match';
 
   let html='';
   if(nowQ||myNextFinal){
@@ -3059,10 +3068,9 @@ function rUpcoming(){
   if(!el) return;
   const mx=nxData?.matches||[];
   const myT=C.team;
-  const SKIP=new Set(['Completed','On field']);
 
   // All non-practice upcoming matches (full list to find breaks between team matches)
-  const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!SKIP.has(m.status));
+  const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!PLAYED_STATUS.has(m.status));
   // Two rows when the panel is squeezed: on mobile, and in bracket mode where the
   // sidebar also carries the queuing card and the bumper. A third row there clips
   // the queuing card's On Field/On Deck strip by ~17px.
@@ -3240,7 +3248,6 @@ function rAlerts(){
       btn.classList.toggle('alert-new', hasNew);
     }
   });
-  document.querySelectorAll('#abadge').forEach(b=>b.style.display='none');
 
   const annHdr=newAnn.length>0?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="alert-dismiss-all" onclick="dismissAllAnn()" title="Dismiss all announcements">Dismiss all</button></div>`:'';;
   document.getElementById('ann-content').innerHTML=ann.length===0
@@ -3477,9 +3484,8 @@ function updateBumperBox() {
   const mx=nxData.matches||[];
 
   // Nexus-native: skip Completed and On field, find team's next match
-  const SKIP=new Set(['Completed','On field']);
   const myMx=mx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
-  let myNext=myMx.find(m=>!SKIP.has(m.status))||null;
+  let myNext=myMx.find(m=>!PLAYED_STATUS.has(m.status))||null;
 
   // TBA fallback during break
   if(!myNext&&!nxData.nowQueuing&&tbaMx){
@@ -3997,9 +4003,9 @@ function rBracket(){
     return `<path d="${d}" stroke="${color}" stroke-width="1.8" fill="none" stroke-linecap="round" ${dash}/>`;
   }
 
-  // Winner color (cyan), Loser color (dim gray)
-  const CW = 'rgba(220,50,50,0.7)';   // winner lines — red
-  const CL = 'rgba(50,130,220,0.6)';  // loser lines — blue
+  // Winner lines red, loser lines blue.
+  const CW = 'rgba(220,50,50,0.7)';   // winner
+  const CL = 'rgba(50,130,220,0.6)';  // loser
 
   // Corrected connection map:
   // [fromCi, fromSi, fromRow(0=red/top,1=blue/bot), isWinner, toCi, toSi, toRow]
@@ -4032,14 +4038,12 @@ function rBracket(){
     [1,1,1,false,2,0,0],  // M8 loser → M10 red
   ];
 
-  // Finals connections (special handling)
-  // R4 M11 winner → Finals red (row 0)
-  // R4 M12 winner → R5 M13 red (row 0)  [actually M11 loser→M13 red per spec]
-  // Wait — per spec:
-  //   R4 M11 Winner → Finals Red
-  //   R4 M11 Loser  → R5 M13 Red
-  //   R4 M12 Loser  → R5 M13 Blue
-  //   R5 M13 Winner → Finals Blue
+  // Finals connections — handled separately from connMap because they cross
+  // into the finals column rather than spanning one ordinary column gap:
+  //   R4 M11 winner → Finals red
+  //   R4 M11 loser  → R5 M13 red
+  //   R4 M12 winner → R5 M13 blue   (lower-bracket winner advances)
+  //   R5 M13 winner → Finals blue
 
   let svgLines = '';
 
@@ -4145,7 +4149,7 @@ function rBracket(){
 
 
 // PIT FONT SIZE TOGGLE
-let pitFontXL = localStorage.getItem('pitfusion_fontxl') === '1';
+let pitFontXL = lsGet('pitfusion_fontxl') === '1';
 (function(){ if(pitFontXL) document.body.classList.add('pit-xl'); })();
 function togglePitFont(){
   pitFontXL = !pitFontXL;
@@ -4273,7 +4277,7 @@ window.addEventListener('resize', syncMobileState);
 // Win probability + favored alliance from Statbotics /v3/matches `pred`. Off by
 // default; toggled from the setup screen and ⚙ Settings ▸ Display (no reload).
 const LS_PREDICT = 'pitfusion_predictions';
-let PREDICT  = localStorage.getItem(LS_PREDICT) === '1';
+let PREDICT  = lsGet(LS_PREDICT) === '1';
 let predMap  = null;   // normalized match key (see nl()/sbMl()) -> { rp, winner, played }
 function setPredict(on){
   PREDICT = !!on;
@@ -5469,15 +5473,6 @@ function makeTeamsClickable(container){
     }
   });
 }
-
-// Mirror countdown into EPA overlay header on each tick
-const _origTickCd = typeof tickCd === 'function' ? tickCd : null;
-
-// Sync EPA header countdown on interval
-setInterval(()=>{
-  const overlay=document.getElementById('epa-overlay');
-  if(!overlay?.classList.contains('show')) return;
-}, 1000);
 
 // init() is called by setupLaunch() — not auto-invoked here
 
