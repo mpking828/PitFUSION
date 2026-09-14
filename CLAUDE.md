@@ -63,6 +63,24 @@ pitfusion.com — Cloudflare managed
 - Parts request fields: p.requestedByTeam (team number), p.parts (body text)
 - TBA sf matches use set_number as the playoff match number (1-13), match_number is always 1
 
+## Testing against Nexus — demo events
+There is no test harness. A Nexus **demo event** is the only way to exercise real queue
+states without waiting for a competition, and it is how the play-order rules above were
+confirmed.
+- Create one at frc.nexus (guide: https://guides.frc.nexus/guides/demo-event); you drive
+  the queue yourself, advancing matches through On deck → Now queuing → On field.
+- It is served by the **public API** exactly like a real event:
+  `GET /v1/event/<key>` returns `nowQueuing`, `matches`, `announcements`, `partsRequests`,
+  `dataAsOfTime`. Works through the hosted `/api/nexus` proxy.
+- Enter the key manually in the setup screen's Event Code field — demo events never appear
+  in the this-week dropdown, which is populated from TBA.
+- **Limits.** There is no TBA counterpart, so `fMx`/`fRk`/`fAlliances`/`fEv` all fail and
+  scores, rankings, alliances, the bracket and EPA stay empty — TBA-driven code paths
+  (`teamsOf`, `bracketIndex`, `scoreMap`, predictions) are NOT exercised. Teams are randomly
+  generated, and demo events are reset periodically, so don't hardcode a key.
+- Practice matches are included and are filtered out by `playedList()`, so `matchPlayed()`'s
+  positional rule only engages once the queue reaches qualifications.
+
 ## Team config
 Default team: 88, event key format: e.g. 2025cthar
 
