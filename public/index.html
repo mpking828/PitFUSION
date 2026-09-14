@@ -3504,6 +3504,12 @@ function toggleBracket(){
 
     // Restore top-row
     topRow.style.display = '';
+    // toggleStreamVisibility() only manages this grid when !bracketView, so a
+    // stream hidden from inside bracket mode never updated it. Without this the
+    // hidden stream keeps its 75% column as dead space on exit and the queuing
+    // card is squeezed into the remaining 25%. Handles the reverse case too:
+    // showing the stream while in bracket mode.
+    topRow.style.gridTemplateColumns = stHidden ? '1fr' : '';
 
     // Move stream-half back inside top-row
     topRow.insertBefore(stHalf, topRow.firstChild);
