@@ -2619,8 +2619,7 @@ function tickCd(){
   // If Nexus isn't actively queuing, don't show countdown
   const nowQ=nxData.nowQueuing;
   if(!nowQ){wrap.innerHTML='';return;}
-  const mx=nxData.matches||[];
-  const nxt=mx.find(m=>!PLAYED_STATUS.has(m.status)&&[...(m.redTeams||[]),...(m.blueTeams||[])].includes(C.team));
+  const nxt=myNextMatch();   // same match the queuing card headlines
   if(!nxt){wrap.innerHTML='';return;}
   if(nxt.status==='Now queuing'){
     wrap.innerHTML=`<div class="cd-pill" style="border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)"><span class="cd-lbl" style="color:var(--red)">&#x1F6A8; Queue Now!</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val urg">NOW!</span></div>`;
@@ -2645,8 +2644,7 @@ function rQ(){
 
   // ── Nexus-native logic (mirrors Nexus's own example code) ─────────────────
   // Skip 'Completed' and 'On field' — everything else is a future/current match
-  const myMxQ=mx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
-  const myNext=myMxQ.find(m=>!PLAYED_STATUS.has(m.status))||null;
+  const myNext=myNextMatch();
 
   // On field / on deck for the status strip — see fieldState().
   const {onField:onFieldMatch, onDeck:deckMatch} = fieldState();
@@ -3020,6 +3018,30 @@ function fieldState(){
   return { onField, onDeck: mx.find(m => m.status === 'On deck') || null };
 }
 
+// Is the event still running practice matches? Practice is noise in every list
+// view once qualifications begin — no scores, no RP, no ranking weight — but while
+// it IS the active phase the queuing card, countdown and Upcoming panel all have to
+// keep queuing you for it.
+//
+// Keyed on nowQueuing rather than on match status: an event that cuts practice
+// short leaves the skipped matches at "Queuing soon" forever, and those must not
+// count as "still in practice" once quals are under way.
+function eventInPractice(){ return /^practice/i.test(nxData?.nowQueuing||''); }
+
+// The match the queuing card headlines as "Your Next Match": the first match in
+// play order that includes our team and hasn't been played. Shared by rQ(), the
+// header countdown, the bumper box, and rUpcoming() — which SKIPS it, so the
+// Upcoming panel doesn't repeat the match displayed directly above it.
+// Practice matches count only during the practice phase, so a never-played
+// practice match can't headline the card once qualifications have started.
+function myNextMatch(){
+  const practiceOK=eventInPractice();
+  return (nxData?.matches||[]).find(m =>
+    (practiceOK||!/^practice/i.test(m.label)) &&
+    !PLAYED_STATUS.has(m.status) &&
+    [...(m.redTeams||[]),...(m.blueTeams||[])].includes(C.team)) || null;
+}
+
 // ── Has this match been played? ──────────────────────────────────────────────
 // Single source of truth for every view (queuing card, match list, My Team,
 // Our Schedule) — they had each grown their own slightly different answer.
@@ -3087,21 +3109,61 @@ function rUpcoming(){
   const mx=nxData?.matches||[];
   const myT=C.team;
 
-  // All non-practice upcoming matches (full list to find breaks between team matches)
-  const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!PLAYED_STATUS.has(m.status));
+  // Practice matches are normally noise here — no scores, no RP, no bearing on
+  // rankings — and once played Nexus parks them at "On field" so they drop out on
+  // status alone. But while the event is still IN practice, the queuing card and the
+  // header countdown are actively queuing you for them, and this panel sits directly
+  // under the card: it has to agree. During that phase your remaining practice
+  // matches ARE your upcoming matches, and they appeared nowhere else in the app.
+  //
+  // Gated on nowQueuing rather than on status, so practice matches an event cut short
+  // (left at "Queuing soon" and never played) don't haunt the panel all weekend once
+  // qualifications have started.
+  const inPractice=eventInPractice();
+  // Full list, every team — a break hangs off whichever match precedes it, usually
+  // not one of ours, so break detection needs the unfiltered schedule.
+  const allUpcoming=mx.filter(m=>
+    (inPractice||!/^practice/i.test(m.label))&&!PLAYED_STATUS.has(m.status));
   // Two rows when the panel is squeezed: on mobile, and in bracket mode where the
   // sidebar also carries the queuing card and the bumper. A third row there clips
   // the queuing card's On Field/On Deck strip by ~17px.
   const upMax=((typeof isMobile==='function'&&isMobile())||
                (typeof bracketView!=='undefined'&&bracketView))?2:3;
-  const myUpcoming=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT)).slice(0,upMax);
+  const mine=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
 
-  if(!myUpcoming.length){el.innerHTML='<div style="color:var(--text-dim);font-size:var(--fs-sm);padding:8px 0">No upcoming matches</div>';return;}
+  // The queuing card sits directly above this panel and already headlines our next
+  // match — listing it again here duplicated it and burned one of only 2-3 rows.
+  // Skip it, but keep it as `anchor` so a break between it and the next match we
+  // DO show still renders (the break after Q11 when we start the list at Q13).
+  // No skip when the card is headlining a practice match: those are filtered out
+  // of allUpcoming, so nothing here matches it.
+  const headlined=myNextMatch();
+  const skipFirst=!!(headlined && mine[0] && mine[0].label===headlined.label);
+  const anchor=skipFirst?mine[0]:null;
+  const myUpcoming=mine.slice(skipFirst?1:0,(skipFirst?1:0)+upMax);
+
+  if(!myUpcoming.length){
+    const msg=skipFirst?'No further matches':'No upcoming matches';
+    el.innerHTML=`<div style="color:var(--text-dim);font-size:var(--fs-sm);padding:8px 0">${msg}</div>`;
+    return;
+  }
 
   const mkBreakHtml=b=>{if(!b)return'';const icon=breakIcon(b);return`<div class="up-break">${icon} ${e(b)}</div>`;};
+  // Breaks falling between two of our matches. Emitted BEFORE the row they precede
+  // rather than after the previous one, so a break between the headlined match and
+  // our first listed match survives the skip above.
+  const breaksBetween=(from,to)=>{
+    if(!from) return '';
+    const fi=allUpcoming.indexOf(from), ti=allUpcoming.indexOf(to);
+    if(fi<0||ti<0) return '';
+    let out='';
+    for(let i=fi;i<ti;i++) if(allUpcoming[i]?.breakAfter) out+=mkBreakHtml(allUpcoming[i].breakAfter);
+    return out;
+  };
 
   let html='';
   myUpcoming.forEach((m,mi)=>{
+    html+=breaksBetween(mi===0?anchor:myUpcoming[mi-1], m);
     const red=m.redTeams||[], blue=m.blueTeams||[];
     const t=m.times?.estimatedQueueTime||m.times?.estimatedStartTime;
     const timeStr=t?new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
@@ -3114,20 +3176,10 @@ function rUpcoming(){
         <div class="up-alliance">${blue.map(t=>mkChip(t,'blue')).join('')}</div>
       </div>
     </div>`;
-    // Find breaks between this match and the next team match
-    // by scanning all upcoming matches between them
-    const nextTeamMatch=myUpcoming[mi+1];
-    if(nextTeamMatch){
-      const mIdx=allUpcoming.indexOf(m);
-      const nIdx=allUpcoming.indexOf(nextTeamMatch);
-      for(let i=mIdx;i<nIdx;i++){
-        if(allUpcoming[i]?.breakAfter) html+=mkBreakHtml(allUpcoming[i].breakAfter);
-      }
-    } else {
-      // Last team match — check if there's a break after it
-      if(m.breakAfter) html+=mkBreakHtml(m.breakAfter);
-    }
   });
+  // Break immediately after the last row we show.
+  const last=myUpcoming[myUpcoming.length-1];
+  if(last?.breakAfter) html+=mkBreakHtml(last.breakAfter);
 
   el.innerHTML=html;
   makeTeamsClickable(el);
@@ -3503,8 +3555,7 @@ function updateBumperBox() {
   const mx=nxData.matches||[];
 
   // Nexus-native: skip Completed and On field, find team's next match
-  const myMx=mx.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT));
-  let myNext=myMx.find(m=>!PLAYED_STATUS.has(m.status))||null;
+  let myNext=myNextMatch();
 
   // TBA fallback during break
   if(!myNext&&!nxData.nowQueuing&&tbaMx){
