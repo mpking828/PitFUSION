@@ -33,7 +33,8 @@ Single HTML file, no framework, no build step.
   in-app editor (Settings ▸ Appearance ▸ Edit Custom theme) saves JSON to
   localStorage `pitfusion_custom_theme` and `buildCustomThemeCss()` injects an
   override into `<style id="custom-theme-style">` (pre-paint in the head script,
-  no flash). Uploaded background images are data URLs, capped at 2 MB.
+  no flash). Uploaded background images are downscaled to 1920 px and re-encoded
+  as JPEG; input over 30 MB is rejected, as is a stored data URL over 3.5 MB.
 - `tj2` still carries ~195 fine-grained overrides — see docs/features/08 for the
   planned collapse. User-facing guide: docs/custom-theme.md.
 
