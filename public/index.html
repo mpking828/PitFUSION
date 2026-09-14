@@ -2726,7 +2726,20 @@ function rQ(){
     // → gone. The trailing divider (after the queuing match) is one extra step of
     // warning; Nexus gives us only the break's NAME, never a duration or a
     // "happening now" flag, so that is all this can claim.
-    const nowQMatch=mx.find(m=>m.label===nowQ)||null;
+    // nowQueuing collapses onto the ON DECK match whenever the operator hasn't called
+    // anything further to queue, and in that state no match carries the "Now queuing"
+    // status at all. Recorded live on a demo event, stepping through a Lunch break:
+    //
+    //   nowQ=Q20  field=Q19  deck=Q20  status"Now queuing"=(none)   <- collapsed
+    //   (absent)  field=Q20  deck=—                                 <- the break
+    //   nowQ=Q22  field=Q20  deck=Q21  status"Now queuing"=Q22      <- resumed, distinct
+    //
+    // So the collapse is the PRE-BREAK state: queuing stops ahead of the break, not
+    // at it. Rendering nowQueuing here then repeated the On Deck match and its break
+    // bar. Show nothing instead — and specifically NOT the match after On Deck, which
+    // at that moment (Q21) was neither queued nor next; Lunch was.
+    const queuedAhead=(deckMatch&&deckMatch.label===nowQ)?null:nowQ;
+    const nowQMatch=queuedAhead?(mx.find(m=>m.label===queuedAhead)||null):null;
     // Mark the cell whose match a break FOLLOWS; .sc.brk paints the bar into the gap
     // on its right, so the cells keep their full width.
     const brkCls  =m=>(m&&m.breakAfter)?' brk':'';
@@ -2735,7 +2748,7 @@ function rQ(){
     html+=`<div class="ss">
       <div class="sc${brkCls(onFieldMatch)}"${brkTitle(onFieldMatch)}><div class="sc-l">On Field</div><div class="sc-v${onFieldMatch?' on':''}">${onFieldMatch?e(onFieldMatch.label):'&mdash;'}</div></div>
       <div class="sc${brkCls(deckMatch)}"${brkTitle(deckMatch)}><div class="sc-l">On Deck</div><div class="sc-v${deckMatch?' on':''}">${deckMatch?e(deckMatch.label):'&mdash;'}</div></div>
-      <div class="sc${brkCls(nowQMatch)}"${brkTitle(nowQMatch)}><div class="sc-l">Queuing</div><div class="sc-v on">${e(nowQ)}</div></div>
+      <div class="sc${brkCls(nowQMatch)}"${brkTitle(nowQMatch)}><div class="sc-l">Queuing</div><div class="sc-v${queuedAhead?' on':''}">${queuedAhead?e(queuedAhead):'&mdash;'}</div></div>
     </div>`;
   }
 
