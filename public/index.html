@@ -1404,6 +1404,26 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   /* .panel-m's own padding would inset the sheet 10px a side; both sheets carry
      their own, so drop it and go edge to edge. */
   body.mobile-panel-open .panel-m{ padding:0 }
+
+  /* The frosted-glass themes (TJ², Custom, anything with page-has-bg) put a
+     backdrop-filter on .col-l — the sheet's PARENT. An ancestor with
+     backdrop-filter becomes the containing block for position:fixed children,
+     which trapped the sheet inside the video+queuing strip (measured 92→454
+     instead of 46→812) and left the Rankings/My Team/Alerts tabs on screen.
+     Drop the filter while a sheet is open — the sheet covers .col-l anyway —
+     and force the sheet opaque, since --glass-bg is semi-transparent. */
+  body.mobile-panel-open .col-l{ backdrop-filter:none; -webkit-backdrop-filter:none }
+  /* !important because [data-theme="tj2"] .panel-m sets its background with it.
+     Two stacked layers of the themed surface, because several themes are
+     translucent by design (TJ² sets --bg:transparent so the photo shows
+     through) — stacking 0.93 twice reads as opaque without hardcoding a colour. */
+  body.mobile-panel-open .panel-m{
+    background-color:var(--surface) !important;
+    background-image:linear-gradient(var(--surface),var(--surface)) !important;
+    backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  }
+  /* Keep TJ²'s royal blue for its sheet, just actually opaque this time. */
+  body.mobile-panel-open[data-theme="tj2"] .panel-m{ background:#1a4fa3 !important }
   /* Start the content clear of the floating controls (they overlap on scroll,
      which is what the shadow is for). */
   body.mobile-panel-open .ml{ padding-top:42px }
