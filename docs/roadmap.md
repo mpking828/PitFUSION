@@ -60,6 +60,26 @@ Found and fixed live at 2026mifli2; no design docs, see the PRs:
   where it is arguably better placed: every playoff match, not just yours.
 - **`rRank()` centres the Rankings panel** on our own team on every poll, the same
   annoyance #10 fixed for the match list. Not yet addressed.
+- **Nexus push webhooks — evaluated, rejected.** Nexus offers a live-event-status and a
+  match-status webhook, either of which would in principle replace the 15s Nexus poll.
+  Three independent blockers:
+  1. **No registration API.** The `POST /webhooks` entries in the Nexus spec are OpenAPI
+     3.1 *webhook declarations* — the request Nexus sends *you*, not an endpoint you call.
+     Registration is dashboard-only (frc.nexus/api), scoped per event and per team, so
+     hosted PitFusion cannot subscribe for whatever event code a user types in.
+  2. **Selfhosted mode has no server.** `public/index.html` often runs from `file://` or a
+     static host; nothing can receive a POST. Polling stays that path regardless, so
+     webhooks would add a second data path rather than replace one.
+  3. **TBA and Statbotics have no webhooks**, so the 30s loop stays either way.
+
+  Nexus also does not retry failed deliveries and auto-disables endpoints that repeatedly
+  fail to return 200 — a polling fallback would be required anyway. `worker.js` is
+  stateless with no KV/Durable Object bindings, so a receiver would additionally need new
+  Cloudflare resources plus a push channel (DO + SSE/WebSocket) to reach browsers.
+  Worth noting for any future revisit: the webhook payload is a full snapshot
+  (`nowQueuing`, `matches`, `announcements`, `partsRequests`) matching what `fNexus()`
+  already consumes, and Nexus documents no rate limit on the GET endpoints — 15s is not
+  straining anything. **Polling stays at 15s.**
 
 ## Suggested build order
 
