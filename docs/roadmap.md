@@ -20,19 +20,13 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 8b | TJ² CSS collapse — fold hand-written `[data-theme="tj2"]` overrides into tokens | shipped (#23, 197→166 rules) | S | [features/08-theme-rework.md](features/08-theme-rework.md) |
 | 9 | Mobile display mode — single-column stack under 768px, secondary surfaces behind a ☰ menu | shipped (#37) | M | [features/09-mobile-mode.md](features/09-mobile-mode.md) |
 | 10 | Match Schedule scroll lock — polls stop yanking you back; ⇩ Current button | shipped (#39) | S | [features/10-match-list-scroll-lock.md](features/10-match-list-scroll-lock.md) |
-| 11 | Playoff Bracket sidebar overflow — the Queuing tab's bumper box forces a scroll bar | idea | XS–S | — |
+| 11 | Playoff Bracket sidebar overflow — the Queuing tab's bumper box forces a scroll bar | shipped (#45) | XS–S | — |
 
 Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, may split.
 
-
 ## Known issues
 
-- **#11 Bracket-mode sidebar scroll bar.** In Playoff Bracket mode the Queuing
-  tab (`#tab-queuing` — `#q-display-sidebar` + `#bumper-box-sidebar`, see
-  `syncQueueingToSidebar()` / `updateBumperBox()` in `public/index.html`)
-  overflows the sidebar and forces a scroll bar. Gets worse as the queuing card
-  above it grows — e.g. 4 finalist alliances. Likely a sizing/flex fix on the
-  tab panel + bumper box rather than anything structural; no design doc needed.
+_None open._
 
 ## Shipped outside the roadmap
 
@@ -64,12 +58,10 @@ Found and fixed live at 2026mifli2; no design docs, see the PRs:
 
 ## Suggested build order
 
-1. **#11 (bracket sidebar overflow)** — small, self-contained, and visible during
-   playoffs when the display matters most.
-2. **#2 (2027 season)** — blocked until the Jan 9 2027 kickoff; the non-blocked prep
+1. **#2 (2027 season)** — blocked until the Jan 9 2027 kickoff; the non-blocked prep
    (audit for hardcoded `2026`, confirm the year is always dynamic) is already done —
    see the design doc.
-3. **#5 (multi-event)** — largest, most invasive to the data model; do it last and
+2. **#5 (multi-event)** — largest, most invasive to the data model; do it last and
    probably split into its own mini-roadmap.
 
-Shipped: #1, #3, #3b, #3c, #6, #7, #7b, #8, #8b, #9, #10.
+Shipped: #1, #3, #3b, #3c, #6, #7, #7b, #8, #8b, #9, #10, #11.
