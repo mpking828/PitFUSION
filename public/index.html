@@ -2619,8 +2619,7 @@ function tickCd(){
   // If Nexus isn't actively queuing, don't show countdown
   const nowQ=nxData.nowQueuing;
   if(!nowQ){wrap.innerHTML='';return;}
-  const mx=nxData.matches||[];
-  const nxt=mx.find(m=>!PLAYED_STATUS.has(m.status)&&[...(m.redTeams||[]),...(m.blueTeams||[])].includes(C.team));
+  const nxt=myNextMatch();   // same match the queuing card headlines
   if(!nxt){wrap.innerHTML='';return;}
   if(nxt.status==='Now queuing'){
     wrap.innerHTML=`<div class="cd-pill" style="border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)"><span class="cd-lbl" style="color:var(--red)">&#x1F6A8; Queue Now!</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val urg">NOW!</span></div>`;
@@ -3019,14 +3018,26 @@ function fieldState(){
   return { onField, onDeck: mx.find(m => m.status === 'On deck') || null };
 }
 
+// Is the event still running practice matches? Practice is noise in every list
+// view once qualifications begin — no scores, no RP, no ranking weight — but while
+// it IS the active phase the queuing card, countdown and Upcoming panel all have to
+// keep queuing you for it.
+//
+// Keyed on nowQueuing rather than on match status: an event that cuts practice
+// short leaves the skipped matches at "Queuing soon" forever, and those must not
+// count as "still in practice" once quals are under way.
+function eventInPractice(){ return /^practice/i.test(nxData?.nowQueuing||''); }
+
 // The match the queuing card headlines as "Your Next Match": the first match in
 // play order that includes our team and hasn't been played. Shared by rQ(), the
-// bumper box, and rUpcoming() — which SKIPS it, so the Upcoming panel doesn't
-// repeat the match displayed directly above it.
-// Deliberately reads the unfiltered match list: early in an event our next match
-// can be a practice match, and the queuing card does show it.
+// header countdown, the bumper box, and rUpcoming() — which SKIPS it, so the
+// Upcoming panel doesn't repeat the match displayed directly above it.
+// Practice matches count only during the practice phase, so a never-played
+// practice match can't headline the card once qualifications have started.
 function myNextMatch(){
+  const practiceOK=eventInPractice();
   return (nxData?.matches||[]).find(m =>
+    (practiceOK||!/^practice/i.test(m.label)) &&
     !PLAYED_STATUS.has(m.status) &&
     [...(m.redTeams||[]),...(m.blueTeams||[])].includes(C.team)) || null;
 }
@@ -3098,8 +3109,21 @@ function rUpcoming(){
   const mx=nxData?.matches||[];
   const myT=C.team;
 
-  // All non-practice upcoming matches (full list to find breaks between team matches)
-  const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!PLAYED_STATUS.has(m.status));
+  // Practice matches are normally noise here — no scores, no RP, no bearing on
+  // rankings — and once played Nexus parks them at "On field" so they drop out on
+  // status alone. But while the event is still IN practice, the queuing card and the
+  // header countdown are actively queuing you for them, and this panel sits directly
+  // under the card: it has to agree. During that phase your remaining practice
+  // matches ARE your upcoming matches, and they appeared nowhere else in the app.
+  //
+  // Gated on nowQueuing rather than on status, so practice matches an event cut short
+  // (left at "Queuing soon" and never played) don't haunt the panel all weekend once
+  // qualifications have started.
+  const inPractice=eventInPractice();
+  // Full list, every team — a break hangs off whichever match precedes it, usually
+  // not one of ours, so break detection needs the unfiltered schedule.
+  const allUpcoming=mx.filter(m=>
+    (inPractice||!/^practice/i.test(m.label))&&!PLAYED_STATUS.has(m.status));
   // Two rows when the panel is squeezed: on mobile, and in bracket mode where the
   // sidebar also carries the queuing card and the bumper. A third row there clips
   // the queuing card's On Field/On Deck strip by ~17px.
