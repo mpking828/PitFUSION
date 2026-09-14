@@ -564,10 +564,17 @@ body.page-has-bg .tp{
 #bracket-panel.bracket-mode{display:block!important;flex:1;overflow:auto;padding:var(--pad);background:var(--bg);min-height:0;width:100%;height:100%}
 /* Bracket mode gave the sidebar more than it could hold: tab bar 60 + queuing
    card 410 + bumper 120 + Upcoming 291 = 881 into 776, so the Queuing tab was
-   permanently scrolled. Upcoming is the one to drop — the bracket panel beside
-   it already lists every playoff match, and the queuing card above shows the
-   next one in full. That reclaims 291px and the tab fits with room spare. */
-.sidebar.bracket-mode .upcoming-panel{display:none}
+   permanently scrolled. Upcoming keeps its times and break markers — neither is
+   shown anywhere else once the Match Schedule is replaced by the bracket — but
+   sheds the team chips, which the bracket beside it already shows. 291 -> 163. */
+.sidebar.bracket-mode .up-teams{display:none}
+.sidebar.bracket-mode .up-row{padding:4px 8px;margin-bottom:3px}
+/* Reclaim the last ~24px of the worst case (every alliance carrying a 4th team)
+   with padding only — nothing is removed, the On Field/On Deck strip stops
+   being clipped. */
+.sidebar.bracket-mode .upcoming-hdr{padding-bottom:4px;margin-bottom:4px}
+.sidebar.bracket-mode .upcoming-panel{padding:6px var(--pad) 8px}
+.sidebar.bracket-mode #bumper-box-sidebar{padding:6px;margin-top:6px}
 /* Belt and braces: if the queuing card ever does outgrow the tab, scroll that
    and keep the bumper colour pinned — it is the one thing the crew reads from
    across the pit. !important because switchTabById() sets display inline. */
@@ -598,6 +605,7 @@ body.page-has-bg .tp{
 .bkt-card.bkt-card-my.bkt-card-active{border-color:var(--accent);animation:bkt-pulse-both 2s ease-in-out infinite}
 .bkt-card-lbl{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-dim);padding:3px 8px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
 .bkt-card-score{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-mid)}
+.bkt-card-time{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-mid);white-space:nowrap}
 
 /* Alliance row inside card */
 .bkt-row{display:flex;align-items:center;gap:0;padding:0;border-bottom:1px solid var(--border);min-height:36px}
@@ -3016,7 +3024,12 @@ function rUpcoming(){
 
   // All non-practice upcoming matches (full list to find breaks between team matches)
   const allUpcoming=mx.filter(m=>!/^practice/i.test(m.label)&&!SKIP.has(m.status));
-  const myUpcoming=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT)).slice(0,3);
+  // Two rows when the panel is squeezed: on mobile, and in bracket mode where the
+  // sidebar also carries the queuing card and the bumper. A third row there clips
+  // the queuing card's On Field/On Deck strip by ~17px.
+  const upMax=((typeof isMobile==='function'&&isMobile())||
+               (typeof bracketView!=='undefined'&&bracketView))?2:3;
+  const myUpcoming=allUpcoming.filter(m=>[...(m.redTeams||[]),...(m.blueTeams||[])].includes(myT)).slice(0,upMax);
 
   if(!myUpcoming.length){el.innerHTML='<div style="color:var(--text-dim);font-size:var(--fs-sm);padding:8px 0">No upcoming matches</div>';return;}
 
@@ -3496,6 +3509,7 @@ function toggleBracket(){
     stHalf.classList.add('bracket-mode');
     bktPnl.classList.add('bracket-mode');
     document.querySelector('.sidebar')?.classList.add('bracket-mode');
+    rUpcoming();   // row count depends on bracketView
 
     // 3. Replace panel-m contents with bracket
     panelM.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;padding:0;background:var(--bg)';
@@ -3535,6 +3549,7 @@ function toggleBracket(){
     stHalf.classList.remove('bracket-mode');
     bktPnl.classList.remove('bracket-mode');
     document.querySelector('.sidebar')?.classList.remove('bracket-mode');
+    rUpcoming();
 
     panelM.style.cssText = '';
     ml.style.display     = 'flex';
@@ -3605,6 +3620,16 @@ function syncQueueingToSidebar(){
   if(srcB&&dstB){dstB.textContent=srcB.textContent;dstB.className=srcB.className;}
 }
 
+// Scheduled queue time for a bracket slot, by its Nexus label ("Playoff 7").
+// Times live only in Nexus; the bracket itself shows none, which is why hiding
+// Upcoming in bracket mode lost them. Returns '' rather than an em-dash so a
+// missing time renders nothing at all.
+function bktMatchTime(nexusLabel){
+  const m=(nxData?.matches||[]).find(x=>x.label===nexusLabel);
+  const t=m&&(m.times?.actualQueueTime||m.times?.estimatedQueueTime);
+  return t?ft(new Date(t)):'';
+}
+
 // ── Double-elim bracket structure (8 alliances, playoff_type 10) ─────────────
 // Single source of truth for both renderers: the desktop canvas maps these to
 // columns, the mobile view walks them top to bottom as rounds.
@@ -3665,7 +3690,10 @@ function rBracketMobile(){
   function card(c){
     const mx=mxByNum[c.key];
     const isActive=activeKey===c.key;
-    const head=`<div class="bkt-card-lbl"><span>${e(c.label)}${c.note?` <span style="opacity:.5">${e(c.note)}</span>`:''}</span>${isActive?'<span style="color:var(--green)">● live</span>':''}</div>`;
+    const nexusLabel=c.key.replace(/^sf(\d+)$/,'Playoff $1').replace(/^f(\d+)$/,'Final $1');
+    const mxDone=mx&&mx.winning_alliance&&sideOf(mx,'red')?.score>=0;
+    const tStr=mxDone?'':bktMatchTime(nexusLabel);
+    const head=`<div class="bkt-card-lbl"><span>${e(c.label)}${c.note?` <span style="opacity:.5">${e(c.note)}</span>`:''}</span>${isActive?'<span style="color:var(--green)">● live</span>':tStr?`<span class="bkt-card-time">${tStr}</span>`:''}</div>`;
     if(!mx) return `<div class="bkt-card">${head}<div class="bkt-row"><span class="bkt-tbd">TBD</span></div></div>`;
     const red=sideOf(mx,'red'), blue=sideOf(mx,'blue');
     const done=!!mx.winning_alliance && red?.score!=null && red.score>=0;
@@ -3906,7 +3934,7 @@ function rBracket(){
     const isActive=onFieldLabel&&onFieldLabel.trim().toLowerCase()===nl2;
     if(!mx){
       return `<div class="bkt-card" style="position:absolute;left:${x}px;top:${y}px;width:${CARD_W}px">
-        <div class="bkt-card-lbl">${e(label)}${note?` <span style="opacity:.5;font-size:.85em">${e(note)}</span>`:''}</div>
+        <div class="bkt-card-lbl">${e(label)}${note?` <span style="opacity:.5;font-size:.85em">${e(note)}</span>`:''}${bktMatchTime(nexusLabel)?`<span class="bkt-card-time">${bktMatchTime(nexusLabel)}</span>`:''}</div>
         <div class="bkt-row"><span class="bkt-tbd">TBD</span></div>
         <div class="bkt-row"><span class="bkt-tbd">TBD</span></div>
       </div>`;
@@ -3930,7 +3958,7 @@ function rBracket(){
       </div>`;
     }
     return `<div class="bkt-card${myMatch?' bkt-card-my':''}${isActive?' bkt-card-active':''}" style="position:absolute;left:${x}px;top:${y}px;width:${CARD_W}px">
-      <div class="bkt-card-lbl">${e(label)}${note?` <span style="opacity:.5;font-size:.85em">${e(note)}</span>`:''} ${isActive?'<span style="color:var(--green)">●</span>':''}</div>
+      <div class="bkt-card-lbl">${e(label)}${note?` <span style="opacity:.5;font-size:.85em">${e(note)}</span>`:''} ${isActive?'<span style="color:var(--green)">●</span>':''}${!done&&bktMatchTime(nexusLabel)?`<span class="bkt-card-time">${bktMatchTime(nexusLabel)}</span>`:''}</div>
       ${row(red,true,redWon)}
       ${row(blue,false,blueWon)}
     </div>`;
