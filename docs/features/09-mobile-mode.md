@@ -105,6 +105,78 @@ and a mobile panel left promoted on a desktop viewport hides the match list.
 Untouched: `rMl()`, `rBracket()`, `rQ()`, `rTeam()`, `switchTab()`, `rebuildTabBar()`,
 `toggleBracket()`, and every overlay.
 
+## Follow-up fixes (first real-device pass)
+
+Six issues came back from using it on a phone; five are fixed here, the sixth
+(Playoff Bracket) needs its own design.
+
+- **Scroll lock did nothing on mobile, and the sheet didn't scroll to the current
+  match on open.** Same root cause: in the promoted sheet `.panel-m` is a flex column,
+  so **`#ml` becomes the scroller** while `.panel-m` doesn't scroll at all — but the
+  listener and all the scroll maths were hardcoded to `#panel-m`. `mlPanel()` now
+  resolves the real scroller at call time and the listener is attached to both. Opening
+  the sheet also calls `scrollToCurrentMatch()`, since `rMl()`'s scroll at render time
+  was a no-op while the sheet was `display:none`.
+- **The `requestAnimationFrame` wrapper around `scrollIntoView` is gone.**
+  `scrollIntoView` forces its own layout so the rAF bought nothing, and rAF never fires
+  in a backgrounded or non-rendering tab — which silently killed the auto-scroll.
+- **Upcoming dropped on mobile.** Even compacted it cost ~161px and squeezed the tabs to
+  ~146; they now get 307. Its content is already covered by the queuing card and the
+  Match Schedule sheet. (`rUpcoming()`'s mobile 2-row limit reverted — now dead.)
+- **"NOW!" was clipped in the urgent countdown.** With the delay pill present the pill
+  gets 137px but needs 178; `.cd-lbl` and `.cd-val` are both `flex-shrink:0` and
+  `.cd-match` has already collapsed, so `.cd-pill{overflow:hidden}` clipped the value —
+  the one word that matters. Mobile hides `.cd-match` (the queuing card repeats it
+  directly below) and lets `.cd-lbl` truncate first.
+- **Our Schedule numbers ran together.** The alliance cells hardcoded
+  `grid-template-columns:repeat(4,minmax(0,1fr))` for 3-team alliances — throwing away a
+  quarter of the cell and giving each chip a track narrower than its own text. Now a
+  `.sched-alliance` flex row, which also widens the chips on desktop (121px vs a cramped
+  grid track). Mobile additionally tightens table padding and drops the chips a size, so
+  the table fits 359px instead of overflowing at 475.
+
+## Mobile Playoff Bracket (dedicated view)
+
+The desktop bracket is a fixed ~1400×580 canvas of absolutely-positioned cards joined by
+SVG bezier connectors, with geometry from hardcoded constants (`CARD_W 172`, 6 columns,
+4 bands). There is no width at which that reads on a phone — scaling it down makes the
+text unreadable and panning a 1400px canvas is what made it unusable. So mobile gets a
+**separate renderer over the same data**, `rBracketMobile()`, rather than a restyling.
+
+- **`BKT_ROUNDS`** is now the single source of truth for the double-elim structure
+  (R1 `M1 1v8`/`M2 4v5`/`M3 2v7`/`M4 3v6` → R5 → Finals). The desktop canvas maps it to
+  columns; the mobile view walks it top to bottom. `rBracket()`'s inline `colDefs` was
+  replaced by it — that's the only change to the desktop renderer.
+- **Your path** (pinned at top): your alliance's seed, its three teams, and its live
+  state and record straight from TBA's `alliances[].status` (`double_elim_round`,
+  `record`, `eliminated`/`won`) — no need to derive it. Then every match your alliance
+  has played or is about to, with W/L, score and opponent seed.
+  Sorted by **play order, not bracket order** — Round 2 runs M7, M8, M5, M6, so the
+  bracket's own ordering reads wrong as a timeline.
+- **Full bracket** below: each round as a header plus vertical cards, reusing the
+  existing `.bkt-card` / `.bkt-row` styling (they were already vertical — only the
+  desktop layout absolutely-positions them), so the two views stay visually consistent
+  for free. Your matches get the accent border; the on-field match is flagged live using
+  the app's positional `nowQueuing` logic rather than Nexus statuses.
+
+`openMobilePanel('bracket')` and both poll intervals route to `rBracketMobile()`; desktop
+still calls `rBracket()`.
+
+**Scroll position across the poll.** Both brackets re-render every 15s/30s, and both were
+snapping you back to the top mid-scroll — the same class of bug #39 fixed for the match
+list. The mobile sheet's `.bkt-mob` was the scroller *and* the node being replaced, so the
+position died with it; it's now a plain content wrapper and `#bracket-panel` (which
+survives the swap) scrolls instead. The desktop canvas has the same problem in both axes,
+so its scrolling wrapper got an id (`#bkt-scroll`) and its `scrollLeft`/`scrollTop` are
+saved and restored around the render.
+
+**Full-screen sheet.** The bracket sheet drops the 48px title bar — that band is the same
+wasted space the match list's sticky header was. The header collapses to a zero-height
+strip with Close floating over the top-right, `.panel-m`'s padding is zeroed, and the
+bracket runs edge to edge for the full height below the app header (which stays, since it
+carries the queue countdown). `updateMlJumpBtn()` also suppresses the ⇩ Current button
+while the bracket sheet is open — it shares the same header and had been leaking through.
+
 ## Verification
 
 Verified at 375×812 and 1440×900 against a local server with mocked Nexus/TBA data.
