@@ -1385,33 +1385,28 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   /* On desktop #panel-m-hdr is a zero-height strip that just floats the jump
      button. The promoted sheet needs a real bar: it has to say which of the two
      panels you opened, and carry Close. */
+  /* Both sheets run full screen below the app header — which stays put, since
+     it carries the queue countdown. Neither gets a title bar: that 48px band is
+     the same wasted space the match list's sticky header was, and the menu row
+     you tapped already said which sheet this is. The header collapses to a
+     zero-height strip and the controls float over the top-right corner. */
   body.mobile-panel-open #panel-m-hdr{
-    position:static; height:auto; pointer-events:auto;
-    justify-content:flex-start; align-items:center; gap:8px;
-    padding:10px var(--pad); background:var(--bg);
-    border-bottom:2px solid var(--border);
-  }
-  body.mobile-panel-open #panel-m-title{ display:block }
-  body.mobile-panel-open #mobile-panel-close{ display:inline-block }
-  body.mobile-panel-open #ml-jump-btn{ margin-top:0; margin-left:auto; box-shadow:none }
-
-  /* The bracket wants every pixel below the app header (which keeps the queue
-     countdown). A 48px title bar is the same wasted band the match list's sticky
-     header was, so for this sheet the header collapses back to a zero-height
-     strip and Close floats over the top-right corner. */
-  body.mobile-panel-bracket #panel-m-hdr{
-    position:sticky; top:0; height:0; padding:0 var(--pad);
-    justify-content:flex-end; align-items:flex-start;
+    position:sticky; top:0; z-index:5; height:0; padding:0 var(--pad);
+    justify-content:flex-end; align-items:flex-start; gap:8px;
     background:none; border-bottom:none; pointer-events:none;
   }
-  body.mobile-panel-bracket #panel-m-title{ display:none }
-  body.mobile-panel-bracket #mobile-panel-close{
-    margin-top:6px; pointer-events:auto; box-shadow:0 2px 8px rgba(0,0,0,.5);
+  body.mobile-panel-open #panel-m-title{ display:none }
+  body.mobile-panel-open #mobile-panel-close,
+  body.mobile-panel-open #ml-jump-btn{
+    display:inline-block; margin-top:6px; margin-left:0;
+    pointer-events:auto; box-shadow:0 2px 8px rgba(0,0,0,.5);
   }
-  /* .panel-m's own padding would inset the sheet by 10px a side — the bracket
-     carries its own padding, so drop it and go edge to edge. */
-  body.mobile-panel-bracket .panel-m{ padding:0 }
-  /* Keep the first round header clear of the floating Close */
+  /* .panel-m's own padding would inset the sheet 10px a side; both sheets carry
+     their own, so drop it and go edge to edge. */
+  body.mobile-panel-open .panel-m{ padding:0 }
+  /* Start the content clear of the floating controls (they overlap on scroll,
+     which is what the shadow is for). */
+  body.mobile-panel-open .ml{ padding-top:42px }
   body.mobile-panel-bracket .bkt-mob{ padding-top:6px }
   body.mobile-panel-bracket .bkt-mob > .bkt-mob-sect:first-child .bkt-mob-hdr{ padding-right:92px }
 
