@@ -81,10 +81,21 @@ someone looks at.
    hammering Statbotics. Self-hosted mode keeps calling direct. This is the biggest win
    for multi-display venues but also the most work — could be its own PR.
 
+   **Shipped**, its own PR, as anticipated. `/api/statbotics` added to `worker.js`
+   (keyless, no header/env/query), `cache: 120` rather than the 300 floated above —
+   the actual job is deduplicating a burst of near-simultaneous first loads at one
+   event, which 120s already does; going longer buys no extra dedup while doubling
+   worst-case staleness on the faster-moving `/v3/matches` sub-resource. `apiUrl()`
+   gained a 4th rewrite rule; all 3 data-fetchers and the connection-check probe
+   route through it automatically in hosted mode. Self-hosted unaffected.
+
 ## Recommendation
 
-Ship **1 + 2 + 3** as one PR (client-only, no Worker change) — that removes most of the
-felt latency. Do **5** later if multi-display venues report Statbotics slowness.
+Shipped **1 + 2 + 3** as one PR (client-only, no Worker change) — that removed most of
+the felt latency. **5 has now shipped too** — the trigger condition ("multi-display
+venues report Statbotics slowness") arrived: Statbotics was live-confirmed down
+(HTTP 500, 0.9–5.2s response times) at the point this was built, in a session
+specifically discussing multiple teams watching the same event concurrently.
 
 ## Verification
 

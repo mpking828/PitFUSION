@@ -6,9 +6,12 @@
 // a secret, so no key ever reaches the browser.
 
 const ROUTES = {
-  '/api/nexus':   { upstream: 'https://frc.nexus/api/v1',               header: 'Nexus-Api-Key',  env: 'NEXUS_API_KEY',   cache: 10 },
-  '/api/tba':     { upstream: 'https://www.thebluealliance.com/api/v3', header: 'X-TBA-Auth-Key', env: 'TBA_API_KEY',     cache: 30 },
-  '/api/youtube': { upstream: 'https://www.googleapis.com/youtube/v3',  query:  'key',            env: 'YOUTUBE_API_KEY', cache: 60 },
+  '/api/nexus':      { upstream: 'https://frc.nexus/api/v1',               header: 'Nexus-Api-Key',  env: 'NEXUS_API_KEY',   cache: 10 },
+  '/api/tba':        { upstream: 'https://www.thebluealliance.com/api/v3', header: 'X-TBA-Auth-Key', env: 'TBA_API_KEY',     cache: 30 },
+  '/api/youtube':    { upstream: 'https://www.googleapis.com/youtube/v3',  query:  'key',            env: 'YOUTUBE_API_KEY', cache: 60 },
+  // Keyless — no header/env/query. Every team watching the same event shares one
+  // cached response instead of each browser hitting Statbotics independently.
+  '/api/statbotics': { upstream: 'https://api.statbotics.io/v3',                                                             cache: 120 },
 };
 
 const ALLOWED_HOSTS = ['pitfusion.com'];
@@ -51,8 +54,10 @@ export default {
     if (!originAllowed(request)) return new Response('Forbidden', { status: 403 });
 
     const route = ROUTES[prefix];
-    const secret = env[route.env];
-    if (!secret) {
+    // Only routes that declare `env` need a secret — e.g. /api/statbotics is keyless
+    // and has no env/header/query at all, so there's nothing to require here.
+    const secret = route.env ? env[route.env] : null;
+    if (route.env && !secret) {
       return new Response(`Proxy misconfigured: ${route.env} is not set`, { status: 500 });
     }
 

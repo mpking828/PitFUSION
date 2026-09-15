@@ -81,6 +81,17 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
 - **V3.4.0** — returning from the Playoff Bracket to the match list on desktop no
   longer resets scroll position to the top (#74). See #12 above for the bracket's
   main V3.4.0 change.
+- **Unreleased on `main`** — the bracket's Nexus/TBA alliance-roster merge was
+  all-or-nothing (switched entirely to Nexus's array the moment it had picked any
+  seed, even if TBA already had every other seed complete); now compares per seed
+  and takes whichever source has more of that seed filled in, matching the per-key
+  rule `bracketIndex()` already used for match objects (#77). Statbotics calls now
+  route through `worker.js` (`/api/statbotics`, edge-cached 120s) in hosted mode,
+  same pattern as Nexus/TBA/YouTube, so multiple displays at one event share one
+  cached response instead of each hitting Statbotics directly — found by asking
+  directly whether caching was shared across teams at the same event, and confirmed
+  worth doing immediately when Statbotics turned out to be live-down (HTTP 500,
+  0.9–5.2s response times) while designing it. Self-hosted unaffected (#78).
 
 ## Deferred / follow-up
 
@@ -115,6 +126,22 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   been exercised end-to-end against a live TBA feed — only against synthetic payloads
   and, as of V3.4.0, against Nexus's own data standing in for TBA's. Needs a real,
   in-season event to close out.
+- **Statbotics caching is time-based (TTL); the right model is event-based.** A
+  team's `team_year` EPA is only ever wrong for the instant after a new match
+  involving that team is scored — every other second it's exactly right, no matter
+  how old it is. Both the client's 2h SWR TTL and the worker's 120s edge-cache TTL
+  are still guessing at that with a duration. `bustTeamCache(team)` already exists
+  and does the actual invalidation, but only fires from a manual "Retry" click in
+  `openEpa(team, forceReload=true)` — never automatically. Building the automatic
+  version needs (1) detecting a newly-posted score for a team during the existing
+  15s Nexus poll / `scoreMap()` build, (2) calling `bustTeamCache()` for every
+  affected team, and (3) the harder part — busting the *worker's* edge cache for
+  that team specifically, which Cloudflare's Cache API can't do on demand (no
+  push-invalidation, only lazy `match`/`put` by URL) without adding a Durable
+  Object/KV binding this project has deliberately avoided so far (see the Nexus
+  webhooks rejection below), or a cache-busting query param the client appends only
+  when it knows a bust is needed. Discussed while designing the Statbotics proxy;
+  deliberately out of scope for that PR.
 - **Nexus push webhooks — evaluated, rejected.** Nexus offers a live-event-status and a
   match-status webhook, either of which would in principle replace the 15s Nexus poll.
   Three independent blockers:

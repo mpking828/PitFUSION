@@ -13,9 +13,12 @@ Single HTML file, no framework, no build step.
   `wrangler.toml` `[assets]` serves `public/`; `run_worker_first = ["/api/*"]`
   routes only the API paths to `worker.js`.
 - hosted: data requests are rewritten (see `apiUrl()`) to same-origin `/api/nexus`,
-  `/api/tba`, `/api/youtube`; `worker.js` injects the key from secrets
-  (`NEXUS_API_KEY`, `TBA_API_KEY`, `YOUTUBE_API_KEY`), origin-allowlists, and
-  edge-caches (10/30/60s).
+  `/api/tba`, `/api/youtube`, `/api/statbotics`; `worker.js` injects the key from
+  secrets (`NEXUS_API_KEY`, `TBA_API_KEY`, `YOUTUBE_API_KEY` — Statbotics is keyless,
+  no secret to inject), origin-allowlists, and edge-caches (10/30/60/120s). The
+  edge cache is keyed on the upstream URL alone, so every viewer of the same event
+  shares one cached response — team number is a client-side filter, never sent to
+  any of these APIs.
 - selfhosted: direct calls with keys from the ⚙ Settings panel (localStorage
   `pitfusion_keys`). Nexus + TBA required (gated in `setupLaunch`), YouTube optional.
 - No build step. `public/index.html` is served at `/` natively; `public/_headers`
@@ -204,7 +207,9 @@ Default team: 88, event key format: e.g. 2025cthar
   returns early on a `team_year` failure — Identity/Event/Records/FRC Advancement
   (all TBA data) still render; only the EPA Ranks section shows an "unavailable" +
   Retry in their place. ⚙ Settings ▸ Run connection check includes a Statbotics probe
-  (`team_year/254/<year>`, keyless, same in both modes) alongside Nexus/TBA/YouTube.
+  (`team_year/254/<year>`, keyless; proxied through `/api/statbotics` in hosted mode
+  via `apiUrl()` for the shared edge cache, direct in self-hosted) alongside
+  Nexus/TBA/YouTube.
 
 ## Mobile mode
 - Automatic at `<=768px` — one `@media` block at the end of the stylesheet plus

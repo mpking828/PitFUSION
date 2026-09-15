@@ -2471,9 +2471,11 @@ async function runChecks(){
     tests.push(['YouTube', 'https://www.googleapis.com/youtube/v3/videos?part=id&id=dQw4w9WgXcQ'
       + (hosted ? '' : `&key=${encodeURIComponent(kb.youtube)}`), {}]);
   }
-  // Statbotics is keyless and goes direct in both modes — no header, no proxy rewrite.
-  // Team 254 always has a team_year record, so this exercises the same endpoint
-  // shape (team_year) the EPA overlay and My Team ranks actually depend on.
+  // Statbotics is keyless — no header/query injected — but in hosted mode this still
+  // routes through /api/statbotics via apiUrl() for the shared edge cache, same as
+  // Nexus/TBA/YouTube. Self-hosted goes direct. Team 254 always has a team_year
+  // record, so this exercises the same endpoint shape the EPA overlay and My Team
+  // ranks actually depend on.
   tests.push(['Statbotics', `https://api.statbotics.io/v3/team_year/254/${yr}`, {}]);
   const rows = [];
   for(const [label, url, h] of tests){
@@ -2539,7 +2541,8 @@ function apiUrl(u){
   if(MODE!=='hosted') return u;
   return u.replace('https://frc.nexus/api/v1','/api/nexus')
           .replace('https://www.thebluealliance.com/api/v3','/api/tba')
-          .replace('https://www.googleapis.com/youtube/v3','/api/youtube');
+          .replace('https://www.googleapis.com/youtube/v3','/api/youtube')
+          .replace('https://api.statbotics.io/v3','/api/statbotics');
 }
 async function get(url,h){const r=await fetch(apiUrl(url),{headers:h,cache:'no-store'});if(!r.ok)throw r.status;return r.json();}
 
@@ -5108,22 +5111,26 @@ async function _sbGet(store, key, url, ttl, timeoutMs, onFresh){
   return hit ? hit.d : p;          // stale → instant; cold → await the fetch
 }
 const _yr = () => new Date().getFullYear();
+// apiUrl() routes these through /api/statbotics in hosted mode, sharing Cloudflare's
+// edge cache across every team watching the same event; self-hosted goes direct,
+// unchanged. Either way this SWR layer still governs what the caller actually sees —
+// the edge cache only affects what happens on a cache MISS here.
 function getTeamYear(team, onFresh){
   return _sbGet('year', String(team),
-    `https://api.statbotics.io/v3/team_year/${team}/${_yr()}`,
+    apiUrl(`https://api.statbotics.io/v3/team_year/${team}/${_yr()}`),
     SB_TTL_YEAR, 8000, onFresh);
 }
 function getTeamMatches(team, scope, onFresh){
   const q = (scope && scope!=='all') ? `event=${scope}` : `year=${_yr()}&limit=200`;
   return _sbGet('matches', `${team}|${scope||'all'}`,
-    `https://api.statbotics.io/v3/matches?team=${team}&${q}`,
+    apiUrl(`https://api.statbotics.io/v3/matches?team=${team}&${q}`),
     SB_TTL_MATCHES, 12000, onFresh);
 }
 // Every match at an event (for match predictions — carries the `pred` object).
 // Shares the _sb.matches SWR store under an `event|` key; bustTeamCache ignores it.
 function getEventMatches(evKey, onFresh){
   return _sbGet('matches', `event|${evKey}`,
-    `https://api.statbotics.io/v3/matches?event=${evKey}&limit=200`,
+    apiUrl(`https://api.statbotics.io/v3/matches?event=${evKey}&limit=200`),
     SB_TTL_MATCHES, 12000, onFresh);
 }
 function bustTeamCache(team){
