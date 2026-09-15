@@ -2626,19 +2626,21 @@ function startCd(){clearInterval(cdTick);cdTick=setInterval(tickCd,1000);tickCd(
 function tickCd(){
   const wrap=document.getElementById('hdr-cd');
   if(!nxData){wrap.innerHTML='';return;}
-  // If Nexus isn't actively queuing, don't show countdown
-  const nowQ=nxData.nowQueuing;
-  if(!nowQ){wrap.innerHTML='';return;}
+  // Paused = on a break. The countdown still runs then, but only off a queue time the
+  // operator actually entered (queueTimeOf), and it never escalates to "Queue Now!" —
+  // once that time passes we have no fresh information, and a break that runs long must
+  // not leave the header screaming at the crew.
+  const paused=!nxData.nowQueuing;
   const nxt=myNextMatch();   // same match the queuing card headlines
   if(!nxt){wrap.innerHTML='';return;}
   if(nxt.status==='Now queuing'){
     wrap.innerHTML=`<div class="cd-pill" style="border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)"><span class="cd-lbl" style="color:var(--red)">&#x1F6A8; Queue Now!</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val urg">NOW!</span></div>`;
     return;
   }
-  const qt=nxt.times?.estimatedQueueTime||nxt.times?.actualQueueTime;
-  if(!qt){wrap.innerHTML=`<div class="cd-pill"><span class="cd-lbl">&#9888; Next:</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val" style="font-size:var(--fs-hdr);color:var(--text-mid)">TBD</span></div>`;return;}
+  const qt=queueTimeOf(nxt);
+  if(!qt){wrap.innerHTML=paused?'':`<div class="cd-pill"><span class="cd-lbl">&#9888; Next:</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val" style="font-size:var(--fs-hdr);color:var(--text-mid)">TBD</span></div>`;return;}
   const diff=qt-Date.now();
-  if(diff<=0){wrap.innerHTML=`<div class="cd-pill" style="border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)"><span class="cd-lbl" style="color:var(--red)">&#x1F6A8; Queue Now!</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val urg">NOW!</span></div>`;return;}
+  if(diff<=0){wrap.innerHTML=paused?'':`<div class="cd-pill" style="border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)"><span class="cd-lbl" style="color:var(--red)">&#x1F6A8; Queue Now!</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val urg">NOW!</span></div>`;return;}
   const ts=Math.floor(diff/1000),m=Math.floor(ts/60),s=ts%60,urg=m<5;
   wrap.innerHTML=`<div class="cd-pill" style="${urg?'border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.08)':''}"><span class="cd-lbl" style="${urg?'color:var(--red)':''}">&#9888; Queue in</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val${urg?' urg':''}">${m}:${String(s).padStart(2,'0')}</span></div>`;
 }
@@ -2679,12 +2681,9 @@ function rQ(){
     }
   }
 
-  // Suppressed during a break: Nexus stops projecting and collapses every estimate on
-  // the next match to the current instant, so "Est. Queue" just reprints the wall
-  // clock and ticks forward with it. Measured mid-break on a live event — queue,
-  // on-deck and on-field estimates were all within 0s of dataAsOfTime. Reading
-  // "Est. Queue: 5:19 PM" at 5:19 PM invites a crew to head for the field.
-  const myNextQt=nowQ?(myNextFinal?.times?.estimatedQueueTime||myNextFinal?.times?.actualQueueTime):null;
+  // Shown during a break too, but only when the operator has entered a real post-break
+  // queue time — see queueTimeOf().
+  const myNextQt=queueTimeOf(myNextFinal);
   const myNextTimeStr=myNextQt?ft(new Date(myNextQt)):null;
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -3089,6 +3088,27 @@ function activeBreak(){
   let last=null;
   for(const m of (nxData?.matches||[])) if(m.status==='On field') last=m;
   return (last&&last.breakAfter)||null;
+}
+
+// The queue time for a match, or null when it can't be trusted.
+//
+// Nexus stops projecting during a break and collapses every estimate on the next match
+// to the current instant — measured mid-break on a live event, queue/on-deck/on-field
+// estimates were all within 0s of dataAsOfTime. Printed raw that reads "Est. Queue:
+// 5:19 PM" at 5:19 PM, and the header countdown sits at "Queue Now!" for the whole
+// break. But the collapse is not the only thing on offer: Nexus asks the operator to
+// enter the time the match after the break will be queued at, and once they do, the
+// estimate becomes a real future time the crew should see.
+//
+// So the test isn't "are we on a break" — it's whether the number is doing any work.
+// A real post-break time is minutes out; a collapsed one sits on the feed's own clock.
+// 90s clears it comfortably (the poll is 15s, so dataAsOfTime can be that stale).
+const BREAK_EST_LEAD=90000;
+function queueTimeOf(m){
+  const t=m?.times?.estimatedQueueTime||m?.times?.actualQueueTime||null;
+  if(!t||nxData?.nowQueuing) return t;
+  const asOf=nxData?.dataAsOfTime||Date.now();
+  return (t-asOf>BREAK_EST_LEAD)?t:null;
 }
 
 // Is the event still running practice matches? Practice is noise in every list
