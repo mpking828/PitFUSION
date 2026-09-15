@@ -60,6 +60,19 @@ pitfusion.com — Cloudflare managed
   **last** "On field" is the real one — self-correcting, no staleness heuristic needed.
   `fieldState()` is the single source of truth; use it rather than re-deriving.
 - Never rely on match status alone — gate on nowQueuing being non-null
+- **Absent nowQueuing means "not queuing", not "on a break".** Three states share it:
+  a break, the event not having started, and the end of the day. Tell them apart by the
+  field — a break always has play behind it, so something is at "On field"; before the
+  first queue call of the day nothing ever has been. `eventNotStarted()`.
+- **Nexus never publishes an estimate in the past.** When a queue time comes due and the
+  operator hasn't queued, Nexus replaces the estimate with `dataAsOfTime` exactly; the
+  operator's dashboard labels such a match "Expected soon". That single clamp explains
+  both the mid-break collapse and the overdue pre-event start. So the test for a usable
+  time is "is it ahead of `dataAsOfTime`" (`queueTimeOf()`) — **not** a minimum lead; a
+  threshold discards real operator-set times as they approach.
+- Phase (practice vs quals) comes from what the field is doing, never from "are there
+  unplayed practice matches" — an event that cuts practice short leaves them at
+  "Queuing soon" forever. `eventInPractice()`.
 - Parts request fields: p.requestedByTeam (team number), p.parts (body text)
 - TBA sf matches use set_number as the playoff match number (1-13), match_number is always 1
 
@@ -80,6 +93,12 @@ confirmed.
   generated, and demo events are reset periodically, so don't hardcode a key.
 - Practice matches are included and are filtered out by `playedList()`, so `matchPlayed()`'s
   positional rule only engages once the queue reaches qualifications.
+- **"Reset demo" (events page) is the pre-event fixture** — the only way to reach a state
+  no live event will sit still for. A reset demo is **practice-only**: 6 practice matches,
+  no qualifications, all at "Queuing soon", `nowQueuing` key absent, nothing at "On field".
+  Add quals from the demo dashboard to get a posted schedule with nothing queued, and set
+  "Practice 1 queues at" in the past or future to produce a clamped vs. projected estimate.
+  Both pre-event bugs fixed in #60 were found here and nowhere else.
 
 ## Team config
 Default team: 88, event key format: e.g. 2025cthar

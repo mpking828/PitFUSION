@@ -2626,21 +2626,27 @@ function startCd(){clearInterval(cdTick);cdTick=setInterval(tickCd,1000);tickCd(
 function tickCd(){
   const wrap=document.getElementById('hdr-cd');
   if(!nxData){wrap.innerHTML='';return;}
-  // Paused = on a break. The countdown still runs then, but only off a queue time the
-  // operator actually entered (queueTimeOf), and it never escalates to "Queue Now!" —
-  // once that time passes we have no fresh information, and a break that runs long must
-  // not leave the header screaming at the crew.
+  // Paused = Nexus isn't queuing: on a break, or before the first queue call. The
+  // countdown still runs then, off whatever real time Nexus is still projecting
+  // (queueTimeOf) — but it never escalates to "Queue Now!", because once that time
+  // passes we have no fresh information, and a break that runs long must not leave the
+  // header screaming at a crew with nothing to act on. "Expected soon" instead, which
+  // is the operator's own dashboard wording for a clamped estimate.
   const paused=!nxData.nowQueuing;
   const nxt=myNextMatch();   // same match the queuing card headlines
   if(!nxt){wrap.innerHTML='';return;}
+  const pill=(lbl,val,red,dim)=>`<div class="cd-pill" style="${red?'border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)':''}"><span class="cd-lbl" style="${red?'color:var(--red)':''}">${lbl}</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val${red?' urg':''}" style="${dim?'font-size:var(--fs-hdr);color:var(--text-mid)':''}">${val}</span></div>`;
+  // "Expected soon" only when Nexus clamped a real estimate. A match with no queue time
+  // at all is unknown, not imminent — that stays blank while paused, as it was.
+  const soon=()=>(nxt.times?.estimatedQueueTime||nxt.times?.actualQueueTime)?pill('&#9888; Next:','Expected soon',false,true):'';
   if(nxt.status==='Now queuing'){
-    wrap.innerHTML=`<div class="cd-pill" style="border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)"><span class="cd-lbl" style="color:var(--red)">&#x1F6A8; Queue Now!</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val urg">NOW!</span></div>`;
+    wrap.innerHTML=pill('&#x1F6A8; Queue Now!','NOW!',true);
     return;
   }
   const qt=queueTimeOf(nxt);
-  if(!qt){wrap.innerHTML=paused?'':`<div class="cd-pill"><span class="cd-lbl">&#9888; Next:</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val" style="font-size:var(--fs-hdr);color:var(--text-mid)">TBD</span></div>`;return;}
+  if(!qt){wrap.innerHTML=paused?soon():pill('&#9888; Next:','TBD',false,true);return;}
   const diff=qt-Date.now();
-  if(diff<=0){wrap.innerHTML=paused?'':`<div class="cd-pill" style="border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.1)"><span class="cd-lbl" style="color:var(--red)">&#x1F6A8; Queue Now!</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val urg">NOW!</span></div>`;return;}
+  if(diff<=0){wrap.innerHTML=paused?soon():pill('&#x1F6A8; Queue Now!','NOW!',true);return;}
   const ts=Math.floor(diff/1000),m=Math.floor(ts/60),s=ts%60,urg=m<5;
   wrap.innerHTML=`<div class="cd-pill" style="${urg?'border-color:rgba(255,23,68,.5);background:rgba(255,23,68,.08)':''}"><span class="cd-lbl" style="${urg?'color:var(--red)':''}">&#9888; Queue in</span><span class="cd-match">${e(nxt.label)}</span><span class="cd-val${urg?' urg':''}">${m}:${String(s).padStart(2,'0')}</span></div>`;
 }
@@ -2681,10 +2687,12 @@ function rQ(){
     }
   }
 
-  // Shown during a break too, but only when the operator has entered a real post-break
-  // queue time — see queueTimeOf().
+  // Shown during a break and before the event starts, but only when Nexus is still
+  // projecting a real time — see queueTimeOf(). When it has clamped the estimate to
+  // its own clock, say so in its own words rather than printing the wall clock back.
   const myNextQt=queueTimeOf(myNextFinal);
-  const myNextTimeStr=myNextQt?ft(new Date(myNextQt)):null;
+  const myNextTimeStr=myNextQt?`Est. Queue: ${ft(new Date(myNextQt))}`
+    :(myNextFinal&&!nowQ&&(myNextFinal.times?.estimatedQueueTime||myNextFinal.times?.actualQueueTime)?'Expected soon':null);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   // Name the break when we can — "On Break — 🍽 Lunch" tells the crew whether they
@@ -2695,7 +2703,9 @@ function rQ(){
   const abrk=activeBreak();
   const abrkSuffix=(abrk&&abrk.trim().toLowerCase()!=='break')
     ? ` &mdash; ${breakIcon(abrk)} ${e(abrk)}` : '';
-  const breakBadge=!nowQ?`<div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--yellow);margin-bottom:4px">⏸ On Break${abrkSuffix}</div>`:'';
+  // Not before the first queue call of the day: nowQueuing is absent then too, but the
+  // event hasn't paused, it hasn't begun. See eventNotStarted().
+  const breakBadge=(!nowQ&&!eventNotStarted())?`<div style="font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--yellow);margin-bottom:4px">⏸ On Break${abrkSuffix}</div>`:'';
   const statusLbl='Your Next Match';
 
   let html='';
@@ -2703,7 +2713,7 @@ function rQ(){
     const abbrevLabel=l=>l.replace(/^Qualification\s+/i,'Qual ');
     const heading=myNextFinal?e(abbrevLabel(myNextFinal.label)):'&mdash;';
     const subline=myNextTimeStr
-      ?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text);margin-top:8px">Est. Queue: ${myNextTimeStr}</div>`
+      ?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text);margin-top:8px">${myNextTimeStr}</div>`
       :'';
     html+=`${breakBadge}<div class="sec-lbl" style="font-size:var(--fs-sm);margin-bottom:2px">${statusLbl}</div><div class="now-q">${heading}</div>${subline}`;
   } else {
@@ -3090,25 +3100,43 @@ function activeBreak(){
   return (last&&last.breakAfter)||null;
 }
 
-// The queue time for a match, or null when it can't be trusted.
+// The queue time for a match, or null when Nexus has stopped projecting one.
 //
-// Nexus stops projecting during a break and collapses every estimate on the next match
-// to the current instant — measured mid-break on a live event, queue/on-deck/on-field
-// estimates were all within 0s of dataAsOfTime. Printed raw that reads "Est. Queue:
-// 5:19 PM" at 5:19 PM, and the header countdown sits at "Queue Now!" for the whole
-// break. But the collapse is not the only thing on offer: Nexus asks the operator to
-// enter the time the match after the break will be queued at, and once they do, the
-// estimate becomes a real future time the crew should see.
+// **Nexus never publishes an estimate in the past.** When a queue time comes due and
+// the operator hasn't queued, Nexus replaces the estimate with dataAsOfTime itself —
+// exactly, to the millisecond. Recorded pre-event with the start time 7 minutes
+// overdue: Practice 1 and 2 both read 1789443517258 against a dataAsOfTime of
+// 1789443517258, while Practice 3 onward kept their real round-minute times. The
+// operator's dashboard labels a clamped match "Expected soon".
 //
-// So the test isn't "are we on a break" — it's whether the number is doing any work.
-// A real post-break time is minutes out; a collapsed one sits on the feed's own clock.
-// 90s clears it comfortably (the poll is 15s, so dataAsOfTime can be that stale).
-const BREAK_EST_LEAD=90000;
+// One rule, two states that used to look unrelated: the operator running late before
+// the first match, and Nexus idling through a break. Printed raw, a clamped estimate
+// reads "Est. Queue: 5:19 PM" at 5:19 PM and ticks along with the wall clock.
+//
+// So the test is just "is it ahead of the feed's own clock" — NOT a minimum lead. An
+// earlier 90s threshold looked safe and wasn't: it discarded an operator-set time
+// 85.9s out (caught live, pre-event), and would have blanked the card and the header
+// countdown through the last 90 seconds before a post-break queue call — exactly when
+// the crew needs them. 2s of slack for jitter; both values come from the same payload.
+const EST_CLAMP_SLACK=2000;
 function queueTimeOf(m){
   const t=m?.times?.estimatedQueueTime||m?.times?.actualQueueTime||null;
   if(!t||nxData?.nowQueuing) return t;
   const asOf=nxData?.dataAsOfTime||Date.now();
-  return (t-asOf>BREAK_EST_LEAD)?t:null;
+  return (t-asOf>EST_CLAMP_SLACK)?t:null;
+}
+
+// Has the event not started at all? Distinct from a break, and easy to confuse: both
+// drop nowQueuing. The difference is that a break has play behind it — a break is
+// always "after" some match, so something is sitting at "On field" — whereas before
+// the first queue call of the day nothing has ever been on the field.
+//
+// Recorded on a demo event with the schedule posted and nothing queued: nowQueuing
+// key absent, 6 practice + 36 qualification matches, every one at "Queuing soon", not
+// a single "On field". Without this, the card announced "⏸ On Break" on an event that
+// hadn't begun.
+function eventNotStarted(){
+  return !nxData?.nowQueuing && !(nxData?.matches||[]).some(m=>m.status==='On field');
 }
 
 // Is the event still running practice matches? Practice is noise in every list
@@ -3116,10 +3144,26 @@ function queueTimeOf(m){
 // it IS the active phase the queuing card, countdown and Upcoming panel all have to
 // keep queuing you for it.
 //
-// Keyed on nowQueuing rather than on match status: an event that cuts practice
+// Never keyed on "are there unplayed practice matches": an event that cuts practice
 // short leaves the skipped matches at "Queuing soon" forever, and those must not
-// count as "still in practice" once quals are under way.
-function eventInPractice(){ return /^practice/i.test(nxData?.nowQueuing||''); }
+// count as "still in practice" once quals are under way. The phase comes from what
+// the field is actually doing.
+//
+// nowQueuing answers it while the event is running. When it's absent, fall back to
+// the last match at "On field" — same last-wins rule as fieldState(), self-correcting
+// for the same reason. And when nothing has ever been on the field, the event hasn't
+// started, so the whole practice schedule is still ahead of us.
+//
+// That last case is why this exists: asking nowQueuing alone, a pre-event display
+// filtered out every practice match and headlined the wrong one — or, before the qual
+// schedule was posted, went blank while the crew's first match sat in the feed.
+function eventInPractice(){
+  if(nxData?.nowQueuing) return /^practice/i.test(nxData.nowQueuing);
+  if(eventNotStarted()) return true;
+  let last=null;
+  for(const m of (nxData?.matches||[])) if(m.status==='On field') last=m;
+  return /^practice/i.test(last?.label||'');
+}
 
 // Compact match label for tight cells: "Qualification 30" -> "Q30". The Upcoming panel
 // has always abbreviated this way; the status strip did not, and its three cells each
