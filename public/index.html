@@ -2494,7 +2494,7 @@ async function runChecks(){
 // looks for the next upcoming match.
 const PLAYED_STATUS = new Set(['Completed','On field']);
 
-let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,nexusPits=null,nexusPitsUnavailable=false;
+let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,nexusPits=null,nexusPitsUnavailable=false,nxAlliances=null;
 let tbaEvent=null;   // full TBA event object (for event.district etc.)
 let sbMyYear=null;   // Statbotics team_year for our own team (world/country/district/state EPA ranks)
 let sbMyAdv=null;    // { label, rank, points } — our team's FRC district OR regional-pool standing
@@ -2586,6 +2586,13 @@ async function fPits(){if(nexusPitsUnavailable)return;try{const k=C.nexusEvent||
 async function fMx(){try{tbaMx=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/matches`,ht(C.tba));return true;}catch{return false;}}
 async function fRk(){try{tbaRk=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/rankings`,ht(C.tba));return true;}catch{return false;}}
 async function fAlliances(){try{tbaAlliances=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/alliances`,ht(C.tba));return true;}catch{return false;}}
+// Nexus's own playoff alliances — positional by seed, partial entries while selection
+// is still in progress. Works on a demo event (no TBA counterpart needed at all) and
+// arrives before TBA's alliances even on a real event. No 404 latch like fPits(): a
+// pit map that's absent stays absent, but this array is EXPECTED to go from empty to
+// populated over the course of the event being displayed — latching on a first miss
+// would permanently suppress the moment it's needed. See resolvedAlliances().
+async function fNxAlliances(){try{nxAlliances=await get(`https://frc.nexus/api/v1/event/${nxKey()}/alliances`,hn(C.nexus));}catch{nxAlliances=null;}}
 async function fTi(){try{tbaTi=await get(`https://www.thebluealliance.com/api/v3/team/frc${C.team}`,ht(C.tba));}catch{}}
 async function fEv(){try{const ev=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}`,ht(C.tba));tbaEvent=ev;document.getElementById('hdr-ev').textContent=ev.name||C.event;tbaWc=ev.webcasts||[];rStream();}catch{}}
 // Statbotics season summary for our own team — powers the My Team tab rank row.
@@ -2614,14 +2621,14 @@ async function init(){
   // Statbotics does NOT: measured 20s and 23s here (its own latency, plus the
   // retry backoff when it 500s), which is what made startup take ~20s. Nothing
   // it provides is needed to paint — EPA ranks and predictions fill in after.
-  await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fTi(),fEv()]);
+  await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fNxAlliances(),fTi(),fEv()]);
   if(tbaTi) teamInfoCache[C.team]=tbaTi;   // seed EPA-overlay identity cache for our team
   document.getElementById('lo').style.display='none';
   renderAll(); startCd();
   fMyAdv().then(()=>rTeam());     // once, non-blocking; updates the My Team tab when ready
   fMyYear().then(()=>rTeam());    // EPA ranks row appears when Statbotics answers
   fPred().then(paintPred);        // prediction bars likewise
-  setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fPits()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();},15000);
+  setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fPits(),fNxAlliances()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();},15000);
   setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();updateBumperBox();stamp();},30000);
 }
 
@@ -3966,6 +3973,31 @@ function bktKeyFromLabel(label){
   const k=nl(label);                       // "Playoff 7" -> "sf_7", "Final 1" -> "f_1"
   return /^(sf|f)_\d+$/.test(k) ? k.replace('_','') : null;
 }
+// Nexus label -> TBA-shaped stand-in, or null if nothing's picked into this slot yet.
+// winning_alliance stays null and there is no .score — Nexus never reports a result,
+// so every "done" check downstream naturally stays false: a slot isn't done until
+// TBA posts it.
+function nexusBracketMatch(m){
+  const red=(m.redTeams||[]).filter(Boolean).map(t=>`frc${t}`);
+  const blue=(m.blueTeams||[]).filter(Boolean).map(t=>`frc${t}`);
+  if(!red.length && !blue.length) return null;
+  return { alliances:{ red:{team_keys:red}, blue:{team_keys:blue} }, winning_alliance:null };
+}
+
+// Positional Nexus alliances (index = seed-1), enriched with the one TBA field
+// actually read anywhere downstream (status, for rBracketMobile's "Your path").
+// Falls back to tbaAlliances untouched once Nexus has nothing — pre-selection, or a
+// real event before TBA's own alliances are fetched.
+function resolvedAlliances(){
+  if((nxAlliances||[]).some(a=>a)){
+    return nxAlliances.map((a,i)=>({
+      picks: (a||[]).filter(Boolean).map(t=>`frc${t}`),
+      status: tbaAlliances?.[i]?.status,
+    }));
+  }
+  return tbaAlliances||[];
+}
+
 // Shared index for both bracket renderers. The desktop canvas and the mobile
 // round-list built these identically and then each defined its own copy of the
 // alliance lookup (as getAlliance / sideOf). teamToSeed stays private - nothing
@@ -3974,6 +4006,16 @@ function bracketIndex(alliances){
   const mxByNum={};
   (tbaMx||[]).filter(m=>m.comp_level==='sf').forEach(m=>{ mxByNum[`sf${m.set_number}`]=m; });
   (tbaMx||[]).filter(m=>m.comp_level==='f' ).forEach(m=>{ mxByNum[`f${m.match_number}`]=m; });
+  // Nexus fills any bracket slot TBA doesn't have yet — never overwrites a TBA entry
+  // once one exists. mxByNum is rebuilt from scratch every render, so a later TBA
+  // correction just wins on the next 30s poll; nothing here is cached across renders.
+  // Reuses bktKeyFromLabel(), so "Playoff 4 Replay" collapses onto the same key ("sf4")
+  // as "Playoff 4" — correct, since a replay is the same two alliances either way, and
+  // the !mxByNum[key] guard means whichever entry is processed first wins.
+  (nxData?.matches||[]).forEach(m=>{
+    const key=bktKeyFromLabel(m.label);
+    if(key && !mxByNum[key]){ const nb=nexusBracketMatch(m); if(nb) mxByNum[key]=nb; }
+  });
   const teamToSeed={};
   (alliances||[]).forEach((a,i)=>{ (a.picks||[]).forEach(tk=>{ teamToSeed[tk.replace('frc','')]=i+1; }); });
   const allianceOf=(mx,side)=>{
@@ -3987,7 +4029,7 @@ function rBracketMobile(){
   const el=document.getElementById('bracket-panel');
   if(!el) return;
   const myTeam=C.team;
-  const alliances=tbaAlliances||[];
+  const alliances=resolvedAlliances();
 
   const {mxByNum, allianceOf} = bracketIndex(alliances);
 
@@ -4086,7 +4128,7 @@ function rBracketMobile(){
 function rBracket(){
   const el = document.getElementById('bracket-panel');
   const myTeam = C.team;
-  const alliances = tbaAlliances || [];
+  const alliances = resolvedAlliances();
 
   const {mxByNum, allianceOf} = bracketIndex(alliances);
 
@@ -4379,18 +4421,24 @@ function rBracket(){
   }
 
   // Build alliance legend — 4×2 grid of cards
+  // Seed is captured BEFORE filtering: alliances is a fixed-length positional array
+  // (index = seed-1), and once Nexus supplies it, unpicked seeds carry picks:[] rather
+  // than being absent — filtering first would shift every later seed number down.
+  // TBA's alliances were always all-or-nothing, so this never mattered before.
   let legendHtml = '';
   if(alliances.length){
-    const legendCards = alliances.map((a,i)=>{
-      const seed = i+1;
-      const teams = (a.picks||[]).map(tk=>tk.replace('frc','')).slice(0,4).join(' – ');
-      const isMe = (a.picks||[]).some(tk=>tk.replace('frc','')=== myTeam);
-      return `<div class="bkt-legend-card${isMe?' bkt-legend-me':''}">
-        <div class="bkt-legend-hdr">Alliance ${seed}</div>
-        <div class="bkt-legend-teams">${e(teams)}</div>
-      </div>`;
-    }).join('');
-    legendHtml = `<div class="bkt-legend">${legendCards}</div>`;
+    const legendCards = alliances
+      .map((a,i)=>({a, seed:i+1}))
+      .filter(({a})=>(a.picks||[]).length)        // skip seeds Nexus hasn't reached yet
+      .map(({a,seed})=>{
+        const teams = (a.picks||[]).map(tk=>tk.replace('frc','')).slice(0,4).join(' – ');
+        const isMe = (a.picks||[]).some(tk=>tk.replace('frc','')=== myTeam);
+        return `<div class="bkt-legend-card${isMe?' bkt-legend-me':''}">
+          <div class="bkt-legend-hdr">Alliance ${seed}</div>
+          <div class="bkt-legend-teams">${e(teams)}</div>
+        </div>`;
+      }).join('');
+    legendHtml = legendCards ? `<div class="bkt-legend">${legendCards}</div>` : '';
   }
 
   // Same re-render problem as the mobile bracket and the match list: this

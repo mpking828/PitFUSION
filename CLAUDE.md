@@ -102,6 +102,18 @@ pitfusion.com — Cloudflare managed
   "Queuing soon" forever. `eventInPractice()`.
 - Parts request fields: p.requestedByTeam (team number), p.parts (body text)
 - TBA sf matches use set_number as the playoff match number (1-13), match_number is always 1
+- **Playoff alliances and rosters come from Nexus, not just TBA.** `GET /event/{key}/alliances`
+  returns `Array<Array<string|null>|null>`, positional by seed (index 0 = seed 1), each
+  `[captain, 1stPick, 2ndPick]` — null slots while a pick is still open, confirmed live
+  fully-populated post-selection. Separately, `matches[]`'s own `Playoff N`/`Final N`
+  entries carry `redTeams`/`blueTeams` progressively DURING selection (captain + 1st pick,
+  `null` third slot) — both arrive well before TBA's alliances, which are all-or-nothing,
+  never partial. A replay match is labelled `"Playoff N Replay"`; `nl()`'s regex matches
+  the leading `"Playoff N"` and collapses it onto the same bracket key as the original.
+  Nexus never reports a score or `winning_alliance` — that stays TBA-only. Precedence:
+  TBA wins any bracket key it has an entry for at all; Nexus fills every key TBA doesn't
+  have yet. `bracketIndex()` rebuilds from scratch every render, so a later TBA correction
+  simply wins on the next poll — nothing here is cached across renders.
 
 ## Testing against Nexus — demo events
 There is no test harness. A Nexus **demo event** is the only way to exercise real queue
@@ -123,9 +135,12 @@ settled the break design.
 - Enter the key manually in the setup screen's Event Code field — demo events never appear
   in the this-week dropdown, which is populated from TBA.
 - **Limits.** There is no TBA counterpart, so `fMx`/`fRk`/`fAlliances`/`fEv` all fail and
-  scores, rankings, alliances, the bracket and EPA stay empty — TBA-driven code paths
-  (`teamsOf`, `bracketIndex`, `scoreMap`, predictions) are NOT exercised. Teams are randomly
-  generated, and demo events are reset periodically, so don't hardcode a key.
+  scores, rankings and EPA stay empty — `scoreMap()` and predictions are NOT exercised.
+  Teams are randomly generated, and demo events are reset periodically, so don't hardcode
+  a key. **The Playoff Bracket is the exception**: rosters populate from Nexus's own
+  `matches[].redTeams/blueTeams` and `/alliances` even with no TBA at all (see the Nexus
+  API notes above) — only scores, `winning_alliance` and alliance `status` (record/
+  won/eliminated) stay TBA-only and so remain absent on a demo.
 - **The "Nm behind / Nm ahead" pill never renders on a demo, and that is correct.** It
   measures Nexus's `estimatedStartTime` against `scheduledStartTime`, which the API docs
   say is "not set for playoffs and whenever scheduled match times are not available".
