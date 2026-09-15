@@ -71,11 +71,20 @@ pitfusion.com — Cloudflare managed
   4. **end of day** — same shape as (3) with nothing left to queue.
   Tell (1) apart by the field, (2) by `breakAfter`. (3) and (4) are not currently
   distinguished, and the bare badge implies play resumes — a known gap at end of day.
-- **The queue pipeline does not cross a phase boundary.** It runs two deep inside a phase
-  (with Practice 1 on deck, Practice 2 is already "Now queuing"), then stops dead at the
-  last match of that phase: with Practice 6 on deck, Qualification 1 was still "Queuing
-  soon" and had never been queued. So nowQueuing is never a qualification while a practice
-  match is unplayed — which is why keying phase on nowQueuing is safe at that seam.
+- **The queue pipeline stops at any interruption — a phase change or a scheduled break.**
+  It normally runs two deep (with Practice 1 on deck, Practice 2 is already "Now queuing"),
+  then stops dead at the last match before the interruption. Observed twice:
+  - *phase change* — Practice 6 on deck, Qualification 1 still "Queuing soon", never
+    queued. So nowQueuing is never a qualification while a practice match is unplayed,
+    which is why keying phase on nowQueuing is safe at that seam.
+  - *break* — Q19 on field, Q20 on deck with `breakAfter: "End of day"`, and **nowQueuing
+    collapsed onto Q20 itself with nothing at "Now queuing" at all**. Q21 was not queued
+    and would not be until the break ended.
+
+  So when a break follows the on-deck match there IS no queuing match, and the Queuing
+  slot must not invent one — the break occupies that slot instead. An early instinct that
+  the strip should read `Q19 | Q20 | Q21` there was wrong for this reason: it would assert
+  a queue call Nexus never made. See `rQ()`'s sequence model.
 - **The On Field slot is the sequence position BEFORE the on-deck match, and it can be -1.**
   On the first queue call of the event the on-deck match is the first match in the
   schedule, so that slot falls off the front and belongs empty. Don't clamp it to 0 — that
@@ -135,6 +144,8 @@ settled the break design.
   | first match to field | strip advancing off the front |
   | last practice to field | the phase gap — absent nowQueuing with play behind it |
   | a break mid-quals | break walking the strip; the post-break queue time prompt |
+  | stop with a break right after the on-deck match | nowQueuing collapses onto the on-deck match, nothing at "Now queuing" |
+  | a break two past the on-deck match | the one step where a break shows nowhere — the gold bar (#68) |
 - Set the team number to one that is **actually in the match under test** — teams are
   randomly generated per reset, so read them off the queue page first.
 
