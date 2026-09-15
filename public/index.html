@@ -3995,18 +3995,25 @@ function nexusBracketMatch(m){
   return { alliances:{ red:{team_keys:red}, blue:{team_keys:blue} }, winning_alliance:null };
 }
 
-// Positional Nexus alliances (index = seed-1), enriched with the one TBA field
-// actually read anywhere downstream (status, for rBracketMobile's "Your path").
-// Falls back to tbaAlliances untouched once Nexus has nothing — pre-selection, or a
-// real event before TBA's own alliances are fetched.
+// Per-seed roster, taking whichever source has more of that seed filled in — same
+// "more complete data wins" rule bracketIndex() uses for match objects, just applied
+// per seed instead of per bracket key. Enriched with the one TBA field actually read
+// anywhere downstream (status, for rBracketMobile's "Your path").
+//
+// Not a straight "prefer Nexus, fall back to TBA" switch: that was the first version
+// of this function, and it was wrong whenever Nexus had picked ANY seed at all — it
+// would switch over entirely and stay on Nexus's array even if TBA already had seven
+// of eight seeds complete and Nexus only had one. Comparing per seed means whichever
+// source is further along for THAT seed wins, regardless of which source is ahead
+// overall or which one populated first.
 function resolvedAlliances(){
-  if((nxAlliances||[]).some(a=>a)){
-    return nxAlliances.map((a,i)=>({
-      picks: (a||[]).filter(Boolean).map(t=>`frc${t}`),
-      status: tbaAlliances?.[i]?.status,
-    }));
-  }
-  return tbaAlliances||[];
+  const n = Math.max((nxAlliances||[]).length, (tbaAlliances||[]).length);
+  return Array.from({length:n}, (_,i)=>{
+    const nxPicks = ((nxAlliances||[])[i]||[]).filter(Boolean).map(t=>`frc${t}`);
+    const tbaPicks = tbaAlliances?.[i]?.picks||[];
+    const picks = nxPicks.length>=tbaPicks.length ? nxPicks : tbaPicks;
+    return { picks, status: tbaAlliances?.[i]?.status };
+  });
 }
 
 // Shared index for both bracket renderers. The desktop canvas and the mobile
