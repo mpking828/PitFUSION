@@ -2918,6 +2918,7 @@ let mlFollow = true;
 let mlScrollId = null;
 let mlSuppressUntil = 0;   // ignore the scroll events our own smooth-scroll emits
 let mlScrollTimer = null;
+let mlScrollBeforeBracket = 0;   // see toggleBracket()
 
 // Which element actually scrolls depends on the layout: on desktop .panel-m is
 // the scroller and #ml just grows to fit. In the promoted mobile sheet .panel-m
@@ -3804,6 +3805,14 @@ function toggleBracket(){
   if(bracketView){
     // --- Enter bracket mode ---
 
+    // Remember the match list's scroll position. #panel-m is about to get
+    // overflow:hidden below, which stops it being a scroll container at all —
+    // when the stylesheet's own overflow rule takes back over on exit, it becomes
+    // a freshly-created scroll container and starts at 0 regardless of this value,
+    // so it has to be restored explicitly. Same pattern rMl() and rBracketMobile()
+    // already use for their own rebuilds.
+    mlScrollBeforeBracket = panelM.scrollTop;
+
     // 1. Hide the entire top-row (queuing + stream bar area)
     topRow.style.display = 'none';
 
@@ -3866,6 +3875,8 @@ function toggleBracket(){
     ml.style.display     = 'flex';
     bktPnl.style.flex    = '';
     bktPnl.style.minHeight = '';
+    // Restore the scroll position captured on the way in — see the comment there.
+    panelM.scrollTo({top: mlScrollBeforeBracket, behavior: 'instant'});
 
     // Restore sidebar
     document.getElementById('tab-rankings').style.display = '';
