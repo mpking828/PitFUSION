@@ -380,12 +380,16 @@ body.page-has-bg .tp{
 .vs{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:900;color:var(--text-dim);text-align:center}
 .ss{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;flex-shrink:0;margin-top:4px}
 .sc{background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:5px 7px;text-align:center}
-/* A scheduled break shows as a coloured bar in the gap to the right of the cell whose
-   match it follows. Drawn with box-shadow so it takes NO layout width: the strip is
-   only ~202px wide and its cells already clip "Qualification 13", so a real element
-   cost 20px (bar + gap), squeezed the cells 69px->57px and pushed the strip 76px->92px
-   tall. The break name lives in the cell's `title`. */
-.sc.brk{box-shadow:5px 0 0 0 var(--yellow)}
+/* A break takes a whole slot in the strip rather than sitting between two, so it walks
+   Queuing -> On Deck -> On Field as play advances. Gold, matching every other break
+   marker in the app; no bar or glow on the neighbouring cells. */
+.sc-break{border-color:rgba(255,214,0,.45);background:rgba(255,214,0,.07);min-width:0}
+.sc-break .sc-l{color:var(--yellow)}
+/* One line, ellipsised: "Alliance selection" wrapped to three lines and grew the whole
+   strip 76px -> 101px. Full name stays in the cell's title. fs-sm so the common break
+   names ("Lunch", "End of day") fit the ~69px cell outright. */
+.sc-break .sc-v{color:var(--yellow);font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-break .sc-l{white-space:nowrap}
 .sc-l{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:2px}
 .sc-v{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text)}
 .sc-v.on{color:var(--green)}
@@ -2719,24 +2723,43 @@ function rQ(){
   }
 
   if(nowQ){
-    // A break sits BETWEEN two matches, so it renders as a divider after the cell
-    // holding the match it follows — never as a cell of its own, which would push a
-    // match out of view exactly when play is about to stop. It then slides leftward
-    // on its own as the schedule advances: past Queuing → Deck|Queuing → Field|Deck
-    // → gone. The trailing divider (after the queuing match) is one extra step of
-    // warning; Nexus gives us only the break's NAME, never a duration or a
-    // "happening now" flag, so that is all this can claim.
-    const nowQMatch=mx.find(m=>m.label===nowQ)||null;
-    // Mark the cell whose match a break FOLLOWS; .sc.brk paints the bar into the gap
-    // on its right, so the cells keep their full width.
-    const brkCls  =m=>(m&&m.breakAfter)?' brk':'';
-    const brkTitle=m=>(m&&m.breakAfter)
-      ? ` title="${breakIcon(m.breakAfter)} ${e(m.breakAfter)} after ${e(m.label)}"` : '';
-    html+=`<div class="ss">
-      <div class="sc${brkCls(onFieldMatch)}"${brkTitle(onFieldMatch)}><div class="sc-l">On Field</div><div class="sc-v${onFieldMatch?' on':''}">${onFieldMatch?e(onFieldMatch.label):'&mdash;'}</div></div>
-      <div class="sc${brkCls(deckMatch)}"${brkTitle(deckMatch)}><div class="sc-l">On Deck</div><div class="sc-v${deckMatch?' on':''}">${deckMatch?e(deckMatch.label):'&mdash;'}</div></div>
-      <div class="sc${brkCls(nowQMatch)}"${brkTitle(nowQMatch)}><div class="sc-l">Queuing</div><div class="sc-v on">${e(nowQ)}</div></div>
-    </div>`;
+    // The strip is three consecutive slots in the PLAY SEQUENCE, and a break occupies
+    // a slot of its own rather than sitting between two. It therefore walks leftward
+    // by one box per operator action, with no special-casing:
+    //
+    //   Q30 | Q31   | BREAK      break is next to be "played"
+    //   Q31 | BREAK | —          break underway (strip hidden while nowQueuing absent)
+    //   BRK | Q32   | Q33        break behind us, next two queued
+    //   Q32 | Q33   | BREAK      and the following break already appearing
+    //
+    // Recorded live through two breaks on a demo event; every row above is observed,
+    // not designed. Replaces the old "bar between cells" treatment, which left the
+    // finished pre-break match sitting in On Field for the whole break.
+    const seq=[];
+    for(const m of mx){
+      seq.push({brk:null,m});
+      if(m.breakAfter) seq.push({brk:m.breakAfter,m});
+    }
+    const posOf=lbl=>seq.findIndex(s=>!s.brk&&s.m.label===lbl);
+    // Where the On Field slot sits. When the item immediately before the on-deck match
+    // is a break, that break IS what's happening, so it takes the On Field slot — this
+    // is what stops a match that finished before the break from lingering there.
+    let idx=-1;
+    if(deckMatch){ const di=posOf(deckMatch.label); idx=di>0?di-1:0; }
+    else if(onFieldMatch){ idx=posOf(onFieldMatch.label); }
+    const qPos=posOf(nowQ);
+    const cell=(label,i)=>{
+      const j=idx<0?-1:idx+i;
+      const s=(j>=0&&j<seq.length)?seq[j]:null;
+      // Icon rides in the small label row so the value row gets the full cell width
+      // for the name — at 69px, icon+name together fit neither.
+      if(s&&s.brk) return `<div class="sc sc-break" title="${e(s.brk)}"><div class="sc-l">${breakIcon(s.brk)} Break</div><div class="sc-v">${e(s.brk)}</div></div>`;
+      // A match only appears in the On Deck / Queuing slots once it is genuinely
+      // queued — otherwise the strip would name matches Nexus hasn't called yet.
+      const show=!!s&&(i===0||(qPos>-1&&j<=qPos));
+      return `<div class="sc"><div class="sc-l">${label}</div><div class="sc-v${show?' on':''}">${show?e(shortLabel(s.m.label)):'&mdash;'}</div></div>`;
+    };
+    html+=`<div class="ss">${cell('On Field',0)}${cell('On Deck',1)}${cell('Queuing',2)}</div>`;
   }
 
   el.innerHTML=html;
@@ -3077,6 +3100,17 @@ function activeBreak(){
 // short leaves the skipped matches at "Queuing soon" forever, and those must not
 // count as "still in practice" once quals are under way.
 function eventInPractice(){ return /^practice/i.test(nxData?.nowQueuing||''); }
+
+// Compact match label for tight cells: "Qualification 30" -> "Q30". The Upcoming panel
+// has always abbreviated this way; the status strip did not, and its three cells each
+// need ~101px for a full label inside a ~217px strip — so the rightmost cell has been
+// clipped behind a scrollbar at default panel widths.
+function shortLabel(l){
+  return String(l||'')
+    .replace(/^Qualification\s+/i,'Q').replace(/^Qual\s+/i,'Q')
+    .replace(/^Playoff\s+/i,'P').replace(/^Final\s+/i,'F')
+    .replace(/^Practice\s+/i,'Pr');
+}
 
 // The match the queuing card headlines as "Your Next Match": the first match in
 // play order that includes our team and hasn't been played. Shared by rQ(), the
