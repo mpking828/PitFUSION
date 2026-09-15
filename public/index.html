@@ -2690,9 +2690,17 @@ function rQ(){
   // Shown during a break and before the event starts, but only when Nexus is still
   // projecting a real time — see queueTimeOf(). When it has clamped the estimate to
   // its own clock, say so in its own words rather than printing the wall clock back.
+  //
+  // actualQueueTime is set the moment Nexus makes the queue call, so once it exists the
+  // call is history, not a forecast: on deck at 12:05 the card read "Est. Queue: 12:03
+  // AM" — an estimate of something that had already happened, where Nexus says "just
+  // now". Label it for what it is, and mute it: the action has moved to the header,
+  // which is showing "Queue Now!" at that moment.
+  const myNextAq=myNextFinal?.times?.actualQueueTime||null;
   const myNextQt=queueTimeOf(myNextFinal);
-  const myNextTimeStr=myNextQt?`Est. Queue: ${ft(new Date(myNextQt))}`
-    :(myNextFinal&&!nowQ&&(myNextFinal.times?.estimatedQueueTime||myNextFinal.times?.actualQueueTime)?'Expected soon':null);
+  const myNextTimeStr=myNextAq?`Queued: ${ft(new Date(myNextAq))}`
+    :myNextQt?`Est. Queue: ${ft(new Date(myNextQt))}`
+    :(myNextFinal&&!nowQ&&myNextFinal.times?.estimatedQueueTime?'Expected soon':null);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   // Name the break when we can — "On Break — 🍽 Lunch" tells the crew whether they
@@ -2713,7 +2721,7 @@ function rQ(){
     const abbrevLabel=l=>l.replace(/^Qualification\s+/i,'Qual ');
     const heading=myNextFinal?e(abbrevLabel(myNextFinal.label)):'&mdash;';
     const subline=myNextTimeStr
-      ?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text);margin-top:8px">${myNextTimeStr}</div>`
+      ?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--${myNextAq?'text-mid':'text'});margin-top:8px">${myNextTimeStr}</div>`
       :'';
     html+=`${breakBadge}<div class="sec-lbl" style="font-size:var(--fs-sm);margin-bottom:2px">${statusLbl}</div><div class="now-q">${heading}</div>${subline}`;
   } else {
