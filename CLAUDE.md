@@ -126,8 +126,16 @@ settled the break design.
   scores, rankings, alliances, the bracket and EPA stay empty — TBA-driven code paths
   (`teamsOf`, `bracketIndex`, `scoreMap`, predictions) are NOT exercised. Teams are randomly
   generated, and demo events are reset periodically, so don't hardcode a key.
-- Practice matches are included and are filtered out by `playedList()`, so `matchPlayed()`'s
-  positional rule only engages once the queue reaches qualifications.
+- **The "Nm behind / Nm ahead" pill never renders on a demo, and that is correct.** It
+  measures Nexus's `estimatedStartTime` against `scheduledStartTime`, which the API docs
+  say is "not set for playoffs and whenever scheduled match times are not available".
+  A demo has no FMS schedule, so `scheduledStartTime` is absent from every match —
+  confirmed on a live demo feed: 42 matches, all four `estimated*` present, no
+  `scheduled*` at all. Nothing to do with TBA. It is also permanently blank during
+  playoffs at a real event, per the same clause.
+- Practice matches are included, and since #65 `playedList()` keeps them so the match list
+  can dim them correctly. `matchPlayed()`'s positional rule therefore applies to practice
+  too; practice precedes the whole schedule, so qual/playoff indices are unaffected.
 - **"Reset demo" (events page) is the pre-event fixture** — the only way to reach a state
   no live event will sit still for. A reset demo is **practice-only**: 6 practice matches,
   no qualifications, all at "Queuing soon", `nowQueuing` key absent, nothing at "On field".

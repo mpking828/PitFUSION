@@ -3007,6 +3007,19 @@ function mkBadge(m, hasTbaScore) {
 
     return `<span class="badge ${statuses[m.status] || 'bx'}">${label}</span>`;
 }
+// "Nm behind" / "Nm ahead" — Nexus's live estimate for the queuing match against the
+// time that match was ORIGINALLY scheduled to start. Entirely Nexus; no TBA involved.
+//
+// Three reasons the pill legitimately shows nothing, none of them faults:
+//   • the event isn't queuing (a break, before the first queue call, end of day) —
+//     there is no queuing match to measure;
+//   • **playoffs** — the Nexus docs are explicit that scheduledStartTime is "not set
+//     for playoffs", so there is never a baseline once the bracket starts;
+//   • **demo events** — same clause, "whenever scheduled match times are not
+//     available". A demo has no FMS schedule behind it, so scheduledStartTime is
+//     absent from every match and this pill can never appear. Confirmed against a live
+//     demo feed: 42 matches, all four estimated* fields present, no scheduled* at all.
+// That last one is why this looks broken while testing and is fine at an event.
 function updateScheduleDelay(mx, nowQ){
   const el=document.getElementById('hdr-delay');
   if(!el) return;
@@ -3014,7 +3027,11 @@ function updateScheduleDelay(mx, nowQ){
   const qm=mx.find(m=>m.label===nowQ);
   if(!qm?.times){el.textContent='';el.style.cssText='';return;}
   const est=qm.times.estimatedStartTime;
-  const sched=qm.times.scheduledStartTime||qm.times.scheduledQueueTime;
+  // scheduledStartTime is the only scheduled field Nexus defines. A `scheduledQueueTime`
+  // fallback sat here and was dead code — that name appears nowhere in the API schema,
+  // so it was always undefined. Same shape as the `totalPoints` fallback and the
+  // `statusReliable` guard: an invented field that never once fired.
+  const sched=qm.times.scheduledStartTime;
   if(!est||!sched){el.textContent='';el.style.cssText='';return;}
   const delayMin=Math.round((est-sched)/60000);
   const baseStyle='font-family:var(--fd);font-size:var(--fs-cd);font-weight:900;white-space:nowrap;border-radius:4px;padding:2px 14px;line-height:1;letter-spacing:.03em';
