@@ -105,8 +105,10 @@ config change).
   `raw.githubusercontent.com/.../stable/local/version.json` — repoint to
   `https://pitfusion.com/version.json` and drop the `stable` branch.)
 - **Statbotics** (`api.statbotics.io`, EPA data, keyless) is a 4th external
-  source. No proxy needed now; candidate for a caching passthrough later if
-  rate-limited.
+  source, proxied in hosted mode exactly like Nexus/TBA/YouTube — `/api/statbotics`
+  in `worker.js`, no secret/header/query injected (keyless), edge-cached 120s so
+  every team watching the same event shares one response. Self-hosted continues
+  calling `api.statbotics.io` directly.
 
 ## Cloudflare Worker setup (do this when implementing)
 
