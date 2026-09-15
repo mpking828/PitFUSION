@@ -60,10 +60,28 @@ pitfusion.com — Cloudflare managed
   **last** "On field" is the real one — self-correcting, no staleness heuristic needed.
   `fieldState()` is the single source of truth; use it rather than re-deriving.
 - Never rely on match status alone — gate on nowQueuing being non-null
-- **Absent nowQueuing means "not queuing", not "on a break".** Three states share it:
-  a break, the event not having started, and the end of the day. Tell them apart by the
-  field — a break always has play behind it, so something is at "On field"; before the
-  first queue call of the day nothing ever has been. `eventNotStarted()`.
+- **Absent nowQueuing means "not queuing", not "on a break".** FOUR states share it, all
+  observed on a demo event:
+  1. **the event hasn't started** — nothing has ever been at "On field". `eventNotStarted()`.
+  2. **a scheduled break** — the last "On field" match carries a `breakAfter`. `activeBreak()`
+     names it.
+  3. **a phase gap** — practice finished, quals not queued yet. Every practice match is
+     "On field", every qual "Queuing soon", and no `breakAfter` anywhere. Renders as the
+     bare "On Break" badge, which is fair: play really is paused.
+  4. **end of day** — same shape as (3) with nothing left to queue.
+  Tell (1) apart by the field, (2) by `breakAfter`. (3) and (4) are not currently
+  distinguished, and the bare badge implies play resumes — a known gap at end of day.
+- **The queue pipeline does not cross a phase boundary.** It runs two deep inside a phase
+  (with Practice 1 on deck, Practice 2 is already "Now queuing"), then stops dead at the
+  last match of that phase: with Practice 6 on deck, Qualification 1 was still "Queuing
+  soon" and had never been queued. So nowQueuing is never a qualification while a practice
+  match is unplayed — which is why keying phase on nowQueuing is safe at that seam.
+- **The On Field slot is the sequence position BEFORE the on-deck match, and it can be -1.**
+  On the first queue call of the event the on-deck match is the first match in the
+  schedule, so that slot falls off the front and belongs empty. Don't clamp it to 0 — that
+  puts the on-deck match on the field and shifts the whole strip (fixed in #62).
+- **actualQueueTime is set the moment Nexus makes the queue call**, so its presence means
+  the call is history, not a forecast. Label it "Queued", never "Est. Queue".
 - **Nexus never publishes an estimate in the past.** When a queue time comes due and the
   operator hasn't queued, Nexus replaces the estimate with `dataAsOfTime` exactly; the
   operator's dashboard labels such a match "Expected soon". That single clamp explains
@@ -80,6 +98,14 @@ pitfusion.com — Cloudflare managed
 There is no test harness. A Nexus **demo event** is the only way to exercise real queue
 states without waiting for a competition, and it is how the play-order rules above were
 confirmed.
+
+**Never design against a payload you constructed.** Every rule above that was inferred from
+the schema turned out wrong when the real feed arrived — a 90s lead that discarded real
+times, a pre-event payload assumed to contain quals when a reset demo is practice-only, and
+a practice→qual seam assumed to queue straight through when it stops dead. Step the demo
+into the state and record it (`curl` the proxy; Python `urllib` is 403'd by Cloudflare's
+user-agent check), then design. Recording at 2s intervals across a transition is what
+settled the break design.
 - Create one at frc.nexus (guide: https://guides.frc.nexus/guides/demo-event); you drive
   the queue yourself, advancing matches through On deck → Now queuing → On field.
 - It is served by the **public API** exactly like a real event:
@@ -99,6 +125,18 @@ confirmed.
   Add quals from the demo dashboard to get a posted schedule with nothing queued, and set
   "Practice 1 queues at" in the past or future to produce a clamped vs. projected estimate.
   Both pre-event bugs fixed in #60 were found here and nowhere else.
+- **Transitions worth stepping**, none of which a live event holds still for. Each one has
+  produced a bug:
+  | step | what it exercises |
+  |---|---|
+  | reset, before adding quals | practice-only schedule, absent nowQueuing |
+  | add quals, still nothing queued | posted schedule, nothing started (#60) |
+  | "Queue first matches" | on-deck match at sequence position 0 (#62) |
+  | first match to field | strip advancing off the front |
+  | last practice to field | the phase gap — absent nowQueuing with play behind it |
+  | a break mid-quals | break walking the strip; the post-break queue time prompt |
+- Set the team number to one that is **actually in the match under test** — teams are
+  randomly generated per reset, so read them off the queue page first.
 
 ## Team config
 Default team: 88, event key format: e.g. 2025cthar
