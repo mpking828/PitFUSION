@@ -2796,10 +2796,17 @@ function rQ(){
 function rMl(){
   const el=document.getElementById('ml');
   const myT=C.team,nxMx=nxData?.matches||[],sm=scoreMap();
+  // Practice appears only while the event is in practice, then drops out for good —
+  // same rule the Upcoming panel and the queuing card use, so the three agree. While
+  // it IS the active phase these are the only matches being played, and before this
+  // the list read "No matches scheduled" on an event whose practice schedule was right
+  // there in the feed. They carry no scores, no RP and no ranking weight, so once
+  // qualifications start they are noise.
+  const practice=eventInPractice()?nxMx.filter(m=>/^practice/i.test(m.label)):[];
   const quals=nxMx.filter(m=>/^qual/i.test(m.label));
   const pffs=nxMx.filter(m=>!(/^practice|^qual/i.test(m.label)));
 
-  if(!quals.length&&!pffs.length&&!tbaMx?.length){el.innerHTML='<div class="empty">No matches scheduled</div>';return;}
+  if(!practice.length&&!quals.length&&!pffs.length&&!tbaMx?.length){el.innerHTML='<div class="empty">No matches scheduled</div>';return;}
 
   let html='',scrollId=null;
 
@@ -2827,6 +2834,7 @@ function rMl(){
   };
   const mkBreak=b=>{if(!b)return'';const icon=breakIcon(b);return`<div class="ml-break">${icon} ${e(b)}</div>`;};
 
+  if(practice.length){html+=`<div class="msh">Practice<span class="mc">${practice.length}</span></div>`;practice.forEach(m=>{html+=mkRow(m)+mkBreak(m.breakAfter);});}
   if(quals.length){html+=`<div class="msh">Qualification<span class="mc">${quals.length}</span></div>`;quals.forEach(m=>{html+=mkRow(m)+mkBreak(m.breakAfter);});}
 
   // For playoffs: use Nexus matches as base.
@@ -3221,8 +3229,16 @@ function myNextMatch(){
 // being played (rMl()'s actDisplay = isAct && !isDn).
 //
 // `sm` is a scoreMap(); pass it in so callers don't rebuild it per row.
+// Practice matches belong in this list. They used to be stripped, which was harmless
+// only because nothing rendered them — every caller filtered them out first. Now that
+// the match list shows them during practice they need a real answer, or all six sit at
+// "On field" undimmed with the active glow on every one.
+//
+// Including them cannot disturb the others: practice precedes the whole schedule, so
+// every qualification and playoff index shifts by the same amount and `mIdx < fIdx` is
+// unchanged. Only practice matches gain an answer they didn't have.
 function playedList(){
-  return (nxData?.matches||[]).filter(m=>!/^practice/i.test(m.label));
+  return nxData?.matches||[];
 }
 function matchPlayed(m, sm){
   if(!m) return false;
@@ -3297,8 +3313,8 @@ function rUpcoming(){
   // match — listing it again here duplicated it and burned one of only 2-3 rows.
   // Skip it, but keep it as `anchor` so a break between it and the next match we
   // DO show still renders (the break after Q11 when we start the list at Q13).
-  // No skip when the card is headlining a practice match: those are filtered out
-  // of allUpcoming, so nothing here matches it.
+  // Applies to a headlined practice match too — during practice they are in
+  // allUpcoming, so the card's match is found here and skipped like any other.
   const headlined=myNextMatch();
   const skipFirst=!!(headlined && mine[0] && mine[0].label===headlined.label);
   const anchor=skipFirst?mine[0]:null;
