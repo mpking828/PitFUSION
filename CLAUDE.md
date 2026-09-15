@@ -115,6 +115,20 @@ pitfusion.com — Cloudflare managed
   have yet. `bracketIndex()` rebuilds from scratch every render, so a later TBA correction
   simply wins on the next poll — nothing here is cached across renders.
 
+## Deliberate display choices — do not "fix" these
+Both look like bugs on sight. Both were examined against live data and kept on purpose;
+confirm with the owner before changing either.
+- **The Practice section stays visible through the phase gap, fully dimmed.** Practice has
+  finished, quals are not queued, and `eventInPractice()` is still true because the last
+  match on the field is a practice match. Reads as a stale panel; it isn't. Tightening it
+  would mean keying on "are there unplayed practice matches", which is exactly the rule
+  the bullet above forbids — an event that cuts practice short leaves them at
+  "Queuing soon" forever and they would haunt the list all weekend.
+- **Three match-list rows carry the active glow, not one.** `isAct` covers "On field",
+  "On deck" and "Now queuing", so all three light up. Long-standing behaviour for
+  qualifications; practice inherits it unchanged (verified byte-identical in #65). Narrowing
+  it to the on-field match alone would silently change quals and playoffs too.
+
 ## Testing against Nexus — demo events
 There is no test harness. A Nexus **demo event** is the only way to exercise real queue
 states without waiting for a competition, and it is how the play-order rules above were
