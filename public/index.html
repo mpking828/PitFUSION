@@ -383,6 +383,12 @@ body.page-has-bg .tp{
 /* A break takes a whole slot in the strip rather than sitting between two, so it walks
    Queuing -> On Deck -> On Field as play advances. Gold, matching every other break
    marker in the app; no bar or glow on the neighbouring cells. */
+/* ...but a break one step past the strip's right edge has no slot to walk into yet, and
+   by then it has already left the Upcoming panel — so it shows nowhere. Mark the cell it
+   follows with a bar in the gap to its right. box-shadow so it costs NO layout width:
+   the strip is ~202px and a real element squeezed the cells 69px->57px. Cleared the
+   moment the break gets its own cell. */
+.sc.brk{box-shadow:5px 0 0 0 var(--yellow)}
 .sc-break{border-color:rgba(255,214,0,.45);background:rgba(255,214,0,.07);min-width:0}
 .sc-break .sc-l{color:var(--yellow)}
 /* One line, ellipsised: "Alliance selection" wrapped to three lines and grew the whole
@@ -2780,7 +2786,13 @@ function rQ(){
       // A match only appears in the On Deck / Queuing slots once it is genuinely
       // queued — otherwise the strip would name matches Nexus hasn't called yet.
       const show=!!s&&(i===0||(qPos>-1&&j<=qPos));
-      return `<div class="sc"><div class="sc-l">${label}</div><div class="sc-v${show?' on':''}">${show?e(shortLabel(s.m.label)):'&mdash;'}</div></div>`;
+      // A break sitting at idx+3 is one advance away from its own cell, and has already
+      // scrolled out of the Upcoming panel — so for that one step it appears nowhere.
+      // Bar the cell it follows until then; it clears itself when the break slot arrives.
+      // Only ever the last cell: a break after an earlier one is already on screen.
+      const pend=show&&!!s.m.breakAfter&&j+1>idx+2;
+      const tip=pend?` title="${breakIcon(s.m.breakAfter)} ${e(s.m.breakAfter)} after ${e(s.m.label)}"`:'';
+      return `<div class="sc${pend?' brk':''}"${tip}><div class="sc-l">${label}</div><div class="sc-v${show?' on':''}">${show?e(shortLabel(s.m.label)):'&mdash;'}</div></div>`;
     };
     html+=`<div class="ss">${cell('On Field',0)}${cell('On Deck',1)}${cell('Queuing',2)}</div>`;
   }
