@@ -28,7 +28,13 @@ Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, m
 
 ## Known issues
 
-_None open._
+- **Statbotics has been down since ~July 2026** — HTTP 500 after 9–14s on every
+  endpoint, direct and proxied. Expected back around **January 2027**. EPA ranks, the
+  EPA line charts and match predictions are therefore blank on every display: this is
+  the outage, not a PitFusion bug, and no change here can restore the data. The app
+  degrades gracefully (#32) and, since the failure backoff below, no longer hammers a
+  dead service. Re-verify the V3.5.0 event-driven cache against real payloads once it
+  returns.
 
 ## Shipped outside the roadmap
 
@@ -105,6 +111,17 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   effect: ~5× more Statbotics requests during active play in exchange for one-poll
   freshness, and **zero** requests once play stops, where the old TTLs polled forever
   (#13, see the design doc for the full cost breakdown).
+
+- **Unreleased on `main`** — **failure backoff for Statbotics.** V3.5.0's version cache
+  only quiets a display that has data; with a cold cache and a dead upstream every read
+  still refetched. Measured live during the outage: two `_sbGet` calls per 30s poll, each
+  costing 3 raw requests because Statbotics' 9–14s latency exceeds `getTeamYear`'s 8s
+  timeout — up to **720 raw requests/hour per display** at a service down since July, with
+  no edge amortization because the Worker never caches a 5xx. A failed key now backs off
+  30s → 30m, settling at ~12/hour (**60× cut**), rejects cold reads instantly instead of
+  stalling ~14s, still serves stale when warm, and clears itself on any success so
+  recovery in January needs no intervention. `bustTeamCache()` clears it too, so the
+  overlay's ↺ Retry is not inert during one.
 
 ## Deferred / follow-up
 

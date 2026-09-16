@@ -222,6 +222,15 @@ Default team: 88, event key format: e.g. 2025cthar
   score take two polls to land. Don't fold it back in.
 - None of this is exercised by a Nexus demo event — no TBA means `tbaMx` is empty and
   `sbVer()` pins at `<key>:0` forever. See docs/features/13.
+- **`SB_BACKOFF` / `_sbFail` guard the COLD-cache case**, which version-keying cannot:
+  with nothing cached and Statbotics down, every read refetches forever. A failed key
+  now backs off 30s → 30m. Any success clears it, and `bustTeamCache()` clears it too —
+  without that the overlay's ↺ Retry would be inert for up to 30 minutes. Not persisted
+  (a reload earns one fresh attempt); the Settings connection check bypasses it.
+- **Statbotics has been down since ~July 2026** (HTTP 500 after 9–14s), expected back
+  around January 2027. EPA ranks, EPA charts and match predictions are all blank until
+  then — that is the outage, not a PitFusion bug. Note 9–14s exceeds `getTeamYear`'s 8s
+  timeout, so each attempt aborts and burns all 3 `fetchWithRetry` retries.
 - EPA overlay charts read per-match EPA from `/v3/matches` → `m.epas["<team>"]`.
 - **Match predictions** (feature #1): opt-in, **off by default**, `localStorage`
   `pitfusion_predictions` (`'1'`/`'0'`), toggled on the setup screen + ⚙ Settings ▸

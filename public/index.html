@@ -5132,6 +5132,25 @@ const _sb = { year:{}, matches:{} };   // key -> { d:<json>, ts:<ms>, v:<sbVer> 
 // same key at once (the 30s poll, an open EPA overlay, the prediction rebuild);
 // without this they would each fire their own request for the same URL.
 const _sbPending = {};
+// ── Failure backoff ─────────────────────────────────────────────────
+// The version cache above only quiets a display that HAS data. With a cold cache and
+// a dead upstream there is nothing to serve stale, so every read takes the cold path
+// and refetches — two requests per 30s poll, ~240/hour, forever. Measured live on
+// V3.5.0 during the Statbotics outage that began ~July 2026 (HTTP 500 after 9–14s).
+// The Worker deliberately never caches a 5xx, so the shared edge cache amortizes
+// nothing here either: every display generates its own live subrequest.
+//
+// So a failed key refuses to retry until a deadline, backing off along this table.
+// Settles at ~4 requests/hour instead of ~240 — a 60x cut — and, because a cold read
+// under backoff rejects immediately instead of hanging, the EPA overlay's error state
+// appears at once rather than after a 14s stall.
+//
+// Any success clears the entry, so recovery needs no intervention when Statbotics
+// returns. Deliberately NOT persisted: a page reload is a user action and earns one
+// fresh attempt. ⚙ Settings ▸ Run connection check bypasses this entirely (it does
+// its own fetch), so the outage stays diagnosable on demand.
+const SB_BACKOFF = [30e3, 60e3, 120e3, 300e3, 900e3, 1800e3];   // 30s → 30m, then held
+const _sbFail = {};   // store|key -> { n:<consecutive failures>, until:<ms> }
 (function _sbLoad(){
   try {
     const raw = JSON.parse(localStorage.getItem(SB_LS) || 'null');
@@ -5166,6 +5185,12 @@ async function _sbGet(store, key, url, timeoutMs, onFresh, ver){
   const hit = _sb[store][key];
   if(hit && hit.v === ver) return hit.d;   // still current
   const pk = store+'|'+key;
+  // Under backoff, suppress the request outright rather than firing it and failing.
+  const fail = _sbFail[pk];
+  if(fail && Date.now() < fail.until){
+    if(hit) return hit.d;          // stale beats nothing
+    throw new Error('Statbotics unavailable — backing off');
+  }
   let p = _sbPending[pk];
   if(!p){
     p = (async()=>{
@@ -5173,9 +5198,12 @@ async function _sbGet(store, key, url, timeoutMs, onFresh, ver){
         const r = await fetchWithRetry(url, timeoutMs, 3);
         const d = await r.json();
         _sb[store][key] = { d, ts: Date.now(), v: ver };
+        delete _sbFail[pk];        // recovered — no flag to flip when Statbotics returns
         _sbSave();
         return d;
       } catch(err){
+        const n = ((_sbFail[pk] && _sbFail[pk].n) || 0) + 1;
+        _sbFail[pk] = { n, until: Date.now() + SB_BACKOFF[Math.min(n-1, SB_BACKOFF.length-1)] };
         if(hit) return hit.d;      // keep serving stale on failure
         throw err;
       } finally {
@@ -5244,6 +5272,11 @@ function bustTeamCache(team){
   team=String(team);
   delete _sb.year[team];
   Object.keys(_sb.matches).forEach(k=>{ if(k.startsWith(team+'|')) delete _sb.matches[k]; });
+  // Clear any backoff for this team too — otherwise the overlay's manual ↺ Retry
+  // would be silently inert for up to 30 minutes, which is the one moment the user
+  // has explicitly asked us to try again.
+  delete _sbFail['year|'+team];
+  Object.keys(_sbFail).forEach(k=>{ if(k.startsWith('matches|'+team+'|')) delete _sbFail[k]; });
   _sbSave();
 }
 
