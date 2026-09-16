@@ -22,7 +22,7 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 10 | Match Schedule scroll lock — polls stop yanking you back; ⇩ Current button | shipped (#39) | S | [features/10-match-list-scroll-lock.md](features/10-match-list-scroll-lock.md) |
 | 11 | Playoff Bracket sidebar overflow — the Queuing tab's bumper box forces a scroll bar | shipped (#45, #46) | XS–S | — |
 | 12 | Playoff Bracket rosters/matches sourced from Nexus (works with no TBA data at all — teams appear as alliance selection happens, instead of waiting on TBA's all-or-nothing post) | shipped (V3.4.0, #73) | M | — |
-| 13 | Event-driven cache invalidation — every cache TTL replaced by a version derived from posted scores, client and Worker edge alike | built | S–M | [features/13-event-driven-cache.md](features/13-event-driven-cache.md) |
+| 13 | Event-driven cache invalidation — every cache TTL replaced by a version derived from posted scores, client and Worker edge alike | shipped (V3.5.0, #80) | S–M | [features/13-event-driven-cache.md](features/13-event-driven-cache.md) |
 
 Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, may split.
 
@@ -82,7 +82,7 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
 - **V3.4.0** — returning from the Playoff Bracket to the match list on desktop no
   longer resets scroll position to the top (#74). See #12 above for the bracket's
   main V3.4.0 change.
-- **Unreleased on `main`** — the bracket's Nexus/TBA alliance-roster merge was
+- **V3.4.1** — the bracket's Nexus/TBA alliance-roster merge was
   all-or-nothing (switched entirely to Nexus's array the moment it had picked any
   seed, even if TBA already had every other seed complete); now compares per seed
   and takes whichever source has more of that seed filled in, matching the per-key
@@ -93,7 +93,7 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   directly whether caching was shared across teams at the same event, and confirmed
   worth doing immediately when Statbotics turned out to be live-down (HTTP 500,
   0.9–5.2s response times) while designing it. Self-hosted unaffected (#78).
-  Cache invalidation is now **event-driven end to end**: every TTL in the app — the
+- **V3.5.0** — cache invalidation is now **event-driven end to end**: every TTL in the app — the
   client's 2h/20m Statbotics SWR windows and the Worker's 120s Statbotics edge window
   — is replaced by `sbVer()`, a version derived from how many matches TBA has posted
   a score for. A `_cb` query param carries that version to the Worker, which strips it
@@ -168,4 +168,4 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
 2. **#5 (multi-event)** — largest, most invasive to the data model; do it last and
    probably split into its own mini-roadmap.
 
-Shipped: #1, #3, #3b, #3c, #6, #7, #7b, #8, #8b, #9, #10, #11, #12. Built, unreleased: #13.
+Shipped: #1, #3, #3b, #3c, #6, #7, #7b, #8, #8b, #9, #10, #11, #12, #13.

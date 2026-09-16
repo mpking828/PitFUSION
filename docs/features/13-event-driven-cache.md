@@ -1,6 +1,6 @@
 # Feature 13 — Event-driven cache invalidation
 
-Status: **built** (branch `feat/event-driven-statbotics-cache`). Size: S–M.
+Status: **shipped** (V3.5.0, #80). Size: S–M.
 
 Deferred from #78 ("Statbotics caching is time-based (TTL); the right model is
 event-based"). Replaces every cache duration in the app with one signal.
