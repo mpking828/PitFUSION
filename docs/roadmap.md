@@ -33,8 +33,11 @@ Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, m
   EPA line charts and match predictions are therefore blank on every display: this is
   the outage, not a PitFusion bug, and no change here can restore the data. The app
   degrades gracefully (#32) and, since the failure backoff below, no longer hammers a
-  dead service. Re-verify the V3.5.0 event-driven cache against real payloads once it
-  returns.
+  dead service. **Two things to re-verify once it returns:** the V3.5.0 event-driven
+  cache against real payloads, and the premise behind V3.6.1 — that world/country/state/
+  district ranks recompute only once per event. If they move more often, the cost is a
+  rank pill lagging until the team's next match (~45 min during quals); EPA correctness is
+  unaffected and it reverts by changing one argument in `getTeamYear`.
 
 ## Shipped outside the roadmap
 
@@ -133,6 +136,22 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   never moves the pill (down since July); YouTube is excluded. Verified on production by
   blocking `/api/nexus` in DevTools — amber, Offline + banner, and recovery to green. Help
   gains a Connection status section and a GitHub project link (#86).
+
+- **V3.6.1** — **`getTeamYear` narrowed to the team version.** It shipped in V3.5.0
+  taking the EVENT-wide version, on the theory that `team_year`'s world/country/state/
+  district ranks move as any team anywhere plays. That premise is false — Statbotics
+  recomputes those four ranks only **once per event** — so the event-wide version was
+  buying ~8.5 refetches/hour to observe a number that had not changed. Not a freshness
+  tradeoff: pure overhead. The only field here that moves at match cadence is the team's
+  own `epa.breakdown`, which `sbVer(team)` captures exactly. This matters because
+  `getTeamYear` is the **only Statbotics call that scales with display count** —
+  `getEventMatches` is one shared URL per event however many displays run, but every
+  display polls its own `team_year`. Per event at 40 displays: ~50 req/hr narrowed against
+  ~349 event-wide, versus ~23/hr on the old TTLs; across 40 simultaneous events, ~2,000/hr
+  rather than ~14,000 on a free community API. So PitFusion now beats the pre-V3.5.0 TTLs
+  on freshness *and* stays within ~2× on load instead of 15×. Edge sharing survives
+  because `sbVer(team)` keys on the SUBJECT team, not the viewer — keying it on the viewer
+  would have fragmented the cache one way per display and been strictly worse (#88).
 
 ## Deferred / follow-up
 
