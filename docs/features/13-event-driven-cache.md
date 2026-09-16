@@ -54,7 +54,7 @@ Three properties carry the design:
 | cache | version | why |
 |---|---|---|
 | `getEventMatches` (predictions) | `sbVer()` | match 39's result changes match 40's `pred` |
-| `getTeamYear` | `sbVer()` | also carries world/country/state/district **ranks**, which move as anyone plays. Narrowing it would freeze the My Team rank row between our own matches — with no TTL left, possibly for an hour |
+| `getTeamYear` | `sbVer(team)` | its only match-cadence field is the team's own `epa.breakdown`. Shipped event-wide by mistake — see below |
 | `getTeamMatches(team)` | `sbVer(team)` | only that team's matches appear in it |
 | `recordsCache(team)` | `sbVer(team)` | W–L–T is that team's results only |
 | `advCache`, `advRankingsCache` | `sbVer()` | ⚠️ a **proxy**, not an exact trigger — see Known limits |
@@ -162,6 +162,58 @@ fetch), so the outage stays diagnosable on demand.
 Statbotics' current latency, so each permitted attempt still costs 3 raw requests rather
 than 1. Raising the timeout or making timeouts non-retryable would recover another 3×,
 but it changes retry semantics for every caller, so it was left alone.
+
+## Correction: `getTeamYear` was event-wide, and shouldn't have been
+
+It shipped in V3.5.0 taking the **event-wide** version, justified like this: `team_year`
+carries world/country/state/district ranks, which move as any team anywhere plays, so
+narrowing it would freeze the My Team rank row between our own matches.
+
+**That premise is false.** Statbotics recomputes those four ranks only **once per event**.
+They do not move at match cadence, so the event-wide version was buying ~8.5 refetches
+per hour to observe a number that had not changed. It was not a freshness tradeoff — it
+was pure overhead with no correctness benefit at all.
+
+The app surfaces exactly two things from `team_year`:
+
+| field | changes |
+|---|---|
+| `epa.ranks.{total,country,state,district}.rank` — the four pills | once per event |
+| `epa.breakdown` — the EPA value behind the charts | when **that team** plays |
+| `country` / `state` / `district` — label strings | never, within a season |
+
+So `sbVer(team)` captures 100% of what actually moves.
+
+### Why it matters more than it looks
+
+`getTeamYear` is the **only Statbotics call that scales with display count**.
+`getEventMatches` is one shared URL per event however many displays are running, but
+every display polls its own `team_year`. The single-display "~5x more requests during
+play" figure quoted above therefore understates the fleet picture badly:
+
+| displays at one event | before V3.5.0 | event-wide | team-narrowed |
+|---|---|---|---|
+| 1 | 3.5/hr | 17/hr (4.9×) | ~10/hr (2.9×) |
+| 40 | 23/hr | 349/hr (15.2×) | **~50/hr (~2×)** |
+
+Across 40 simultaneous events with 40 displays each, that is ~2,000 req/hr rather than
+~14,000 — on a free community API. Narrowed, PitFusion is better than the old TTLs on
+freshness *and* within ~2× on load, instead of 15×.
+
+### The part that could have gone wrong
+
+`sbVer(team)` keys on the **subject** team, not the **viewing** team, so every display at
+an event computes the same `_cb` when opening the EPA overlay on team X. Edge-cache
+sharing is fully preserved. Had it keyed on the viewer, narrowing would have fragmented
+the cache one way per display and made things strictly worse.
+
+### Caveat
+
+The once-per-event rank cadence came from the project owner and could not be verified
+against live data — Statbotics has been down since ~July 2026. If it turns out ranks move
+more often, the cost is a rank pill lagging until the team's next match (~45 min during
+quals); EPA correctness is unaffected, and it reverts by changing one argument. On the
+January re-verification list.
 
 ## Verification
 

@@ -3146,10 +3146,10 @@ function scoreMap(){
 // more: they carry this string, and a mismatch is the only thing that invalidates.
 //
 // Two widths. Bare sbVer() counts every scored match at the event — used where any
-// result moves the value (a prediction for match 40 changes when 39 is scored; a
-// team_year carries world/state ranks that move as anyone plays). sbVer(team)
-// narrows to that team's own matches, roughly a 6x reduction in refetches for the
-// values that genuinely only move when THAT team plays.
+// result moves the value, which now means getEventMatches alone (a prediction for
+// match 40 changes when 39 is scored). sbVer(team) narrows to that team's own
+// matches, roughly a 6x reduction, and is correct for everything whose only
+// match-cadence field belongs to that team: its EPA, its W–L record, its match list.
 //
 // It must be derived from shared upstream state and never from local history, or
 // two displays at the same event would disagree and each punch its own hole in the
@@ -5356,12 +5356,23 @@ function sbUrl(u, ver){
 // unchanged. Either way this SWR layer still governs what the caller actually sees —
 // the edge cache only affects what happens on a cache MISS here.
 //
-// team_year takes the EVENT-wide version, not the team-narrowed one: besides the
-// team's own EPA it carries world/country/state/district ranks, which move as any
-// team anywhere plays. Narrowing it would freeze the My Team rank row between our
-// own matches, which with no TTL left could be an hour or more.
+// team_year takes the TEAM-narrowed version. It shipped event-wide on the theory that
+// its world/country/state/district ranks move as any team anywhere plays — that is
+// wrong: Statbotics recomputes those four ranks only once per event, so the event-wide
+// version bought ~8.5 refetches/hour to observe a number that had not changed. The only
+// field here that moves at match cadence is the team's own EPA (`epa.breakdown`), and
+// that moves exactly when THIS team plays, which is what sbVer(team) counts.
+//
+// This is also the one call that scales with display count: getEventMatches is a single
+// shared URL per event however many displays are running, but every display polls its
+// own team_year. At 40 displays the narrow version is ~50 Statbotics req/hr per event
+// against ~349 event-wide.
+//
+// Sharing survives because sbVer(team) keys on the SUBJECT team, not the viewing team:
+// every display at an event computes the same `_cb` when opening the overlay on team X.
+// Keying it on the viewer would fragment the edge cache one way per display.
 function getTeamYear(team, onFresh){
-  const v = sbVer();
+  const v = sbVer(team);
   return _sbGet('year', String(team),
     sbUrl(`https://api.statbotics.io/v3/team_year/${team}/${_yr()}`, v),
     8000, onFresh, v);

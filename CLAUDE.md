@@ -213,11 +213,20 @@ Default team: 88, event key format: e.g. 2025cthar
   `sbVer()` counts matches TBA has posted a score for and that count IS the cache
   version; an entry is fresh while its version matches, however old it is. Bare
   `sbVer()` is event-wide (any result moves the value); `sbVer(team)` narrows to that
-  team's own matches. `getTeamYear` deliberately takes the EVENT-wide version despite
-  the "only your own matches change your EPA" rule, because `team_year` also carries
-  world/country/state ranks that move as anyone plays. The version must always be
+  team's own matches. **Only `getEventMatches` takes the event-wide version** — a
+  prediction for match 40 changes when 39 is scored. Everything else is team-narrowed.
+  `getTeamYear` shipped event-wide on the theory that its world/country/state/district
+  ranks move as anyone plays; that is wrong, Statbotics recomputes those four ranks only
+  once per event, so it was paying ~8.5 refetches/hour for a number that had not moved.
+  Its only match-cadence field is the team's own `epa.breakdown`. The version must always be
   derived from shared upstream state, never local history — otherwise two displays at
   one event disagree and each punches its own hole in the Worker's shared edge cache.
+- **`getTeamYear` is the only Statbotics call that scales with display count.**
+  `getEventMatches` is one shared URL per event however many displays run; every display
+  polls its own `team_year`. That makes its version width the dominant cost at scale —
+  ~50 req/hr per 40-display event narrowed vs ~349 event-wide. `sbVer(team)` keys on the
+  SUBJECT team, not the viewer, so edge sharing is preserved; keying on the viewer would
+  fragment the cache one way per display.
 - **Hosted mode appends `_cb=<version>` to Statbotics URLs** (`sbUrl()`); `worker.js`
   strips it before calling Statbotics and folds it into the edge cache key instead, so
   a versioned URL gets `bustCache: 3600` instead of the blind 120s. Self-hosted must
