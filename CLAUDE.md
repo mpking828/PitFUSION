@@ -24,6 +24,19 @@ Single HTML file, no framework, no build step.
 - No build step. `public/index.html` is served at `/` natively; `public/_headers`
   sets security headers (honored by Workers static assets).
 
+## Connection status
+- Header pill (Connected / Degraded / Offline) + tap-open `#status-pop` + `#stale-banner`,
+  all driven by `feed` (`feedOk`/`feedFail`/`feedNA`) and `connState()`, re-rendered every
+  second off the header-clock interval.
+- **Deliberately weighted — don't make every feed count equally.** Nexus is the only
+  source that can go red (last success ≥ 180s) or raise the banner; ≥ 45s is amber. TBA
+  can only degrade to amber (failing ≥ 120s), and a TBA 404 is `na` ("no data for this
+  event" — demos, unlisted off-season events), not a failure. Statbotics is listed but
+  never moves the pill (it's been down for months; counting it = amber all season).
+  YouTube is excluded: probed once at stream render, so its status would be stale.
+- Colour is keyed on the AGE of the last success, not the last attempt, so one dropped
+  request doesn't flash the pill. `stamp()` now only records `lastRender` for the popover.
+
 ## Themes
 - Four themes via `data-theme` on `<html>`+`<body>`: `dark` `light` `tj2` `custom`.
   Picker in Settings ▸ Appearance and on the setup screen (`renderThemeSwatches`,
