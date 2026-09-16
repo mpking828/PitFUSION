@@ -123,6 +123,17 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   recovery in January needs no intervention. `bustTeamCache()` clears it too, so the
   overlay's ↺ Retry is not inert during one.
 
+- **V3.6.0** — **weighted connection status.** The header "Live" dot only reflected the
+  last Nexus fetch: it ignored TBA and Statbotics, flashed red on one dropped request, and
+  said nothing about data age. It is now a Connected / Degraded / Offline pill keyed on the
+  age of each source's last success, with a tap-open per-source popover (replacing the
+  footer timestamp) and a dismissible red banner once queue data is 3 minutes stale. The
+  weighting is deliberate: only Nexus can go red or raise the banner; TBA can only degrade,
+  and a TBA 404 reads "no data for this event" so demos stay green; Statbotics is shown but
+  never moves the pill (down since July); YouTube is excluded. Verified on production by
+  blocking `/api/nexus` in DevTools — amber, Offline + banner, and recovery to green. Help
+  gains a Connection status section and a GitHub project link (#86).
+
 ## Deferred / follow-up
 
 - **#8b done in #23.** A *deeper* collapse is possible but is not planned. The
