@@ -336,6 +336,22 @@ body.page-has-bg .tp{
 [data-theme="tj2"] .help-card{background:rgba(13,30,61,0.97);border-color:rgba(245,192,0,0.3)}
 .ldot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 7px var(--green);animation:blink 2s infinite}
 .ldot.off{background:var(--red);box-shadow:0 0 7px var(--red);animation:none}
+.ldot.warn{background:var(--yellow);box-shadow:0 0 7px var(--yellow);animation:none}
+.ldot.na{background:var(--text-dim);box-shadow:none;animation:none}
+button.live-pill{background:transparent;border:none;padding:4px 6px;margin:0 -6px;border-radius:4px;cursor:pointer}
+button.live-pill:hover{color:var(--text)}
+#status-pop{position:fixed;top:calc(var(--hdr-h) + 6px);right:var(--pad);z-index:8500;display:none;min-width:280px;max-width:calc(100vw - 20px);background:var(--surface);border:2px solid var(--border2);border-radius:8px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.45);font-family:var(--fd)}
+#status-pop.show{display:block}
+[data-theme="tj2"] #status-pop{background:rgba(13,30,61,0.97);border-color:rgba(245,192,0,0.3)}
+.sp-title{font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px}
+.sp-row{display:flex;align-items:center;gap:8px;padding:5px 0}
+.sp-name{font-size:var(--fs-sm);font-weight:700;color:var(--text);white-space:nowrap}
+.sp-opt{font-weight:500;color:var(--text-dim)}
+.sp-detail{margin-left:auto;padding-left:14px;font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap}
+.sp-foot{border-top:1px solid var(--border);margin-top:6px;padding-top:7px;font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim)}
+#stale-banner{position:fixed;top:var(--hdr-h);left:0;right:0;z-index:5500;display:none;align-items:center;gap:12px;padding:8px var(--pad);background:var(--red);color:#fff;font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+#stale-banner.show{display:flex}
+#stale-banner button{margin-left:auto;background:transparent;border:none;color:#fff;font-size:1.2rem;line-height:1;cursor:pointer;padding:2px 8px}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 .hdr-clk{font-family:var(--fm);font-size:var(--fs-hdr);color:var(--text-mid);white-space:nowrap}
 
@@ -571,7 +587,6 @@ body.page-has-bg .tp{
 .sched-break{background:rgba(255,214,0,.07);border-left:3px solid rgba(255,214,0,.5)}
 .sched-break td{color:var(--yellow);font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px}
 [data-theme="tj2"] .sched-table tr.upcoming td{background:rgba(245,192,0,.04)}
-.ftr-stamp{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap}
 .ftr-note{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;letter-spacing:.06em}
 
 /* BRACKET MODE */
@@ -1577,7 +1592,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <div class="hdr-clk" id="hdr-clk">&mdash;</div>
       <div id="hdr-delay"></div>
       <div class="hdr-team" id="hdr-team">&mdash;</div>
-      <div class="live-pill"><div class="ldot" id="ldot"></div><span id="ltxt">Live</span></div>
+      <button class="live-pill" id="live-pill" onclick="toggleStatusPop(event)" title="Connection status" aria-expanded="false" aria-controls="status-pop"><div class="ldot" id="ldot"></div><span id="ltxt">Connected</span></button>
       <button class="help-btn" id="mobile-menu-btn" onclick="openMobileMenu()" title="Menu" aria-label="Menu">&#9776;</button>
     </div>
   </div>
@@ -1653,6 +1668,15 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       </div>
     </div>
   </div>
+
+  <!-- CONNECTION STATUS — popover from the header pill, and the stale-queue-data banner.
+       Both position:fixed: .hdr is overflow:hidden. Filled by renderStatus(). -->
+  <div id="status-pop" role="dialog" aria-label="Connection status">
+    <div class="sp-title">Data sources</div>
+    <div id="sp-rows"></div>
+    <div class="sp-foot" id="sp-foot"></div>
+  </div>
+  <div id="stale-banner" role="alert"><span id="stale-msg"></span><button onclick="dismissStale()" title="Dismiss" aria-label="Dismiss">&#10005;</button></div>
 
   <!-- MOBILE MENU (hamburger) — only reachable below the mobile breakpoint -->
   <div class="help-overlay" id="mobile-menu-overlay" onclick="if(event.target===this)closeMobileMenu()">
@@ -1739,12 +1763,21 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <p>Queuing status, bumper colors, and next-match predictions are most likely to drift during Playoffs and Finals, where bracket assignments change in real time and Nexus may briefly stop reporting while a match is in progress.</p>
       <p>PitFUSION is a situational awareness tool. Always confirm match assignments and bumper colors with your drive coach or the queuing staff at the field.</p>
 
+      <h3>Connection status</h3>
+      <p>The pill at the top right shows whether the display is getting fresh data. Click or tap it to see each source and how long ago it last updated.</p>
+      <p><b style="color:var(--green)">Connected</b> &mdash; everything is current. <b style="color:var(--yellow)">Degraded</b> &mdash; queue data from Nexus is running late, or The Blue Alliance (scores and rankings) has been unreachable for a couple of minutes. <b style="color:var(--red)">Offline</b> &mdash; Nexus hasn't answered for 3 minutes; a red banner says how old the queue data is. Dismiss it with &#10005;; it clears on its own as soon as data returns.</p>
+      <p>Statbotics (EPA and predictions) is listed for reference but never changes the pill &mdash; it is optional, and everything else works without it.</p>
+
       <h3>Resizing panels</h3>
       <p>Drag the divider bars between panels to resize them on the fly — the sidebar, the stream, and the match list all adjust. Double-click any divider to snap the layout back to its default.</p>
 
       <h3>Themes</h3>
       <p>Open <b>&#9881; Settings &rarr; Appearance</b> to switch between Dark, Light, TJ&sup2;, and Custom. Your choice is remembered on this display.</p>
       <p>Pick <b>Custom</b>, then <b>Edit Custom theme&hellip;</b> to set your own colours, a background image (a URL or an uploaded file), and frosted-panel styling. Changes preview live; press <b>Save</b> to keep them on this browser. <b>Copy CSS</b> exports the block for baking into a self-hosted <code>index.html</code>.</p>
+
+      <h3>Project</h3>
+      <p>Source code, releases, and issue tracker on GitHub:
+        <a href="https://github.com/mpking828/PitFUSION" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">github.com/mpking828/PitFUSION</a></p>
     </div>
   </div>
 
@@ -1831,7 +1864,6 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     <button class="s-btn" id="stream-toggle-btn" onclick="toggleStreamVisibility()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">📺 Hide Stream</button>
     <button class="s-btn" id="bracket-toggle-btn" onclick="toggleBracket()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">🏆 Playoff Bracket</button>
     <button class="s-btn" onclick="openSchedule()" style="font-size:var(--fs-lbl);padding:5px 16px;font-family:var(--fd);font-weight:700;letter-spacing:.06em">📋 Our Schedule</button>
-    <div class="ftr-stamp" id="tk-stamp">&mdash;</div>
   </div>
 </div>
 
@@ -2546,7 +2578,7 @@ function dismissAllParts(){
 let stHidden=false,stIdx=0,stIdxManual=false,stReplayMode=false,stPreReplay={},cdTick=null,bracketView=false;
 
 // Clock
-setInterval(()=>{document.getElementById('hdr-clk').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});},1000);
+setInterval(()=>{document.getElementById('hdr-clk').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});renderStatus();},1000);
 
 // API
 // In hosted mode, requests to the real API hosts are rewritten to same-origin
@@ -2572,15 +2604,15 @@ function nxKey(){return C.nexusEvent||C.event;}
 async function fNexus(){
   // If alias already resolved, use it directly — skip the 404 attempt
   if(C.nexusEvent){
-    try{nxData=await nexusGet(C.nexusEvent);setLive(true);return true;}catch{setLive(false);return false;}
+    try{nxData=await nexusGet(C.nexusEvent);feedOk('nexus');return true;}catch{feedFail('nexus');return false;}
   }
 
   // Try direct key first
   try{
     nxData=await nexusGet(C.event);
-    setLive(true); return true;
+    feedOk('nexus'); return true;
   } catch(e){
-    if(e!==404&&e!==400){setLive(false);return false;}
+    if(e!==404&&e!==400){feedFail('nexus');return false;}
   }
 
   // 404 — derive Nexus key from TBA first_event_code
@@ -2596,17 +2628,20 @@ async function fNexus(){
           nxData=await nexusGet(derived);
           C.nexusEvent=derived;
           console.log(`[PitFUSION] Nexus key resolved via FIRST code: ${C.event} → ${derived}`);
-          setLive(true); return true;
+          feedOk('nexus'); return true;
         } catch{}
       }
     }
   } catch{}
 
-  setLive(false); return false;
+  feedFail('nexus'); return false;
 }
 async function fPits(){if(nexusPitsUnavailable)return;try{const k=C.nexusEvent||C.event;nexusPits=await get(`https://frc.nexus/api/v1/event/${k}/pits`,hn(C.nexus));}catch(e){nexusPits=null;if(e===404)nexusPitsUnavailable=true;}}
-async function fMx(){try{tbaMx=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/matches`,ht(C.tba));return true;}catch{return false;}}
-async function fRk(){try{tbaRk=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/rankings`,ht(C.tba));return true;}catch{return false;}}
+// fMx/fRk are the TBA health signal for the connection pill. A 404 is an event TBA
+// doesn't carry (a Nexus demo, an unlisted off-season event) — no data, not an outage.
+async function fMx(){try{tbaMx=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/matches`,ht(C.tba));feedOk('tba');return true;}catch(e){tbaFail(e);return false;}}
+async function fRk(){try{tbaRk=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/rankings`,ht(C.tba));feedOk('tba');return true;}catch(e){tbaFail(e);return false;}}
+function tbaFail(e){if(e===404)feedNA('tba');else feedFail('tba');}
 async function fAlliances(){try{tbaAlliances=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/alliances`,ht(C.tba));return true;}catch{return false;}}
 // Nexus's own playoff alliances — positional by seed, partial entries while selection
 // is still in progress. Works on a demo event (no TBA counterpart needed at all) and
@@ -3818,8 +3853,87 @@ function toggleStreamVisibility(){
 function switchTab(name,btn){switchTabById('tab-'+name,btn);}
 
 // UTILS
-function setLive(ok){document.getElementById('ldot').className='ldot'+(ok?'':' off');document.getElementById('ltxt').textContent=ok?'Live':'Offline';}
-function stamp(){document.getElementById('tk-stamp').textContent=new Date().toLocaleTimeString();}
+// CONNECTION STATUS
+// Weighted by what a pit crew loses, on purpose — don't "fix" it to count every feed:
+//  - Nexus drives the queue: only Nexus can turn the pill red or raise the stale banner.
+//  - TBA (scores, rankings) can only degrade it to amber.
+//  - Statbotics is informational — event-driven, not polled, and down for months at a
+//    time; counting it would leave the pill amber all season.
+//  - YouTube is left out entirely: probed once at stream render, so its status is stale.
+// Colour comes from the AGE of the last success, not the last attempt, so one dropped
+// request doesn't flash the pill.
+const NX_WARN=45e3, NX_STALE=180e3, TBA_WARN=120e3;
+const feed={nexus:{ok:0,fail:0,na:false}, tba:{ok:0,fail:0,na:false}, statbotics:{ok:0,fail:0,na:false}};
+let lastRender=0, staleDismissed=false;
+function feedOk(n){const f=feed[n];f.ok=Date.now();f.fail=0;f.na=false;if(n==='nexus')staleDismissed=false;renderStatus();}
+function feedFail(n){const f=feed[n];if(!f.fail)f.fail=Date.now();f.na=false;renderStatus();}
+function feedNA(n){const f=feed[n];f.na=true;f.fail=0;renderStatus();}
+function connState(){
+  const now=Date.now(), nx=feed.nexus, tb=feed.tba;
+  if(!nx.ok) return nx.fail?'off':'ok';   // never reached Nexus at all
+  const age=now-nx.ok;
+  if(age>=NX_STALE) return 'off';
+  if(age>=NX_WARN || (tb.fail && now-tb.fail>=TBA_WARN)) return 'warn';
+  return 'ok';
+}
+function dur(ms){const s=Math.max(0,Math.round(ms/1000));if(s<60)return s+'s';const m=Math.floor(s/60);return m<60?m+'m':Math.floor(m/60)+'h '+(m%60)+'m';}
+function clockOf(ms){return new Date(ms).toLocaleTimeString();}
+function feedRow(name,label,f,optional){
+  const now=Date.now(); let dot, detail;
+  if(f.na){ dot='na'; detail='no data for this event'; }
+  else if(f.fail){
+    dot = optional ? 'na'
+        : name==='nexus' ? (f.ok && now-f.ok<NX_STALE ? 'warn' : 'off')
+        : (now-f.fail>=TBA_WARN ? 'off' : 'warn');
+    detail = (optional?'unavailable':'failing')+' '+dur(now-f.fail)+(f.ok?' · last '+dur(now-f.ok)+' ago':'');
+  }
+  else if(f.ok){ dot='ok'; detail='updated '+dur(now-f.ok)+' ago'; }
+  else { dot='na'; detail=optional?'using cached data':'waiting'; }
+  return `<div class="sp-row"><div class="ldot${dot==='ok'?'':' '+dot}" style="animation:none"></div>`
+    +`<span class="sp-name">${label}${optional?' <span class="sp-opt">(optional)</span>':''}</span>`
+    +`<span class="sp-detail">${detail}</span></div>`;
+}
+function renderStatus(){
+  const dot=document.getElementById('ldot'); if(!dot) return;
+  const st=connState(), now=Date.now(), nx=feed.nexus;
+  dot.className='ldot'+(st==='ok'?'':' '+st);
+  document.getElementById('ltxt').textContent={ok:'Connected',warn:'Degraded',off:'Offline'}[st];
+
+  // Only Nexus can put the state at 'off', so this is exactly "queue data is stale".
+  const bn=document.getElementById('stale-banner');
+  if(st==='off' && !staleDismissed){
+    document.getElementById('stale-msg').textContent = nx.ok
+      ? `Queue data hasn't updated in ${dur(now-nx.ok)} — last received ${clockOf(nx.ok)}. Retrying…`
+      : `Can't reach Nexus — no queue data received yet. Retrying…`;
+    bn.classList.add('show');
+  } else bn.classList.remove('show');
+
+  const pop=document.getElementById('status-pop');
+  if(pop.classList.contains('show')){
+    document.getElementById('sp-rows').innerHTML =
+      feedRow('nexus','Nexus',feed.nexus) + feedRow('tba','The Blue Alliance',feed.tba) +
+      feedRow('statbotics','Statbotics',feed.statbotics,true);
+    document.getElementById('sp-foot').textContent =
+      lastRender ? `Display refreshed ${clockOf(lastRender)}` : 'Display not refreshed yet';
+  }
+}
+function dismissStale(){staleDismissed=true;renderStatus();}
+function toggleStatusPop(ev){
+  if(ev) ev.stopPropagation();
+  const pop=document.getElementById('status-pop'), open=!pop.classList.contains('show');
+  pop.classList.toggle('show',open);
+  document.getElementById('live-pill').setAttribute('aria-expanded',String(open));
+  renderStatus();
+}
+function closeStatusPop(){
+  const pop=document.getElementById('status-pop');
+  if(!pop||!pop.classList.contains('show')) return;
+  pop.classList.remove('show');
+  document.getElementById('live-pill').setAttribute('aria-expanded','false');
+}
+document.addEventListener('click',e=>{ if(!e.target.closest('#status-pop,#live-pill')) closeStatusPop(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeStatusPop(); });
+function stamp(){lastRender=Date.now();}
 function e(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 function updateBumperBox() {
@@ -5200,8 +5314,10 @@ async function _sbGet(store, key, url, timeoutMs, onFresh, ver){
         _sb[store][key] = { d, ts: Date.now(), v: ver };
         delete _sbFail[pk];        // recovered — no flag to flip when Statbotics returns
         _sbSave();
+        feedOk('statbotics');
         return d;
       } catch(err){
+        feedFail('statbotics');
         const n = ((_sbFail[pk] && _sbFail[pk].n) || 0) + 1;
         _sbFail[pk] = { n, until: Date.now() + SB_BACKOFF[Math.min(n-1, SB_BACKOFF.length-1)] };
         if(hit) return hit.d;      // keep serving stale on failure
