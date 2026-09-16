@@ -132,6 +132,37 @@ how many pit displays are running.
   which no signal here tracks; this refreshes them as *our* event plays. A rank can still
   lag another district's event by a cycle. Strictly better than the previous "never".
 
+## Failure backoff (added after V3.5.0)
+
+The version cache only quiets a display that **has** data. With a cold cache and a dead
+upstream there is nothing to serve stale, so every read takes the cold path and
+refetches. Measured live on V3.5.0 during the Statbotics outage: two `_sbGet` calls per
+30s poll, and because Statbotics answers in 9–14s while `getTeamYear` allows 8s, every
+attempt aborts and `fetchWithRetry` burns all three retries — **up to 720 raw requests
+per hour, per display**, at a service that has been down since ~July 2026. The Worker
+deliberately never caches a 5xx, so the shared edge cache amortizes none of it either:
+every display generates its own live subrequest.
+
+`SB_BACKOFF` fixes this. A failed key refuses to retry until a deadline, backing off
+30s → 1m → 2m → 5m → 15m → 30m and then holding. At the cap that is 4 `_sbGet` calls
+per hour across both polled keys — **a 60× cut**. Three properties matter:
+
+- **A cold read under backoff rejects immediately** instead of hanging ~14s, so the EPA
+  overlay's error state appears at once rather than after a stall.
+- **A warm read under backoff still serves stale** — never blank.
+- **Any success clears the entry**, so recovery needs no intervention when Statbotics
+  returns. `bustTeamCache()` clears it too, or the overlay's manual ↺ Retry would be
+  silently inert for up to 30 minutes — the one moment the user has explicitly asked.
+
+Deliberately **not** persisted: a page reload is a user action and earns one fresh
+attempt. ⚙ Settings ▸ Run connection check bypasses it entirely (it does its own
+fetch), so the outage stays diagnosable on demand.
+
+**Known amplifier, not addressed here:** `getTeamYear`'s 8s timeout is shorter than
+Statbotics' current latency, so each permitted attempt still costs 3 raw requests rather
+than 1. Raising the timeout or making timeouts non-retryable would recover another 3×,
+but it changes retry semantics for every caller, so it was left alone.
+
 ## Verification
 
 No test harness exists and no Node runtime is installed on the dev machine, so this was
