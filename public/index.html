@@ -2500,15 +2500,34 @@ let nxData=null,tbaMx=null,tbaRk=null,tbaTi=null,tbaWc=null,tbaAlliances=null,ne
 let tbaEvent=null;   // full TBA event object (for event.district etc.)
 let sbMyYear=null;   // Statbotics team_year for our own team (world/country/district/state EPA ranks)
 let sbMyAdv=null;    // { label, rank, points } — our team's FRC district OR regional-pool standing
-// FRC advancement caches. These values only change when an event ends, so each is
-// fetched at most once per session and NEVER placed on a refresh loop.
+// FRC advancement caches. These were once-per-session memos with no expiry at all,
+// which froze a team's district points and rank for as long as the display stayed
+// up — all weekend, on a pit TV. They are now stamped with sbVer() like everything
+// else, so they refresh as the event plays. NOTE this is a proxy, not an exact
+// trigger: district points really move when an *event ends*, which no signal here
+// tracks, so a rank can still lag another district's event by a cycle. Strictly
+// better than never. See docs/features/13.
 const teamDistrictCache={};   // team -> {key, abbreviation} | null   (current year only)
-const advRankingsCache={};    // rankings-endpoint URL -> array (district or regional-pool)
-const advCache={};            // team -> { label, rank, points } | null
+const advRankingsCache={};    // rankings-endpoint URL -> { v, d:array }
+const advCache={};            // team -> { v, d:{ label, rank, points }|null }
 // EPA-overlay context caches — fetched once per team when the overlay opens, not polled.
 const teamInfoCache={};       // team -> TBA /team/frc<t> object (identity: city, etc.)
 const eventTypeCache={};      // year -> { eventKey: event_type }  (from /events/<yr>/simple)
-const recordsCache={};        // team -> { off:{w,l,t}, all:{w,l,t} }
+const recordsCache={};        // team -> { v, d:{ off:{w,l,t}, all:{w,l,t} } }
+// teamDistrictCache / teamInfoCache / eventTypeCache are deliberately NOT versioned:
+// district membership, team identity and event types are fixed for the season, so
+// no amount of play changes them.
+
+// ── Version-stamped memo ───────────────────────────────────────────────────
+// Same idea as the Statbotics _sb store, minus the persistence and SWR: hold a value
+// until sbVer() moves. Returning the wrapper rather than the value keeps a cached
+// null (a team with no district) distinguishable from a miss, which the old
+// `team in cache` test handled and a truthiness check would not.
+function memoGet(cache, key, ver){
+  const e = cache[key];
+  return (e && e.v === ver) ? e : null;
+}
+function memoPut(cache, key, ver, d){ cache[key] = { v: ver, d }; return d; }
 // Dismissed alert IDs — persisted in localStorage
 const LS_DISMISSED='pitfusion_dismissed_alerts';
 function getDismissed(){try{return new Set(JSON.parse(localStorage.getItem(LS_DISMISSED)||'[]'));}catch{return new Set();}}
@@ -2632,7 +2651,11 @@ async function init(){
   fMyYear().then(()=>rTeam());    // EPA ranks row appears when Statbotics answers
   fPred().then(paintPred);        // prediction bars likewise
   setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fPits(),fNxAlliances()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();},15000);
-  setInterval(async()=>{await Promise.all([fMx(),fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();updateBumperBox();stamp();},30000);
+  // fMx() FIRST, on its own: tbaMx is what sbVer() counts, and fMyYear()/fPred()
+  // invalidate their caches off that version. Racing them inside one Promise.all
+  // made both read the PREVIOUS tick's match list, so a posted score took two polls
+  // (up to 60s) to reach the EPA and prediction panels instead of one.
+  setInterval(async()=>{await fMx();await Promise.all([fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();updateBumperBox();stamp();},30000);
 }
 
 function renderAll(){rQ();rMl();rRank();rUpcoming();rTeam();rAlerts();rStream();updateBumperBox();stamp();}
@@ -3066,15 +3089,50 @@ const BREAK_ICONS = {
   'Lunch':'🍽', 'End of day':'🌙', 'Awards break':'🏆', 'Alliance selection':'🤝',
 };
 function breakIcon(b){ return BREAK_ICONS[b] || '⏸'; }
+// A TBA match carries a posted score once BOTH alliances report a non-negative
+// one; an unplayed match reports null or -1. Shared with sbVer() below, so the
+// test has exactly one definition.
+function hasScore(m){
+  const bs=m?.alliances?.blue?.score, rs=m?.alliances?.red?.score;
+  return bs!=null && bs>=0 && rs!=null && rs>=0;
+}
 function scoreMap(){
   const map={};
   (tbaMx||[]).forEach(m=>{
-    if(!m.alliances) return;
-    const bs=m.alliances.blue?.score, rs=m.alliances.red?.score;
-    if(bs==null||bs<0||rs==null||rs<0) return;
-    map[mxKey(m)]={blue:bs, red:rs};
+    if(!hasScore(m)) return;
+    map[mxKey(m)]={blue:m.alliances.blue.score, red:m.alliances.red.score};
   });
   return map;
+}
+// ── Cache version — the one trigger behind every cache in this file ──────────
+// Derived data (Statbotics EPA, win predictions, W–L records, district points) is
+// only ever wrong for the instant after a match is SCORED. In between it is exactly
+// right no matter how old it is, which is why none of those caches is TTL'd any
+// more: they carry this string, and a mismatch is the only thing that invalidates.
+//
+// Two widths. Bare sbVer() counts every scored match at the event — used where any
+// result moves the value (a prediction for match 40 changes when 39 is scored; a
+// team_year carries world/state ranks that move as anyone plays). sbVer(team)
+// narrows to that team's own matches, roughly a 6x reduction in refetches for the
+// values that genuinely only move when THAT team plays.
+//
+// It must be derived from shared upstream state and never from local history, or
+// two displays at the same event would disagree and each punch its own hole in the
+// Worker's shared edge cache. They can differ for one poll while TBA's own 30s edge
+// entry drains; that costs one extra upstream fetch and self-corrects.
+//
+// On a Nexus demo event (no TBA counterpart at all) tbaMx is empty, so this pins at
+// "<key>:0" and nothing ever invalidates — correct, but it means the project's only
+// integration fixture cannot exercise any of this. See docs/features/13.
+function sbVer(team){
+  const t = team==null ? null : String(team);
+  let n = 0;
+  (tbaMx||[]).forEach(m=>{
+    if(!hasScore(m)) return;
+    if(t && !teamsOf(m,'red').includes(t) && !teamsOf(m,'blue').includes(t)) return;
+    n++;
+  });
+  return t ? `${C.event||''}:${t}:${n}` : `${C.event||''}:${n}`;
 }
 // Per-match ranking points from TBA score_breakdown, keyed like nl() ("qual_N").
 // Quals only — RP is a qualification concept. `rp` is the only correct field here:
@@ -5060,11 +5118,20 @@ function closeAllianceEpa(){
 // ── Statbotics cache: persisted, stale-while-revalidate, shared by every caller ──
 // Survives a page reload; on a stale entry it paints instantly then revalidates
 // in the background. Year-namespaced so last season's data drops on its own.
+//
+// Invalidation is EVENT-DRIVEN, not time-driven: every entry carries the sbVer()
+// of the moment it was stored, and a version mismatch is the ONLY thing that makes
+// it stale. There is deliberately no TTL — a duration was always a guess at the
+// question sbVer() answers exactly. The practical effect is that a quiet event
+// (a break, overnight, after the last match) issues zero Statbotics requests,
+// where the old 20-minute TTL kept polling forever.
 const SB_LS          = `pitfusion_sb_${new Date().getFullYear()}`;
-const SB_TTL_YEAR    = 2*60*60*1000;   // team_year  — EPA aggregates move slowly
-const SB_TTL_MATCHES = 20*60*1000;     // /v3/matches — grows as matches are played
 const SB_MAX         = 40;             // LRU cap per sub-store
-const _sb = { year:{}, matches:{} };   // key -> { d:<json>, ts:<ms> }
+const _sb = { year:{}, matches:{} };   // key -> { d:<json>, ts:<ms>, v:<sbVer> }
+// store|key -> in-flight promise. One version bump can wake several callers of the
+// same key at once (the 30s poll, an open EPA overlay, the prediction rebuild);
+// without this they would each fire their own request for the same URL.
+const _sbPending = {};
 (function _sbLoad(){
   try {
     const raw = JSON.parse(localStorage.getItem(SB_LS) || 'null');
@@ -5091,47 +5158,87 @@ function _sbSave(){
     } catch(e){}
   }, 500);
 }
-// Generic SWR getter. onFresh(d) fires once if a stale entry is revalidated.
-async function _sbGet(store, key, url, ttl, timeoutMs, onFresh){
+// Generic SWR getter. An entry is fresh while its version still matches, however
+// old it is. onFresh(d) fires once when a stale entry is replaced — it is attached
+// OUTSIDE the shared request so that every caller is still notified when several
+// of them collapse onto one fetch.
+async function _sbGet(store, key, url, timeoutMs, onFresh, ver){
   const hit = _sb[store][key];
-  if(hit && Date.now()-hit.ts < ttl) return hit.d;   // fresh
-  const p = (async()=>{
-    try {
-      const r = await fetchWithRetry(url, timeoutMs, 3);
-      const d = await r.json();
-      _sb[store][key] = { d, ts: Date.now() };
-      _sbSave();
-      if(hit && onFresh) onFresh(d);
-      return d;
-    } catch(err){
-      if(hit) return hit.d;        // keep serving stale on failure
-      throw err;
-    }
-  })();
-  return hit ? hit.d : p;          // stale → instant; cold → await the fetch
+  if(hit && hit.v === ver) return hit.d;   // still current
+  const pk = store+'|'+key;
+  let p = _sbPending[pk];
+  if(!p){
+    p = (async()=>{
+      try {
+        const r = await fetchWithRetry(url, timeoutMs, 3);
+        const d = await r.json();
+        _sb[store][key] = { d, ts: Date.now(), v: ver };
+        _sbSave();
+        return d;
+      } catch(err){
+        if(hit) return hit.d;      // keep serving stale on failure
+        throw err;
+      } finally {
+        delete _sbPending[pk];
+      }
+    })();
+    _sbPending[pk] = p;
+  }
+  // If the version bumps again WHILE this request is in flight, a later caller joins
+  // it and gets the older payload, stored under the older version. That entry then
+  // reads as stale on the next call and refetches, so it converges within one poll
+  // rather than sticking — not worth a second in-flight slot to avoid.
+  if(hit){
+    if(onFresh) p.then(d=>{ if(d!==hit.d) onFresh(d); }, ()=>{});
+    return hit.d;                  // stale → paint instantly, correct via onFresh
+  }
+  return p;                        // cold → await the fetch
 }
 const _yr = () => new Date().getFullYear();
-// apiUrl() routes these through /api/statbotics in hosted mode, sharing Cloudflare's
+// Hosted mode only: `_cb` carries the cache version to the Worker, which strips it
+// back off before calling Statbotics and folds it into the edge cache key instead
+// (see worker.js). Without it, a client that KNOWS its data is stale would still be
+// handed the edge's copy — Cloudflare's Cache API has no push invalidation, so a
+// varying key is the only way to punch through one without adding a KV/Durable
+// Object binding. Self-hosted talks to Statbotics directly and must not be handed
+// a query parameter the API never declared.
+function sbUrl(u, ver){
+  const full = apiUrl(u);
+  if(MODE!=='hosted') return full;
+  return full + (full.includes('?') ? '&' : '?') + '_cb=' + encodeURIComponent(ver);
+}
+// sbUrl() routes these through /api/statbotics in hosted mode, sharing Cloudflare's
 // edge cache across every team watching the same event; self-hosted goes direct,
 // unchanged. Either way this SWR layer still governs what the caller actually sees —
 // the edge cache only affects what happens on a cache MISS here.
+//
+// team_year takes the EVENT-wide version, not the team-narrowed one: besides the
+// team's own EPA it carries world/country/state/district ranks, which move as any
+// team anywhere plays. Narrowing it would freeze the My Team rank row between our
+// own matches, which with no TTL left could be an hour or more.
 function getTeamYear(team, onFresh){
+  const v = sbVer();
   return _sbGet('year', String(team),
-    apiUrl(`https://api.statbotics.io/v3/team_year/${team}/${_yr()}`),
-    SB_TTL_YEAR, 8000, onFresh);
+    sbUrl(`https://api.statbotics.io/v3/team_year/${team}/${_yr()}`, v),
+    8000, onFresh, v);
 }
+// Only this team's own matches appear here, so the narrow version applies — about a
+// 6x cut in refetches over the event-wide one, for identical correctness.
 function getTeamMatches(team, scope, onFresh){
   const q = (scope && scope!=='all') ? `event=${scope}` : `year=${_yr()}&limit=200`;
+  const v = sbVer(team);
   return _sbGet('matches', `${team}|${scope||'all'}`,
-    apiUrl(`https://api.statbotics.io/v3/matches?team=${team}&${q}`),
-    SB_TTL_MATCHES, 12000, onFresh);
+    sbUrl(`https://api.statbotics.io/v3/matches?team=${team}&${q}`, v),
+    12000, onFresh, v);
 }
 // Every match at an event (for match predictions — carries the `pred` object).
 // Shares the _sb.matches SWR store under an `event|` key; bustTeamCache ignores it.
+// Event-wide version: match 39's result changes match 40's prediction.
 function getEventMatches(evKey, onFresh){
+  const v = sbVer();
   return _sbGet('matches', `event|${evKey}`,
-    apiUrl(`https://api.statbotics.io/v3/matches?event=${evKey}&limit=200`),
-    SB_TTL_MATCHES, 12000, onFresh);
+    sbUrl(`https://api.statbotics.io/v3/matches?event=${evKey}&limit=200`, v),
+    12000, onFresh, v);
 }
 function bustTeamCache(team){
   team=String(team);
@@ -5470,7 +5577,8 @@ async function fillRecords(team){
       const m={}; (evs||[]).forEach(x=>{ m[x.key]=x.event_type; });
       eventTypeCache[yr]=m;
     }
-    if(!(team in recordsCache)){
+    const recVer=sbVer(team);
+    if(!memoGet(recordsCache, team, recVer)){
       const ms=await get(`https://www.thebluealliance.com/api/v3/team/frc${team}/matches/${yr}/simple`,ht(C.tba));
       const OFFICIAL=new Set([0,1,2,3,4,5,6]);
       const off={w:0,l:0,t:0}, all={w:0,l:0,t:0};
@@ -5486,9 +5594,9 @@ async function fillRecords(team){
         all[res]++;
         if(OFFICIAL.has(eventTypeCache[yr][mm.event_key])) off[res]++;
       });
-      recordsCache[team]={off,all};
+      memoPut(recordsCache, team, recVer, {off,all});
     }
-    const {off,all}=recordsCache[team];
+    const {off,all}=recordsCache[team].d;
     const fmt=r=>`${r.w}–${r.l}–${r.t}`;
     if(offEl) offEl.textContent=fmt(off);
     if(allEl) allEl.textContent=fmt(all);
@@ -5508,8 +5616,9 @@ function epaDistrictMeaningful(ty){
 }
 
 // ── FRC advancement points (district or regional pool) ──────────────────────
-// Values only change when an event ends -> fetched at most once per team per session,
-// never from a refresh loop.
+// Values move as events play out, so the rankings and per-team results are memoized
+// against sbVer() rather than fetched once per session. Still never on a refresh
+// loop: they refetch only when the overlay is read AND the event has advanced.
 
 // Current-year district for a team, or null (-> team is in the regional pool).
 async function getTeamDistrict(team){
@@ -5526,13 +5635,17 @@ async function getTeamDistrict(team){
 }
 
 async function advRankings(url){
-  if(!advRankingsCache[url]) advRankingsCache[url]=await get(url,ht(C.tba));
-  return advRankingsCache[url]||[];
+  const v=sbVer();
+  const hit=memoGet(advRankingsCache, url, v);
+  if(hit) return hit.d||[];
+  return memoPut(advRankingsCache, url, v, await get(url,ht(C.tba)))||[];
 }
 
 // { label, rank, points } for a team's FRC district OR regional-pool standing, or null.
 async function getAdvancement(team){
-  if(team in advCache) return advCache[team];
+  const advVer=sbVer();
+  const hit=memoGet(advCache, team, advVer);
+  if(hit) return hit.d;
   let out=null;
   try{
     const yr=new Date().getFullYear();
@@ -5559,8 +5672,7 @@ async function getAdvancement(team){
     const row=(rows||[]).find(r=>r.team_key===`frc${team}`);
     if(row&&row.point_total!=null) out={label,rank:row.rank,points:row.point_total};
   }catch{}
-  advCache[team]=out;
-  return out;
+  return memoPut(advCache, team, advVer, out);
 }
 
 // Fill the FRC Advancement pill in the identity card, or remove it if unranked.

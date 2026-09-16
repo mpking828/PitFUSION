@@ -11,8 +11,21 @@ const ROUTES = {
   '/api/youtube':    { upstream: 'https://www.googleapis.com/youtube/v3',  query:  'key',            env: 'YOUTUBE_API_KEY', cache: 60 },
   // Keyless — no header/env/query. Every team watching the same event shares one
   // cached response instead of each browser hitting Statbotics independently.
-  '/api/statbotics': { upstream: 'https://api.statbotics.io/v3',                                                             cache: 120 },
+  // `bustCache` applies only when the client sent a `_cb` version (see below): a
+  // versioned URL is immutable by construction, so it can be held far longer than
+  // the blind 120s a plain URL gets. A client on a stale cached index.html sends no
+  // `_cb` and correctly falls back to `cache`.
+  '/api/statbotics': { upstream: 'https://api.statbotics.io/v3',                                     cache: 120, bustCache: 3600 },
 };
+
+// Client-supplied cache version (see sbUrl() in public/index.html). It must NOT
+// reach the upstream API — Statbotics never declared it — but it MUST vary the edge
+// cache key, which is the only way a client that knows its data is stale can punch
+// through Cloudflare's cache: the Cache API offers no push invalidation, only lazy
+// match/put by URL, and a KV or Durable Object binding is something this project has
+// deliberately stayed without. Every display at an event derives the same value from
+// the same TBA state, so they still share one entry.
+const CACHE_BUST_PARAM = '_cb';
 
 const ALLOWED_HOSTS = ['pitfusion.com'];
 const ALLOWED_SUFFIXES = ['.pitfusion.com', '.workers.dev', '.pages.dev'];
@@ -63,13 +76,26 @@ export default {
 
     const path = url.pathname.slice(prefix.length);
     const params = new URLSearchParams(url.search);
+    const bust = params.get(CACHE_BUST_PARAM);
+    params.delete(CACHE_BUST_PARAM);
     if (route.query) params.set(route.query, secret);
     const qs = params.toString();
     const upstreamUrl = route.upstream + path + (qs ? `?${qs}` : '');
 
+    // The cache key re-adds `_cb` that the upstream URL just dropped, so the version
+    // partitions the edge cache without ever being sent to the API. This URL is only
+    // ever a key; it is never fetched.
+    const cacheUrl =
+      bust === null
+        ? upstreamUrl
+        : upstreamUrl +
+          (upstreamUrl.includes('?') ? '&' : '?') +
+          `${CACHE_BUST_PARAM}=${encodeURIComponent(bust)}`;
+    const maxAge = (bust !== null && route.bustCache) || route.cache;
+
     // Edge cache is best-effort — if the Cache API is unavailable or disabled,
     // fall straight through to the upstream fetch.
-    const cacheKey = new Request(upstreamUrl, { method: 'GET' });
+    const cacheKey = new Request(cacheUrl, { method: 'GET' });
     let cache = null;
     let response = null;
     try {
@@ -94,7 +120,7 @@ export default {
       response.headers.delete('set-cookie');
       response.headers.set(
         'Cache-Control',
-        upstream.ok ? `public, max-age=${route.cache}` : 'no-store'
+        upstream.ok ? `public, max-age=${maxAge}` : 'no-store'
       );
       if (upstream.ok && cache) {
         try { ctx.waitUntil(cache.put(cacheKey, response.clone())); } catch (e) { /* ignore */ }

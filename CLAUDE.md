@@ -196,6 +196,32 @@ Default team: 88, event key format: e.g. 2025cthar
 - Persisted SWR cache `_sb` (`localStorage['pitfusion_sb_<year>']`): `getTeamYear()`,
   `getTeamMatches()`, `getEventMatches()`. Stale entries paint instantly + revalidate
   in the background; never polled on a fixed cadence.
+- **There are no cache TTLs anywhere in the app — invalidation is event-driven.**
+  `sbVer()` counts matches TBA has posted a score for and that count IS the cache
+  version; an entry is fresh while its version matches, however old it is. Bare
+  `sbVer()` is event-wide (any result moves the value); `sbVer(team)` narrows to that
+  team's own matches. `getTeamYear` deliberately takes the EVENT-wide version despite
+  the "only your own matches change your EPA" rule, because `team_year` also carries
+  world/country/state ranks that move as anyone plays. The version must always be
+  derived from shared upstream state, never local history — otherwise two displays at
+  one event disagree and each punches its own hole in the Worker's shared edge cache.
+- **Hosted mode appends `_cb=<version>` to Statbotics URLs** (`sbUrl()`); `worker.js`
+  strips it before calling Statbotics and folds it into the edge cache key instead, so
+  a versioned URL gets `bustCache: 3600` instead of the blind 120s. Self-hosted must
+  NOT send it — Statbotics never declared the param. This is the only way to punch
+  through a Cloudflare edge entry on demand: the Cache API has no push invalidation.
+- **`recordsCache` / `advCache` / `advRankingsCache` are version-stamped memos**
+  (`memoGet`/`memoPut`, storing `{v, d}`). They used to be once-per-session with no
+  expiry, which froze W–L records and district rank for a whole weekend on a pit TV.
+  The `{v,d}` wrapper is load-bearing: `advCache[team]` can legitimately be `null`
+  (no district), so a cached null must stay distinguishable from a miss.
+  `teamDistrictCache`/`teamInfoCache`/`eventTypeCache` are deliberately NOT versioned —
+  season-static.
+- **`fMx()` must be awaited BEFORE `fMyYear()`/`fPred()` in the 30s loop.** They read
+  `tbaMx` to compute their version; racing them in one `Promise.all` made a posted
+  score take two polls to land. Don't fold it back in.
+- None of this is exercised by a Nexus demo event — no TBA means `tbaMx` is empty and
+  `sbVer()` pins at `<key>:0` forever. See docs/features/13.
 - EPA overlay charts read per-match EPA from `/v3/matches` → `m.epas["<team>"]`.
 - **Match predictions** (feature #1): opt-in, **off by default**, `localStorage`
   `pitfusion_predictions` (`'1'`/`'0'`), toggled on the setup screen + ⚙ Settings ▸
