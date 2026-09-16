@@ -112,7 +112,7 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   freshness, and **zero** requests once play stops, where the old TTLs polled forever
   (#13, see the design doc for the full cost breakdown).
 
-- **Unreleased on `main`** — **failure backoff for Statbotics.** V3.5.0's version cache
+- **V3.5.1** — **failure backoff for Statbotics.** V3.5.0's version cache
   only quiets a display that has data; with a cold cache and a dead upstream every read
   still refetched. Measured live during the outage: two `_sbGet` calls per 30s poll, each
   costing 3 raw requests because Statbotics' 9–14s latency exceeds `getTeamYear`'s 8s
