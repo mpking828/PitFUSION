@@ -76,13 +76,19 @@ pitfusion.com — Cloudflare managed
   on the field. Play order is `On field → On deck → Now queuing → Queuing soon`, so
   nowQueuing is the FURTHEST-OUT active match (the queue call for a match several
   slots ahead). `matches[indexOf(nowQueuing) - 1]` is the **on-deck** match.
-  **That arithmetic holds only while the pipeline is two deep.** Observed at 2026cc
-  with no break and no phase change: On field Practice 1, **nothing at "On deck"**,
-  Practice 2 "Now queuing", `nowQueuing: "Practice 2"` — so `indexOf - 1` resolved to
-  the match on the FIELD. It happens whenever the operator is late on the on-deck call
-  (Practice 2's `estimatedOnDeckTime` was clamped, i.e. overdue) and clears itself on
-  the next call. Nothing broke because `fieldState()` reads statuses, never the index —
-  which is the reason to keep using it rather than re-deriving from nowQueuing.
+  **That arithmetic holds only while the pipeline is two deep**, and there is a normal
+  state where it isn't: On field, **nothing at "On deck"**, the next match "Now queuing",
+  so `indexOf - 1` resolves to the match on the FIELD. Seen at two events:
+  - 2026cc mid-practice — Practice 1 on field, Practice 2 queuing. Practice 2's
+    `estimatedOnDeckTime` was clamped (overdue), so this one was the operator running
+    late, and it cleared on the next call.
+  - 2026mibig1 (FSR) at the **first match of quals** — Q1 on field, Q2 queuing, Q1 and Q2
+    queued three seconds apart. Nothing was late; there had simply been no earlier match
+    to occupy the On deck slot.
+  So treat one-deep as **structural at the start of a phase** and transient elsewhere, not
+  as a symptom either way. Nothing broke at either event because `fieldState()` reads
+  statuses, never the index — which is the reason to keep using it rather than
+  re-deriving from nowQueuing.
 - Nexus permanently leaves all matches at status "On field" after they're played
 - Stale "On field" entries are always EARLIER in play order than the live one, so the
   **last** "On field" is the real one — self-correcting, no staleness heuristic needed.
@@ -127,6 +133,9 @@ pitfusion.com — Cloudflare managed
   `alliancesPosted()` keys on that last one with `/alliance/i`; note it sits after the
   LAST qualification, so the "selection break played" and "every qualification played"
   arms of that gate open at the same moment rather than one racing the other.
+  Confirmed at a second event the same weekend — 2026mibig1 (FSR), a 27-qual one-dayer:
+  `Qualification 10 → "Lunch"`, `Qualification 27 → "Alliance selection"`. Same spelling,
+  same position after the final qualification.
 - **The On Field slot is the sequence position BEFORE the on-deck match, and it can be -1.**
   On the first queue call of the event the on-deck match is the first match in the
   schedule, so that slot falls off the front and belongs empty. Don't clamp it to 0 — that
@@ -171,8 +180,10 @@ pitfusion.com — Cloudflare managed
   phases that have no FMS schedule behind them: practice, playoffs (per the API docs'
   "not set for playoffs" clause) and demos. 2026cc's quals run on a ~7.5–8.5 min cadence,
   Q1 at 09:45 PT and Q70 two days later.
+  Confirmed at a second event the same weekend — 2026mibig1 (FSR): 27 quals, all with
+  `scheduledStartTime`, none of the other phases present at all.
   This is what the "Nm behind / Nm ahead" pill measures `estimatedStartTime` against —
-  see the demo-section note. Quals are the only window in which it can ever render.
+  see the demo-section note, including what a day-shifted schedule does to it.
 - **Nexus never publishes an estimate in the past.** When a queue time comes due and the
   operator hasn't queued, Nexus replaces the estimate with `dataAsOfTime` exactly; the
   operator's dashboard labels such a match "Expected soon". That single clamp explains
@@ -258,10 +269,24 @@ settled the break design.
   `scheduled*` at all. Nothing to do with TBA. It is also permanently blank during
   playoffs at a real event, per the same clause — **and through all of practice at a real
   event too**, confirmed at 2026cc. So a demo is not the only thing that can't exercise it.
-  **Qualifications are the one window where it can render**, and 2026cc supplied the first
-  real `scheduledStartTime` values this project has seen (70/70 quals). Until those quals
-  are actually played the pill remains unvalidated — it has never rendered anywhere, so
-  treat its first appearance as untested code, not as a regression if it misbehaves.
+  **Qualifications are the one window where it can render**, which is why it looks broken
+  in every test setup this project has. It is NOT unvalidated: the owner has watched it
+  behave correctly at real events across 13 months. An earlier revision of this note
+  claimed it had "never rendered anywhere" — that was inferred from this file's own
+  records, which only ever cover demos and practice, and it is wrong.
+- **A day-shifted `scheduledStartTime` makes the pill read in the thousands of minutes.**
+  Seen once, at 2026mibig1 (FSR) on 2026-09-19: every qual's `scheduledStartTime` landed
+  on 2026-09-18 while play ran on the 19th, so the header showed `+1449m behind` in red.
+  The arithmetic in `updateScheduleDelay()` is right and the feed is what is wrong —
+  subtract exactly 1440 minutes and the residual is a textbook delay curve (+8.3, +8.5,
+  +7.8, +7.0 … decaying as the crew caught up, then slightly negative after lunch). Only
+  the DATE is wrong; the time of day is correct. 2026cc's quals the same weekend were
+  dated correctly, so the field itself is sound.
+  **Deliberately not fixed** — first occurrence in 13 months of use, at a small offseason
+  event, and the defect is upstream. If it recurs, the fix is a sanity ceiling in
+  `updateScheduleDelay()` (hide beyond ~3h, which no real event slip reaches), NOT
+  detecting and subtracting the day offset: that would invent a number from data already
+  known to be untrustworthy and hide exactly the upstream error worth noticing.
 - Practice matches are included, and since #65 `playedList()` keeps them so the match list
   can dim them correctly. `matchPlayed()`'s positional rule therefore applies to practice
   too; practice precedes the whole schedule, so qual/playoff indices are unaffected.
