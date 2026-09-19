@@ -2637,7 +2637,74 @@ async function fNexus(){
 
   feedFail('nexus'); return false;
 }
-async function fPits(){if(nexusPitsUnavailable)return;try{const k=C.nexusEvent||C.event;nexusPits=await get(`https://frc.nexus/api/v1/event/${k}/pits`,hn(C.nexus));}catch(e){nexusPits=null;if(e===404)nexusPitsUnavailable=true;}}
+// Nexus's /pits payload has been seen in three shapes — a bare array of pit objects,
+// a {pits:[...]} wrapper, and a flat {team: addr} map — so "do we have pit data?" is
+// not a question the raw response can answer. Normalise once, memoised on the IDENTITY
+// of nexusPits so a fresh fetch rebuilds and nothing can go stale behind it. rAlerts()
+// used to carry this inline and rebuild it on every 15s render.
+let _pitLk={src:undefined,map:{}};
+function pitLookup(){
+  if(_pitLk.src===nexusPits) return _pitLk.map;
+  const map={};
+  if(nexusPits){
+    if(Array.isArray(nexusPits)){
+      // Array of pit objects: [{teamNumber:"88", label:"B4"}, ...]
+      nexusPits.forEach(pit=>{
+        const t=String(pit.teamNumber||pit.team||pit.teamNum||pit.number||'');
+        const addr=pit.label||pit.pitLocation||pit.location||pit.pitAddress||pit.address||pit.pit||pit.slot||'';
+        if(t&&addr) map[t]=addr;
+      });
+    } else if(Array.isArray(nexusPits?.pits)){
+      nexusPits.pits.forEach(pit=>{
+        const t=String(pit.teamNumber||pit.team||pit.teamNum||pit.number||'');
+        const addr=pit.label||pit.pitLocation||pit.location||pit.address||'';
+        if(t&&addr) map[t]=addr;
+      });
+    } else {
+      // Flat object keyed by team number: {"190":"I6","88":"B4",...}
+      Object.entries(nexusPits).forEach(([team,addr])=>{
+        if(team&&addr&&typeof addr==='string') map[String(team)]=addr;
+      });
+    }
+  }
+  _pitLk={src:nexusPits,map};
+  return map;
+}
+
+// Pit assignments are fixed before the doors open, but this sat on the 15s loop and
+// re-fetched them 240 times an hour — the largest remaining piece of avoidable load on
+// the Worker. Three exits, in order:
+//   404      "No pits." Latched forever; an absent pit map stays absent, same stance as
+//            the fNxAlliances note below. Confirmed live on 2026cc, which 404s.
+//   have it  A NORMALISED lookup with entries in it. Stop, permanently. Testing the
+//            lookup rather than nexusPits truthiness matters: a 200 carrying [] or
+//            {pits:[]} is truthy but useless, and latching on it would strand an event
+//            that publishes its pits late.
+//   empty    A 200 with nothing usable, or a network failure. NEITHER of those latches,
+//            so with no brake this would poll forever at the old rate — which is the
+//            exact failure this change exists to remove. Back off instead.
+// The backoff reuses SB_BACKOFF (30s -> 30m, then held) and mirrors _sbFail's shape. Not
+// persisted, so a reload earns one fresh attempt. retryPitMap() clears both it and the
+// 404 latch, so the overlay's Retry stays the way a late publish gets picked up at once.
+let _pitFail={n:0,until:0};
+async function fPits(){
+  if(nexusPitsUnavailable) return;
+  if(Object.keys(pitLookup()).length) return;
+  if(Date.now()<_pitFail.until) return;
+  try{
+    const k=C.nexusEvent||C.event;
+    nexusPits=await get(`https://frc.nexus/api/v1/event/${k}/pits`,hn(C.nexus));
+  }catch(e){
+    nexusPits=null;
+    if(e===404){nexusPitsUnavailable=true;return;}
+  }
+  if(Object.keys(pitLookup()).length){
+    _pitFail={n:0,until:0};
+  }else{
+    const n=_pitFail.n+1;
+    _pitFail={n,until:Date.now()+SB_BACKOFF[Math.min(n-1,SB_BACKOFF.length-1)]};
+  }
+}
 // fMx/fRk are the TBA health signal for the connection pill. A 404 is an event TBA
 // doesn't carry (a Nexus demo, an unlisted off-season event) — no data, not an outage.
 async function fMx(){try{tbaMx=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/matches`,ht(C.tba));feedOk('tba');return true;}catch(e){tbaFail(e);return false;}}
@@ -2729,12 +2796,12 @@ async function init(){
   fMyAdv().then(()=>rTeam());     // once, non-blocking; updates the My Team tab when ready
   fMyYear().then(()=>rTeam());    // EPA ranks row appears when Statbotics answers
   fPred().then(paintPred);        // prediction bars likewise
-  setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fPits(),fNxAlliances()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();},15000);
+  setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fNxAlliances()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();},15000);
   // fMx() FIRST, on its own: tbaMx is what sbVer() counts, and fMyYear()/fPred()
   // invalidate their caches off that version. Racing them inside one Promise.all
   // made both read the PREVIOUS tick's match list, so a posted score took two polls
   // (up to 60s) to reach the EPA and prediction panels instead of one.
-  setInterval(async()=>{await fMx();await Promise.all([fRk(),fAlliances(),fTi(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();updateBumperBox();stamp();},30000);
+  setInterval(async()=>{await fMx();await Promise.all([fRk(),fAlliances(),fTi(),fPits(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();updateBumperBox();stamp();},30000);
 }
 
 function renderAll(){rQ();rMl();rRank();rUpcoming();rTeam();rAlerts();rStream();updateBumperBox();stamp();}
@@ -3686,31 +3753,7 @@ function rAlerts(){
         </div>`;
       }).join('');
 
-  // Build a team→pit lookup from nexusPits if available
-  const pitMap={};
-  if(nexusPits){
-    // Nexus pits may be an array of pit objects or an object keyed by team
-    // Nexus pits response may be array at root, or {pits:[...]}, or {teams:{...}}
-    if(Array.isArray(nexusPits)){
-      // Array of pit objects: [{teamNumber:"88", label:"B4"}, ...]
-      nexusPits.forEach(pit=>{
-        const t=String(pit.teamNumber||pit.team||pit.teamNum||pit.number||'');
-        const addr=pit.label||pit.pitLocation||pit.location||pit.pitAddress||pit.address||pit.pit||pit.slot||'';
-        if(t&&addr) pitMap[t]=addr;
-      });
-    } else if(Array.isArray(nexusPits?.pits)){
-      nexusPits.pits.forEach(pit=>{
-        const t=String(pit.teamNumber||pit.team||pit.teamNum||pit.number||'');
-        const addr=pit.label||pit.pitLocation||pit.location||pit.address||'';
-        if(t&&addr) pitMap[t]=addr;
-      });
-    } else {
-      // Flat object keyed by team number: {"190":"I6","88":"B4",...}
-      Object.entries(nexusPits).forEach(([team,addr])=>{
-        if(team&&addr&&typeof addr==='string') pitMap[String(team)]=addr;
-      });
-    }
-  }
+  const pitMap=pitLookup();
 
   const partsHdr=newParts.length>0?`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="alert-dismiss-all" onclick="dismissAllParts()" title="Dismiss all parts requests">Dismiss all</button></div>`:'';
   const partsSorted=[...parts].sort((a,b)=>(b.postedTime||0)-(a.postedTime||0));
@@ -4926,12 +4969,14 @@ async function openPitMap(team, secondTeam){
   }
 
   if(!nexusPitMap || !nexusPitMap.pits){
-    const pitAddr = nexusPits?.[String(team)] || '';
+    // pitLookup(), not nexusPits[...] — the raw response is only subscriptable by team
+    // in the flat-object shape, so the other two silently dropped the pit location here.
+    const pitAddr = pitLookup()[String(team)] || '';
     wrap.innerHTML = `<div style="text-align:center;padding:40px">
       <div style="font-family:var(--fd);font-size:var(--fs-big);font-weight:900;color:var(--text-dim);margin-bottom:12px">No pit map available</div>
       <div style="font-family:var(--fd);font-size:var(--fs-lbl);color:var(--text-dim)">This event doesn’t have a pit map in Nexus.</div>
       ${pitAddr?`<div style="font-family:var(--fd);font-size:var(--fs-lbl);color:var(--accent);margin-top:8px">Pit location: ${e(pitAddr)}</div>`:''}
-      <button onclick="nexusPitMapFetched=false;openPitMap('${team}')"
+      <button onclick="retryPitMap('${team}')"
         style="margin-top:16px;font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;
         padding:5px 16px;background:var(--surface2);border:2px solid var(--border2);
         border-radius:var(--r);color:var(--text);cursor:pointer">↺ Retry</button>
@@ -4943,6 +4988,16 @@ async function openPitMap(team, secondTeam){
   requestAnimationFrame(()=>{
     wrap.innerHTML = renderPitMapSvg(nexusPitMap, String(team), secondTeam?String(secondTeam):null);
   });
+}
+
+// The overlay's Retry means "re-fetch everything pit-related", not just the SVG:
+// fPits() no longer polls, so this is the one path by which a late-published or amended
+// pit map reaches a display without a reload.
+function retryPitMap(team){
+  nexusPitMapFetched=false;
+  nexusPitsUnavailable=false;
+  _pitFail={n:0,until:0};
+  fPits().finally(()=>openPitMap(team));
 }
 
 function closePitMap(){
