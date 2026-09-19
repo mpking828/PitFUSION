@@ -274,19 +274,22 @@ settled the break design.
   behave correctly at real events across 13 months. An earlier revision of this note
   claimed it had "never rendered anywhere" — that was inferred from this file's own
   records, which only ever cover demos and practice, and it is wrong.
-- **A day-shifted `scheduledStartTime` makes the pill read in the thousands of minutes.**
-  Seen once, at 2026mibig1 (FSR) on 2026-09-19: every qual's `scheduledStartTime` landed
-  on 2026-09-18 while play ran on the 19th, so the header showed `+1449m behind` in red.
-  The arithmetic in `updateScheduleDelay()` is right and the feed is what is wrong —
+- **A four-digit delay reading is Nexus's number, not ours — do not "fix" it.** Seen once,
+  at 2026mibig1 (FSR) on 2026-09-19: every qual's `scheduledStartTime` landed on
+  2026-09-18 while play ran on the 19th, so the header showed `+1449m behind` in red.
+  **Nexus's own site showed the same ~1440m**, which is the whole point — the feed carries
+  a day-shifted schedule and both displays report it faithfully. `updateScheduleDelay()`
+  is doing exactly the right arithmetic.
+  A sanity ceiling was considered and **rejected**: hiding the pill beyond some plausible
+  maximum would put PitFusion in disagreement with the operator's authoritative dashboard,
+  and a crew seeing "behind" on one screen and nothing on the other would reasonably
+  conclude PitFusion was broken. Parity with Nexus is worth more than a tidier number.
+  For reference if it is ever revisited: only the DATE was wrong, not the time of day —
   subtract exactly 1440 minutes and the residual is a textbook delay curve (+8.3, +8.5,
-  +7.8, +7.0 … decaying as the crew caught up, then slightly negative after lunch). Only
-  the DATE is wrong; the time of day is correct. 2026cc's quals the same weekend were
-  dated correctly, so the field itself is sound.
-  **Deliberately not fixed** — first occurrence in 13 months of use, at a small offseason
-  event, and the defect is upstream. If it recurs, the fix is a sanity ceiling in
-  `updateScheduleDelay()` (hide beyond ~3h, which no real event slip reaches), NOT
-  detecting and subtracting the day offset: that would invent a number from data already
-  known to be untrustworthy and hide exactly the upstream error worth noticing.
+  +7.8, +7.0 … decaying as the crew caught up, then slightly negative after lunch). 2026cc
+  the same weekend was dated correctly, so the field itself is sound, and this was a
+  struggling one-day offseason event running about five matches an hour and not updating
+  TBA — not the shape of a real event.
 - Practice matches are included, and since #65 `playedList()` keeps them so the match list
   can dim them correctly. `matchPlayed()`'s positional rule therefore applies to practice
   too; practice precedes the whole schedule, so qual/playoff indices are unaffected.
