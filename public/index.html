@@ -5517,9 +5517,10 @@ async function openEpa(team, forceReload=false){
     sbError = err;
   }
 
-  // Update nickname from teamYear if available
-  if(nicknameDisp && teamYear){
-    const nickname = teamYear.name || teamYear.team_name || '';
+  // Update nickname from TBA if available
+  const teamInfo = await getTeamInfo(team);
+  if(nicknameDisp && teamInfo){
+    const nickname = teamInfo.nickname || '';
     if(nickname) nicknameDisp.textContent = nickname;
   }
 
