@@ -108,6 +108,10 @@ pitfusion.com — Cloudflare managed
   - *phase change* — Practice 6 on deck, Qualification 1 still "Queuing soon", never
     queued. So nowQueuing is never a qualification while a practice match is unplayed,
     which is why keying phase on nowQueuing is safe at that seam.
+    **Confirmed at a real event.** At 2026cc, with the full 70-match qual schedule posted
+    in both Nexus and TBA, `nowQueuing` was still `"Practice 11"` and Qualification 1 sat
+    at "Queuing soon", unqueued. The rule was derived entirely from a demo; this is the
+    first time real FMS scheduling and a real queue crew have been held against it.
   - *break* — Q19 on field, Q20 on deck with `breakAfter: "End of day"`, and **nowQueuing
     collapsed onto Q20 itself with nothing at "Now queuing" at all**. Q21 was not queued
     and would not be until the break ended.
@@ -116,6 +120,13 @@ pitfusion.com — Cloudflare managed
   slot must not invent one — the break occupies that slot instead. An early instinct that
   the strip should read `Q19 | Q20 | Q21` there was wrong for this reason: it would assert
   a queue call Nexus never made. See `rQ()`'s sequence model.
+- **Real `breakAfter` strings, from 2026cc's posted qual schedule** — the names are free
+  text from the event, so match them loosely, never by equality:
+  `Qualification 16 → "Lunch"`, `Qualification 35 → "Lunch"` (two, on the same day),
+  `Qualification 56 → "End of day"`, `Qualification 70 → "Alliance selection"`.
+  `alliancesPosted()` keys on that last one with `/alliance/i`; note it sits after the
+  LAST qualification, so the "selection break played" and "every qualification played"
+  arms of that gate open at the same moment rather than one racing the other.
 - **The On Field slot is the sequence position BEFORE the on-deck match, and it can be -1.**
   On the first queue call of the event the on-deck match is the first match in the
   schedule, so that slot falls off the front and belongs empty. Don't clamp it to 0 — that
@@ -153,10 +164,15 @@ pitfusion.com — Cloudflare managed
   the whole remaining schedule rigidly shifts by the same delta — no per-match recompute.
   At 2026cc, Practice 1's projected 22:18:07 was overwritten to 22:15:51 (its actual start)
   and every later match moved 2m16s earlier in one step.
-- **Practice matches carry no `scheduledStartTime` at a real event.** Confirmed across four
-  2026cc samples including a match that had started *and* committed: `scheduled*` never
-  appeared on any match. See the "Nm behind / Nm ahead" note in the demo section — that
-  pill is structurally blank through all of practice, not just on a demo.
+- **`scheduledStartTime` is a QUALIFICATION field.** Observed for the first time at 2026cc
+  the moment the qual schedule posted: all 70 quals carry it, every practice match still
+  has none — confirmed across five samples including practice matches that had started
+  *and* committed. So the field is not absent at a real event, it is absent from the
+  phases that have no FMS schedule behind them: practice, playoffs (per the API docs'
+  "not set for playoffs" clause) and demos. 2026cc's quals run on a ~7.5–8.5 min cadence,
+  Q1 at 09:45 PT and Q70 two days later.
+  This is what the "Nm behind / Nm ahead" pill measures `estimatedStartTime` against —
+  see the demo-section note. Quals are the only window in which it can ever render.
 - **Nexus never publishes an estimate in the past.** When a queue time comes due and the
   operator hasn't queued, Nexus replaces the estimate with `dataAsOfTime` exactly; the
   operator's dashboard labels such a match "Expected soon". That single clamp explains
@@ -241,8 +257,11 @@ settled the break design.
   confirmed on a live demo feed: 42 matches, all four `estimated*` present, no
   `scheduled*` at all. Nothing to do with TBA. It is also permanently blank during
   playoffs at a real event, per the same clause — **and through all of practice at a real
-  event too**, confirmed at 2026cc. So a demo is not the only thing that can't exercise
-  it: the pill remains entirely unvalidated, and only quals can validate it.
+  event too**, confirmed at 2026cc. So a demo is not the only thing that can't exercise it.
+  **Qualifications are the one window where it can render**, and 2026cc supplied the first
+  real `scheduledStartTime` values this project has seen (70/70 quals). Until those quals
+  are actually played the pill remains unvalidated — it has never rendered anywhere, so
+  treat its first appearance as untested code, not as a regression if it misbehaves.
 - Practice matches are included, and since #65 `playedList()` keeps them so the match list
   can dim them correctly. `matchPlayed()`'s positional rule therefore applies to practice
   too; practice precedes the whole schedule, so qual/playoff indices are unaffected.
