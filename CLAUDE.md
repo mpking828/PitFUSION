@@ -129,11 +129,26 @@ pitfusion.com — Cloudflare managed
   actualQueueTime  actualOnDeckTime  actualOnFieldTime  actualStartTime  actualCommitTime
   estimatedQueueTime  estimatedOnDeckTime  estimatedOnFieldTime  estimatedStartTime
   ```
-  **Each `actual*` is populated independently and coverage is NOT uniform — the presence
-  of one never implies another.** Both counterexamples came from the same feed: Practice 1
-  started and committed but never got an `actualOnFieldTime` at all, and Practice 2 sat at
-  "On field" for six minutes with no `actualStartTime`. Don't gate on a field you haven't
-  seen on that specific match.
+  **An `actual*` is stamped only if the match actually passes through that stage, so the
+  presence of one never implies another.** Two gaps in one 2026cc feed, both structural:
+  Practice 1 has no `actualOnFieldTime` (first match of the event — the stamp comes off the
+  PREVIOUS match's commit, and there was no previous match), and Practice 2 has no
+  `actualOnDeckTime` (it jumped straight from "Now queuing" to "On field" during the
+  one-deep transient above, never occupying the On deck slot). Don't gate on a field you
+  haven't seen on that specific match. Note the corollary: a missing `actual*` does NOT
+  mean the stage is still ahead — Practice 2 lacked `actualStartTime` for six minutes
+  simply because it had not started yet, then got one at 22:26:02.
+- **`matches[]` grows during the event — it is not the fixed schedule it looks like.**
+  2026cc went from 8 practice matches to 11 mid-session as the queue crew extended
+  practice. Appends land at the end, so the positional reasoning in `matchPlayed()` is
+  unaffected, but nothing may assume the array length or a match's index is stable
+  across polls.
+- **`actualCommitTime` has so far appeared on every played match and on no unplayed one**
+  (2026cc: Practice 1 and 2 committed, Practice 3 on the field with a start but no
+  commit). That makes it a candidate Nexus-native "this match is done" signal for
+  `matchPlayed()`, which is otherwise positional and blind without TBA — it would close
+  the last-match-of-a-phase and end-of-day cases. Practice only so far; confirm on quals
+  and playoffs before relying on it.
 - **`estimatedStartTime` collapses onto `actualStartTime` the moment a match starts**, and
   the whole remaining schedule rigidly shifts by the same delta — no per-match recompute.
   At 2026cc, Practice 1's projected 22:18:07 was overwritten to 22:15:51 (its actual start)
