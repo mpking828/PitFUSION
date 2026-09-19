@@ -31,8 +31,13 @@ Single HTML file, no framework, no build step.
 - **Deliberately weighted — don't make every feed count equally.** Nexus is the only
   source that can go red (last success ≥ 180s) or raise the banner; ≥ 45s is amber. TBA
   can only degrade to amber (failing ≥ 120s), and a TBA 404 is `na` ("no data for this
-  event" — demos, unlisted off-season events), not a failure. Statbotics is listed but
-  never moves the pill (it's been down for months; counting it = amber all season).
+  event" — demos, unlisted off-season events), not a failure. **An offseason event TBA
+  has listed but not yet ingested is a different case and does NOT reach that rule**:
+  2026cc returned HTTP 200 with `[]` for `/event/2026cc/matches` while the event record
+  itself resolved fine, so it reads as `feedOk` with zero matches. Same practical blackout
+  as a demo — `sbVer()` pinned at `2026cc:0`, empty `scoreMap()`, no predictions — by a
+  different route. Statbotics is listed but never moves the pill (it's been down for
+  months; counting it = amber all season).
   YouTube is excluded: probed once at stream render, so its status would be stale.
 - Colour is keyed on the AGE of the last success, not the last attempt, so one dropped
   request doesn't flash the pill. `stamp()` now only records `lastRender` for the popover.
@@ -71,10 +76,20 @@ pitfusion.com — Cloudflare managed
   on the field. Play order is `On field → On deck → Now queuing → Queuing soon`, so
   nowQueuing is the FURTHEST-OUT active match (the queue call for a match several
   slots ahead). `matches[indexOf(nowQueuing) - 1]` is the **on-deck** match.
+  **That arithmetic holds only while the pipeline is two deep.** Observed at 2026cc
+  with no break and no phase change: On field Practice 1, **nothing at "On deck"**,
+  Practice 2 "Now queuing", `nowQueuing: "Practice 2"` — so `indexOf - 1` resolved to
+  the match on the FIELD. It happens whenever the operator is late on the on-deck call
+  (Practice 2's `estimatedOnDeckTime` was clamped, i.e. overdue) and clears itself on
+  the next call. Nothing broke because `fieldState()` reads statuses, never the index —
+  which is the reason to keep using it rather than re-deriving from nowQueuing.
 - Nexus permanently leaves all matches at status "On field" after they're played
 - Stale "On field" entries are always EARLIER in play order than the live one, so the
   **last** "On field" is the real one — self-correcting, no staleness heuristic needed.
   `fieldState()` is the single source of truth; use it rather than re-deriving.
+  Confirmed at 2026cc **three minutes into the event**: Practice 1 and Practice 2 both
+  at "On field" at the second match played. The pileup starts immediately, not late in
+  the weekend — which is exactly what the old `activeCount<=3` guard got wrong.
 - Never rely on match status alone — gate on nowQueuing being non-null
 - **Absent nowQueuing means "not queuing", not "on a break".** FOUR states share it, all
   observed on a demo event:
@@ -107,17 +122,50 @@ pitfusion.com — Cloudflare managed
   puts the on-deck match on the field and shifts the whole strip (fixed in #62).
 - **actualQueueTime is set the moment Nexus makes the queue call**, so its presence means
   the call is history, not a forecast. Label it "Queued", never "Est. Queue".
+- **The full `times` key set is nine fields** — five `actual*`, four `estimated*`.
+  Recorded at 2026cc (practice); `actualOnFieldTime`, `actualStartTime` and
+  `actualCommitTime` had never been seen before that.
+  ```
+  actualQueueTime  actualOnDeckTime  actualOnFieldTime  actualStartTime  actualCommitTime
+  estimatedQueueTime  estimatedOnDeckTime  estimatedOnFieldTime  estimatedStartTime
+  ```
+  **Each `actual*` is populated independently and coverage is NOT uniform — the presence
+  of one never implies another.** Both counterexamples came from the same feed: Practice 1
+  started and committed but never got an `actualOnFieldTime` at all, and Practice 2 sat at
+  "On field" for six minutes with no `actualStartTime`. Don't gate on a field you haven't
+  seen on that specific match.
+- **`estimatedStartTime` collapses onto `actualStartTime` the moment a match starts**, and
+  the whole remaining schedule rigidly shifts by the same delta — no per-match recompute.
+  At 2026cc, Practice 1's projected 22:18:07 was overwritten to 22:15:51 (its actual start)
+  and every later match moved 2m16s earlier in one step.
+- **Practice matches carry no `scheduledStartTime` at a real event.** Confirmed across four
+  2026cc samples including a match that had started *and* committed: `scheduled*` never
+  appeared on any match. See the "Nm behind / Nm ahead" note in the demo section — that
+  pill is structurally blank through all of practice, not just on a demo.
 - **Nexus never publishes an estimate in the past.** When a queue time comes due and the
   operator hasn't queued, Nexus replaces the estimate with `dataAsOfTime` exactly; the
   operator's dashboard labels such a match "Expected soon". That single clamp explains
   both the mid-break collapse and the overdue pre-event start. So the test for a usable
   time is "is it ahead of `dataAsOfTime`" (`queueTimeOf()`) — **not** a minimum lead; a
   threshold discards real operator-set times as they approach.
+  **The clamp applies only while the matching `actual*` is absent.** Once the actual
+  exists the estimate mirrors it and is allowed to sit in the past — 2026cc Practice 2
+  had `estimatedOnFieldTime` = `actualOnFieldTime`, two minutes old. `queueTimeOf()` is
+  safe here only because it checks `actualQueueTime` separately.
+  Corollary: a match with no `actual*` for a given stage has that estimate rewritten to
+  `dataAsOfTime` on **every** poll, forever, even after the match is over. Practice 1's
+  `estimatedOnFieldTime` walked with the clock long after it was played and committed,
+  ending up LATER than its own `estimatedStartTime`. Treat such a value as "not a time".
 - Phase (practice vs quals) comes from what the field is doing, never from "are there
   unplayed practice matches" — an event that cuts practice short leaves them at
   "Queuing soon" forever. `eventInPractice()`.
 - Parts request fields: p.requestedByTeam (team number), p.parts (body text)
 - TBA sf matches use set_number as the playoff match number (1-13), match_number is always 1
+- **Partially-null `redTeams`/`blueTeams` are expected on practice matches** — teams sign
+  up for practice slots, so an unfilled slot is `null` and a whole alliance can be null
+  while the other is full (2026cc Practice 3: red complete, blue all null). Not a bug, and
+  distinct from the playoff-alliance null slots below. `e(null)` renders `''`, so unfilled
+  slots show as empty chips.
 - **Playoff alliances and rosters come from Nexus, not just TBA.** `GET /event/{key}/alliances`
   returns `Array<Array<string|null>|null>`, positional by seed (index 0 = seed 1), each
   `[captain, 1stPick, 2ndPick]` — null slots while a pick is still open, confirmed live
@@ -177,7 +225,9 @@ settled the break design.
   A demo has no FMS schedule, so `scheduledStartTime` is absent from every match —
   confirmed on a live demo feed: 42 matches, all four `estimated*` present, no
   `scheduled*` at all. Nothing to do with TBA. It is also permanently blank during
-  playoffs at a real event, per the same clause.
+  playoffs at a real event, per the same clause — **and through all of practice at a real
+  event too**, confirmed at 2026cc. So a demo is not the only thing that can't exercise
+  it: the pill remains entirely unvalidated, and only quals can validate it.
 - Practice matches are included, and since #65 `playedList()` keeps them so the match list
   can dim them correctly. `matchPlayed()`'s positional rule therefore applies to practice
   too; practice precedes the whole schedule, so qual/playoff indices are unaffected.
