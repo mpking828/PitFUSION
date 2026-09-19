@@ -1744,6 +1744,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     <div class="epa-hdr">
       <span class="epa-title">EPA Stats &mdash;</span>
       <span class="epa-team-num" id="epa-team-display">&mdash;</span>
+      <span class="epa-team-num" id="epa-team-nickname"></span>
       <button id="epa-pit-btn" class="epa-pit-btn" onclick="openPitMapFromEpa()" title="View pit location">📍 Pit Map</button>
       <button class="epa-close" onclick="closeEpa()">✕ Close</button>
     </div>
@@ -5493,6 +5494,8 @@ async function openEpa(team, forceReload=false){
 
   overlay.classList.add('show');
   teamDisp.textContent='Team '+team;
+  const nicknameDisp = document.getElementById('epa-team-nickname');
+  if(nicknameDisp) nicknameDisp.textContent='';
   setEpaStatus('Connecting to Statbotics\u2026');
 
   const year = new Date().getFullYear();
@@ -5512,6 +5515,13 @@ async function openEpa(team, forceReload=false){
     teamYear = await getTeamYear(team);   // shared SWR cache \u2014 instant on a warm entry
   } catch(err){
     sbError = err;
+  }
+
+  // Update nickname from TBA if available
+  const teamInfo = await getTeamInfo(team);
+  if(nicknameDisp && teamInfo){
+    const nickname = teamInfo.nickname || '';
+    if(nickname) nicknameDisp.textContent = nickname;
   }
 
   // ── Step 2: Render header + chart skeletons immediately ─────────────────────
