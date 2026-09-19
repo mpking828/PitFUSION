@@ -2796,13 +2796,111 @@ async function init(){
   fMyAdv().then(()=>rTeam());     // once, non-blocking; updates the My Team tab when ready
   fMyYear().then(()=>rTeam());    // EPA ranks row appears when Statbotics answers
   fPred().then(paintPred);        // prediction bars likewise
-  setInterval(async()=>{syncMobileState();await Promise.all([fNexus(),fNxAlliances()]);rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();},15000);
-  // fMx() FIRST, on its own: tbaMx is what sbVer() counts, and fMyYear()/fPred()
-  // invalidate their caches off that version. Racing them inside one Promise.all
-  // made both read the PREVIOUS tick's match list, so a posted score took two polls
-  // (up to 60s) to reach the EPA and prediction panels instead of one.
-  setInterval(async()=>{await fMx();await Promise.all([fRk(),fAlliances(),fTi(),fPits(),fMyYear(),fPred()]);rMl();rRank();rTeam();if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();updateBumperBox();stamp();},30000);
+  _lastDigest=nexusDigest(); _quietSince=Date.now();
+  scheduleNexus(); scheduleTba();
+  // A hidden tab is already clamped by the browser (~1/min, and Chrome freezes it
+  // outright after a few minutes), so going hidden just re-arms at the slow tier and
+  // is barely worth doing. Coming BACK is the half that matters: on a phone the page
+  // is showing minute-old data at the exact moment someone opened it to find out
+  // whether they are queuing. It also bounds the one risk in the backoff above — a
+  // kiosk or TV that reports hidden on screensaver/CEC power-off recovers within a
+  // second of waking instead of waiting out a 60s tier.
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){ scheduleNexus(); scheduleTba(); return; }
+    _quietSince=Date.now();                       // treat a return as activity
+    clearTimeout(_nexusTimer); clearTimeout(_tbaTimer);
+    // Guard against a rapid tab-flipper turning this into a request amplifier.
+    if(Date.now()-_lastNexusAt>5000) nexusTick().finally(scheduleNexus); else scheduleNexus();
+    scheduleTba();
+  });
 }
+
+// ── Poll cadence ─────────────────────────────────────────────────────────────
+// The 15s Nexus poll is NOT chasing the match, it's chasing the five transitions each
+// match passes through (queue -> onDeck -> onField -> start -> commit). Measured at
+// 2026cc that is one state change every 1.5-2.5 minutes, so 15s is ~6-10 polls per real
+// change. It stays at 15s during live play for one reason: announcements. The countdown
+// does NOT need it — tickCd() derives "Queue in 4:32" and the escalation to "Queue Now!"
+// locally every second from a timestamp already in hand.
+//
+// What 15s is NOT worth is polling that hard when nothing can change: a break, the
+// pre-event morning, or a pit TV left powered overnight, which otherwise costs about as
+// much as the live day. Hence a backoff keyed on whether the payload actually moved.
+//
+// Recorded live at 2026cc, five consecutive 15s polls during a lull: the full payload
+// differed on all five, and the ONLY churn was Practice 1's estimatedOnFieldTime and
+// Practice 2's estimatedOnDeckTime — both clamped fields Nexus rewrites to dataAsOfTime
+// forever because those matches never got the matching actual* (see the clamp note in
+// CLAUDE.md). So hashing the payload can never detect quiet. Dropping estimates at or
+// behind dataAsOfTime — the same test queueTimeOf() applies — made it 1 distinct of 5.
+const POLL_FAST={nexus:15e3,tba:30e3}, POLL_MID={nexus:30e3,tba:60e3}, POLL_SLOW={nexus:60e3,tba:120e3};
+let _lastDigest=null,_quietSince=0,_nexusTimer=null,_tbaTimer=null,_lastNexusAt=0;
+
+// Capped at 60s rather than backing off for half an hour like SB_BACKOFF: an
+// announcement can be posted mid-break, and a minute is the longest a crew should wait
+// to see one.
+function pollTier(){
+  if(document.hidden) return POLL_SLOW;
+  const quiet=Date.now()-_quietSince;
+  if(quiet<120e3) return POLL_FAST;
+  if(quiet<300e3) return POLL_MID;
+  return POLL_SLOW;
+}
+
+// Everything the renderers actually read, and nothing that drifts on its own. Announcements
+// and parts requests go in whole — they are small and carry no clock-derived fields.
+function nexusDigest(){
+  const d=nxData;
+  if(!d) return 0;
+  const asof=d.dataAsOfTime||0;
+  const parts=[d.nowQueuing||''];
+  for(const m of d.matches||[]){
+    parts.push(m.label,m.status,m.breakAfter||'',
+      (m.redTeams||[]).join(','),(m.blueTeams||[]).join(','));
+    const t=m.times||{};
+    for(const k of Object.keys(t).sort()){
+      if(k.startsWith('estimated')&&t[k]<=asof) continue;   // clamped -> not a real time
+      parts.push(k,t[k]);
+    }
+  }
+  parts.push(JSON.stringify(d.announcements||[]),JSON.stringify(d.partsRequests||[]));
+  const s=parts.join('');
+  let h=5381;
+  for(let i=0;i<s.length;i++) h=((h*33)^s.charCodeAt(i))>>>0;
+  return h;
+}
+
+async function nexusTick(){
+  syncMobileState();
+  _lastNexusAt=Date.now();
+  await fNexus();
+  const dg=nexusDigest();
+  if(dg!==_lastDigest){ _lastDigest=dg; _quietSince=Date.now(); }
+  rQ();rMl();rAlerts();rUpcoming();updateBumperBox();stamp();
+  if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();
+}
+
+// fMx() FIRST, on its own: tbaMx is what sbVer() counts, and fMyYear()/fPred()
+// invalidate their caches off that version. Racing them inside one Promise.all
+// made both read the PREVIOUS tick's match list, so a posted score took two polls
+// (up to 60s) to reach the EPA and prediction panels instead of one.
+//
+// fNxAlliances lives here rather than on the Nexus tick: it was 240 req/hr, half that
+// loop, for data that matters during the ~20 minutes of alliance selection. Picks land
+// every 30-60s so 30s covers them. This is a cadence change, NOT a gate — Nexus
+// alliances populate progressively DURING selection and are the only source that shows
+// picks as they are made, so they must keep polling throughout.
+async function tbaTick(){
+  await fMx();
+  await Promise.all([fRk(),fAlliances(),fNxAlliances(),fTi(),fPits(),fMyYear(),fPred()]);
+  rMl();rRank();rTeam();
+  if(bracketView)rBracket();else if(mobilePanel==='bracket')rBracketMobile();
+  updateBumperBox();stamp();
+}
+
+// setInterval cannot vary its period, so both loops self-reschedule.
+function scheduleNexus(){clearTimeout(_nexusTimer);_nexusTimer=setTimeout(()=>{nexusTick().finally(scheduleNexus);},pollTier().nexus);}
+function scheduleTba(){clearTimeout(_tbaTimer);_tbaTimer=setTimeout(()=>{tbaTick().finally(scheduleTba);},pollTier().tba);}
 
 function renderAll(){rQ();rMl();rRank();rUpcoming();rTeam();rAlerts();rStream();updateBumperBox();stamp();}
 

@@ -196,7 +196,7 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   2. **Selfhosted mode has no server.** `public/index.html` often runs from `file://` or a
      static host; nothing can receive a POST. Polling stays that path regardless, so
      webhooks would add a second data path rather than replace one.
-  3. **TBA and Statbotics have no webhooks**, so the 30s loop stays either way.
+  3. **Statbotics has no webhooks**, so part of the 30s loop stays either way.
 
   Nexus also does not retry failed deliveries and auto-disables endpoints that repeatedly
   fail to return 200 — a polling fallback would be required anyway. `worker.js` is
@@ -206,6 +206,38 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   (`nowQueuing`, `matches`, `announcements`, `partsRequests`) matching what `fNexus()`
   already consumes, and Nexus documents no rate limit on the GET endpoints — 15s is not
   straining anything. **Polling stays at 15s.**
+
+  **Re-examined at 2026cc, this time on cost rather than latency. Same answer, and three
+  of the reasons above needed correcting:**
+  - **TBA *does* have webhooks** — blocker 3 as originally written was wrong. HMAC-signed
+    POSTs, a verification handshake, a 10s response timeout, and `upcoming_match` /
+    `match_score` / `alliance_selection` / `schedule_updated` types. Only Statbotics has
+    none. Corrected above.
+  - **The TBA Firehose was missed.** Blocker 1 (no per-event registration, so hosted
+    PitFusion cannot subscribe for whatever event code a user types) holds for Nexus and
+    for ordinary TBA subscriptions, but TBA's myTBA Subscriptions tab offers a season-wide
+    Firehose covering *every event in the year* — one account subscription would cover any
+    code a user could type. Still not worth taking: every one of those POSTs is a billable
+    Worker invocation, for hundreds of events we don't care about, on a competition
+    Saturday.
+  - **Hibernatable WebSockets change the future maths.** Cloudflare's WebSocket
+    Hibernation API means a Durable Object no longer bills duration while connections
+    idle, which is what made a push channel plainly uneconomic when this was first
+    written. Recorded for a revisit, not acted on.
+
+  **The decisive argument is new, and it is not latency.** Webhooks reduce *upstream*
+  fetches; the Cloudflare bill is *browser* requests. Every `/api/*` hit is a Worker
+  invocation — `caches.default.match()` runs inside the Worker and `get()` sends
+  `cache:'no-store'` — so a webhook arriving at the Worker does nothing about N browsers
+  still having to ask. Only pushing to the browser would help, and that needs a Durable
+  Object, a paid plan, and a third data path alongside the polling fallback that both
+  APIs' delivery guarantees force us to keep anyway. Self-hosted mode runs from `file://`
+  and can never receive a POST regardless.
+
+  The cadence question was answered instead by making polling adaptive — see the quiet
+  state backoff in `scheduleNexus()`/`pollTier()`. **Revisit webhooks only if display
+  count approaches the free-plan ceiling; the trigger is display count, not cost per
+  display.**
 
 ## Suggested build order
 
