@@ -415,6 +415,16 @@ button.live-pill:hover{color:var(--text)}
 .sc-l{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:2px}
 .sc-v{font-family:var(--fd);font-size:var(--fs-lbl);font-weight:700;color:var(--text)}
 .sc-v.on{color:var(--green)}
+/* Your team is in the match named by this cell. Accent, not green, because the app is
+   already consistent that accent means "mine" (.bkt-card-my, .up-chip.me, .chip.cm) and
+   green means "live" — and a cell in the On Field or On Deck slot is live by definition.
+   Ring only, deliberately no border-color: tj2 styles this cell through
+   `[data-theme="tj2"] #tab-queuing .sc` (bracket mode), and an ID selector outranks any
+   two-class rule, so a border-color here would silently lose in that one theme+mode.
+   box-shadow is a property no theme touches, so var(--accent) themes it for free.
+   Pulsing the glow rather than the alpha keeps this off color-mix(). */
+@keyframes sc-pulse{0%,100%{box-shadow:0 0 0 2px var(--accent),0 0 3px 0 var(--accent)}50%{box-shadow:0 0 0 2px var(--accent),0 0 11px 2px var(--accent)}}
+.sc.sc-my{animation:sc-pulse 1.8s ease-in-out infinite}
 
 /* MATCH PREDICTIONS (opt-in) */
 .pred-bar{font-family:var(--fd)}
@@ -3068,8 +3078,21 @@ function rQ(){
       // Bar the cell it follows until then; it clears itself when the break slot arrives.
       // Only ever the last cell: a break after an earlier one is already on screen.
       const pend=show&&!!s.m.breakAfter&&j+1>idx+2;
+      // Your team is in THIS match. The cell only ever names a match label, so without
+      // this there is nothing on the strip saying the match on the field is yours —
+      // observed at FSR with 4004 on the field and no indication anywhere.
+      //
+      // On Field and On Deck only: the Queuing slot is already covered by the queuing
+      // card, which headlines your next match by name.
+      //
+      // i<=1 is also what keeps the pulse clear of #68's gold break bar. That bar is
+      // `.sc.brk`'s own box-shadow, and `pend` resolves to j+1>idx+2 where j=idx+i, so
+      // it can only ever be true for i===2 — the one cell this never marks. The two
+      // box-shadows cannot collide, which is worth saying because it looks like they
+      // should.
+      const mine=show&&i<=1&&[...(s.m.redTeams||[]),...(s.m.blueTeams||[])].includes(myT);
       const tip=pend?` title="${breakIcon(s.m.breakAfter)} ${e(s.m.breakAfter)} after ${e(s.m.label)}"`:'';
-      return `<div class="sc${pend?' brk':''}"${tip}><div class="sc-l">${label}</div><div class="sc-v${show?' on':''}">${show?e(shortLabel(s.m.label)):'&mdash;'}</div></div>`;
+      return `<div class="sc${pend?' brk':''}${mine?' sc-my':''}"${tip}><div class="sc-l">${label}</div><div class="sc-v${show?' on':''}">${show?e(shortLabel(s.m.label)):'&mdash;'}</div></div>`;
     };
     html+=`<div class="ss">${cell('On Field',0)}${cell('On Deck',1)}${cell('Queuing',2)}</div>`;
   }
