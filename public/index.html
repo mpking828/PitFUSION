@@ -2643,7 +2643,36 @@ async function fPits(){if(nexusPitsUnavailable)return;try{const k=C.nexusEvent||
 async function fMx(){try{tbaMx=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/matches`,ht(C.tba));feedOk('tba');return true;}catch(e){tbaFail(e);return false;}}
 async function fRk(){try{tbaRk=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/rankings`,ht(C.tba));feedOk('tba');return true;}catch(e){tbaFail(e);return false;}}
 function tbaFail(e){if(e===404)feedNA('tba');else feedFail('tba');}
-async function fAlliances(){try{tbaAlliances=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/alliances`,ht(C.tba));return true;}catch{return false;}}
+// TBA publishes /alliances only once alliance selection is over, so polling it from
+// the first minute of practice spends ~120 requests/hour on an endpoint that cannot
+// return anything yet — the single largest piece of avoidable load on the Worker
+// after fTi(). Gate it on selection having actually happened, and keep polling once
+// it has: the per-alliance `status` (record / won / eliminated) updates all the way
+// through playoffs.
+//
+// Nexus's own alliances (fNxAlliances) are deliberately NOT gated — they fill in
+// progressively DURING selection and are the only source that shows picks as they
+// are made. See the playoff-alliances note in CLAUDE.md.
+function alliancesPosted(){
+  if(tbaAlliances?.length) return true;        // already have them — keep status fresh
+  const mx=nxData?.matches||[];
+  if(!mx.length) return true;                  // no schedule to reason from — fail open
+  // Playoffs on the field: selection is behind us however it was signalled.
+  const onField=fieldState().onField;
+  if(onField&&/^(sf|f)_/.test(nl(onField.label))) return true;
+  const sm=scoreMap();
+  // The scheduled selection break — but only once the match it follows has been
+  // played. `breakAfter` sits in the schedule from the first poll of the event, so
+  // testing it alone would open the gate before practice had even finished.
+  if(mx.some(m=>/alliance/i.test(m.breakAfter||'')&&matchPlayed(m,sm))) return true;
+  // Otherwise: every scheduled qualification played.
+  const quals=mx.filter(m=>nl(m.label).startsWith('qual_'));
+  return quals.length>0&&quals.every(m=>matchPlayed(m,sm));
+}
+async function fAlliances(){
+  if(!alliancesPosted()) return false;
+  try{tbaAlliances=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}/alliances`,ht(C.tba));return true;}catch{return false;}
+}
 // Nexus's own playoff alliances — positional by seed, partial entries while selection
 // is still in progress. Works on a demo event (no TBA counterpart needed at all) and
 // arrives before TBA's alliances even on a real event. No 404 latch like fPits(): a
@@ -2651,7 +2680,22 @@ async function fAlliances(){try{tbaAlliances=await get(`https://www.theblueallia
 // populated over the course of the event being displayed — latching on a first miss
 // would permanently suppress the moment it's needed. See resolvedAlliances().
 async function fNxAlliances(){try{nxAlliances=await get(`https://frc.nexus/api/v1/event/${nxKey()}/alliances`,hn(C.nexus));}catch{nxAlliances=null;}}
-async function fTi(){try{tbaTi=await get(`https://www.thebluealliance.com/api/v3/team/frc${C.team}`,ht(C.tba));}catch{}}
+// Team identity — nickname, city, rookie year — is season-static, but this sat on the
+// 30s loop and re-fetched it ~120 times an hour all weekend: about 10% of a display's
+// entire Cloudflare request budget spent on a value that changes once a year. Stop
+// after the first success rather than on the first attempt, so a TBA outage at launch
+// still resolves on a later tick.
+//
+// Seeding teamInfoCache belongs here rather than after the init() fan-out: on that
+// late-success path init() has long since run, and the EPA overlay's identity cache
+// would never have been seeded at all.
+async function fTi(){
+  if(tbaTi) return;
+  try{
+    tbaTi=await get(`https://www.thebluealliance.com/api/v3/team/frc${C.team}`,ht(C.tba));
+    teamInfoCache[C.team]=tbaTi;
+  }catch{}
+}
 async function fEv(){try{const ev=await get(`https://www.thebluealliance.com/api/v3/event/${C.event}`,ht(C.tba));tbaEvent=ev;document.getElementById('hdr-ev').textContent=ev.name||C.event;tbaWc=ev.webcasts||[];rStream();}catch{}}
 // Statbotics season summary for our own team — powers the My Team tab rank row.
 // Fetched once at launch (ranks barely move during an event), not on the refresh loop.
@@ -2680,7 +2724,6 @@ async function init(){
   // retry backoff when it 500s), which is what made startup take ~20s. Nothing
   // it provides is needed to paint — EPA ranks and predictions fill in after.
   await Promise.all([fPits(),fMx(),fRk(),fAlliances(),fNxAlliances(),fTi(),fEv()]);
-  if(tbaTi) teamInfoCache[C.team]=tbaTi;   // seed EPA-overlay identity cache for our team
   document.getElementById('lo').style.display='none';
   renderAll(); startCd();
   fMyAdv().then(()=>rTeam());     // once, non-blocking; updates the My Team tab when ready
