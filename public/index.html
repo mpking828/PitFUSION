@@ -2755,10 +2755,10 @@ function alliancesPosted(){
   // The scheduled selection break — but only once the match it follows has been
   // played. `breakAfter` sits in the schedule from the first poll of the event, so
   // testing it alone would open the gate before practice had even finished.
-  if(mx.some(m=>/alliance/i.test(m.breakAfter||'')&&matchPlayed(m,sm))) return true;
+  if(mx.some(m=>/alliance/i.test(m.breakAfter||'')&&matchPlayed(m,sm,true))) return true;
   // Otherwise: every scheduled qualification played.
   const quals=mx.filter(m=>nl(m.label).startsWith('qual_'));
-  return quals.length>0&&quals.every(m=>matchPlayed(m,sm));
+  return quals.length>0&&quals.every(m=>matchPlayed(m,sm,true));
 }
 async function fAlliances(){
   if(!alliancesPosted()) return false;
@@ -3302,7 +3302,7 @@ function mkBadge(m, hasTbaScore) {
     // - Status is On field AND TBA has a score, OR
     // - Status is On field AND Nexus isn't actively queuing anything (event over)
     const nowQ = nxData?.nowQueuing;
-    if (m.status === 'On field' && (hasTbaScore || !nowQ)) {
+    if (m.status === 'On field' && (hasTbaScore || (!nowQ && !breakUnresolved(m)))) {
         return `<span class="badge bx">Done</span>`;
     }
     // On deck is stale too when not actively queuing
@@ -3619,7 +3619,29 @@ function myNextMatch(){
 function playedList(){
   return nxData?.matches||[];
 }
-function matchPlayed(m, sm){
+// With nowQueuing absent, the LAST "On field" match is genuinely undecidable from Nexus:
+// "it was played and the break has begun" and "it is on the field and hasn't started"
+// have the identical shape — On field, nothing queuing, the next match "Queuing soon".
+// Observed at RISE (2026mnros1): Playoff 5 on the field from 5:13 PM with no start ever
+// recorded, the event's own feed saying "Match 5 is next", and the old blanket rule
+// below marking it DONE on the match list — for the alliance the display belonged to.
+// Playoffs never stamp actualStartTime/actualCommitTime either (P1-P4 lack them too), so
+// there is no Nexus-side tiebreaker. TBA is the only one: if it lists the match it WILL
+// post a result, and until it does we don't claim the match is done. The cost is a few
+// minutes of "On field" instead of "Done" after the last match before a break.
+// Earlier stale "On field" entries are still played; with no TBA listing for the match
+// (practice, demo events, TBA down) the old rule stands.
+function breakUnresolved(m){
+  if(nxData?.nowQueuing || m?.status!=='On field') return false;
+  let last=null;
+  for(const x of (nxData?.matches||[])) if(x.status==='On field') last=x;
+  if(!last || last.label!==m.label) return false;
+  const k=nl(m.label);
+  return (tbaMx||[]).some(x=>mxKey(x)===k);
+}
+// `lenient` keeps the old blanket break rule for callers that gate a poll rather than
+// draw a status (alliancesPosted) and must not move by a TBA-lag's worth.
+function matchPlayed(m, sm, lenient){
   if(!m) return false;
   if(m.status==='Completed') return true;
   const nowQ = nxData?.nowQueuing;
@@ -3631,7 +3653,8 @@ function matchPlayed(m, sm){
     if(fIdx>-1 && mIdx>-1 && mIdx<fIdx) return true;   // schedule has moved past it
   }
   if(sm && sm[nl(m.label)]) return true;               // TBA posted a score
-  if(!nowQ && (m.status==='On field'||m.status==='On deck')) return true;  // break
+  if(!nowQ && m.status==='On deck') return true;                             // break
+  if(!nowQ && m.status==='On field') return lenient || !breakUnresolved(m);  // break
   return false;
 }
 
@@ -4344,14 +4367,24 @@ function syncQueueingToSidebar(){
   if(srcB&&dstB){dstB.textContent=srcB.textContent;dstB.className=srcB.className;}
 }
 
-// Scheduled queue time for a bracket slot, by its Nexus label ("Playoff 7").
-// Times live only in Nexus; the bracket itself shows none, which is why hiding
-// Upcoming in bracket mode lost them. Returns '' rather than an em-dash so a
-// missing time renders nothing at all.
+// Scheduled queue time for a bracket slot, by its Nexus label ("Playoff 7"), as the
+// inner HTML of the card's time cell. Times live only in Nexus; the bracket itself shows
+// none, which is why hiding Upcoming in bracket mode lost them. Returns '' rather than an
+// em-dash so a missing time renders nothing at all.
+//   played / on the field -> nothing (a score or the live dot already says it)
+//   queue call already made -> "queued": that time is history, and a bare "5:01 PM" on a
+//     match that hasn't started reads as a start time. The time is in the tooltip.
+//   Nexus's estimate clamped to its own clock -> "soon", the queuing card's wording.
 function bktMatchTime(nexusLabel){
   const m=(nxData?.matches||[]).find(x=>x.label===nexusLabel);
-  const t=m&&(m.times?.actualQueueTime||m.times?.estimatedQueueTime);
-  return t?ft(new Date(t)):'';
+  if(!m || matchPlayed(m,scoreMap())) return '';
+  const f=fieldState().onField;
+  if(f && f.label===m.label) return '';
+  const aq=m.times?.actualQueueTime;
+  if(aq) return `<span title="Queued ${ft(new Date(aq))}">queued</span>`;
+  const qt=queueTimeOf(m);
+  if(qt) return ft(new Date(qt));
+  return m.times?.estimatedQueueTime ? 'soon' : '';
 }
 
 // ── Bracket layouts ──────────────────────────────────────────────────────────

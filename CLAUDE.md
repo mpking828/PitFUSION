@@ -141,6 +141,22 @@ pitfusion.com — Cloudflare managed
   On the first queue call of the event the on-deck match is the first match in the
   schedule, so that slot falls off the front and belongs empty. Don't clamp it to 0 — that
   puts the on-deck match on the field and shifts the whole strip (fixed in #62).
+- **With nowQueuing absent, the LAST "On field" match is undecidable from Nexus alone.**
+  "Played, and a break has begun" and "on the field, not started" are the same shape: On
+  field, nothing queuing, the next match "Queuing soon". Seen at RISE (2026mnros1): Playoff 5
+  on the field from 5:13 PM, no start ever recorded, the event's own feed saying "Match 5 is
+  next" — because **it had been played, voided, and was being replayed 30 minutes later, and
+  the replay was never entered into Nexus**. Nexus keeps no replay marker (a properly entered
+  one is `"Playoff N Replay"`); the match just sits at On field while TBA's result stays
+  -1/-1. Playoffs never stamp `actualStartTime`/`actualCommitTime` (P1–P4 lack them too), so
+  there is no Nexus-side tiebreaker. `matchPlayed()` therefore lets TBA arbitrate: a last
+  On-field match that TBA lists but hasn't scored is *not* played (`breakUnresolved()`);
+  earlier On-field entries are stale and played; with no TBA listing (practice, demo, TBA
+  down) the old "On field + no nowQueuing = played" rule stands. `alliancesPosted()` passes
+  `lenient` to keep the old rule, since it gates a poll rather than drawing a status.
+  The cost is a few minutes of "On field" instead of "Done" after the last match before a
+  break. The queuing card never had this bug — in break mode it asks TBA for the team's next
+  match with no `actual_time`.
 - **actualQueueTime is set the moment Nexus makes the queue call**, so its presence means
   the call is history, not a forecast. Label it "Queued", never "Est. Queue".
 - **The full `times` key set is nine fields** — five `actual*`, four `estimated*`.
