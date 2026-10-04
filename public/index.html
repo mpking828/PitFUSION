@@ -1468,9 +1468,14 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
   body.mobile-panel-open #panel-m-title{ display:none }
   body.mobile-panel-open #mobile-panel-close,
   body.mobile-panel-open #ml-jump-btn{
-    display:inline-block; margin-top:6px; margin-left:0;
+    margin-top:6px; margin-left:0;
     pointer-events:auto; box-shadow:0 2px 8px rgba(0,0,0,.5);
   }
+  body.mobile-panel-open #mobile-panel-close{ display:inline-block }
+  /* Visibility stays with updateMlJumpBtn()'s .show. This rule used to set display on
+     the button unconditionally, which outranks the base #ml-jump-btn.show toggle and
+     left "Current" showing on the bracket sheet and while already following. */
+  body.mobile-panel-open #ml-jump-btn.show{ display:inline-block }
   /* .panel-m's own padding would inset the sheet 10px a side; both sheets carry
      their own, so drop it and go edge to edge. */
   body.mobile-panel-open .panel-m{ padding:0 }
