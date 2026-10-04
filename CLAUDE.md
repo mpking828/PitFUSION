@@ -36,8 +36,9 @@ Single HTML file, no framework, no build step.
   2026cc returned HTTP 200 with `[]` for `/event/2026cc/matches` while the event record
   itself resolved fine, so it reads as `feedOk` with zero matches. Same practical blackout
   as a demo — `sbVer()` pinned at `2026cc:0`, empty `scoreMap()`, no predictions — by a
-  different route. Statbotics is listed but never moves the pill (it's been down for
-  months; counting it = amber all season).
+  different route. Statbotics is listed but never moves the pill (it was down for
+  months, and it tracks no offseason events, so counting it would read amber at every
+  one of them).
   YouTube is excluded: probed once at stream render, so its status would be stale.
 - Colour is keyed on the AGE of the last success, not the last attempt, so one dropped
   request doesn't flash the pill. `stamp()` now only records `lastRender` for the popover.
@@ -373,10 +374,15 @@ Default team: 88, event key format: e.g. 2025cthar
   now backs off 30s → 30m. Any success clears it, and `bustTeamCache()` clears it too —
   without that the overlay's ↺ Retry would be inert for up to 30 minutes. Not persisted
   (a reload earns one fresh attempt); the Settings connection check bypasses it.
-- **Statbotics has been down since ~July 2026** (HTTP 500 after 9–14s), expected back
-  around January 2027. EPA ranks, EPA charts and match predictions are all blank until
-  then — that is the outage, not a PitFusion bug. Note 9–14s exceeds `getTeamYear`'s 8s
-  timeout, so each attempt aborts and burns all 3 `fetchWithRetry` retries.
+- **Statbotics was down ~July–October 2026 and is back (confirmed 2026-10-04).** It
+  tracks **no offseason events** (zero in 2026) and every 2026 official event is
+  Completed, so between seasons there is no live Statbotics data at all: `matches` for an
+  offseason event is a clean `[]` (not an error) and EPA charts for it correctly show "No
+  Statbotics match data for this event". Season-level `team_year` ranks still work.
+  Five 2026 Israeli events are stuck "Upcoming" — outage residue. Don't test Statbotics
+  against an offseason event; use a completed official one (2026mndu2, 93 matches).
+  The V3.5.0 cache and the once-per-event rank premise are still unverified live — see
+  the roadmap. `team_year/<team>/<next year>` is a 500 until Statbotics builds the season.
 - EPA overlay charts read per-match EPA from `/v3/matches` → `m.epas["<team>"]`.
 - **Match predictions** (feature #1): opt-in, **off by default**, `localStorage`
   `pitfusion_predictions` (`'1'`/`'0'`), toggled on the setup screen + ⚙ Settings ▸

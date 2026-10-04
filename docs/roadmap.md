@@ -28,16 +28,22 @@ Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, m
 
 ## Known issues
 
-- **Statbotics has been down since ~July 2026** — HTTP 500 after 9–14s on every
-  endpoint, direct and proxied. Expected back around **January 2027**. EPA ranks, the
-  EPA line charts and match predictions are therefore blank on every display: this is
-  the outage, not a PitFusion bug, and no change here can restore the data. The app
-  degrades gracefully (#32) and, since the failure backoff below, no longer hammers a
-  dead service. **Two things to re-verify once it returns:** the V3.5.0 event-driven
-  cache against real payloads, and the premise behind V3.6.1 — that world/country/state/
-  district ranks recompute only once per event. If they move more often, the cost is a
-  rank pill lagging until the team's next match (~45 min during quals); EPA correctness is
-  unaffected and it reverts by changing one argument in `getTeamYear`.
+- **Statbotics is back (confirmed 2026-10-04), but two assumptions still can't be
+  checked.** `team_year` and `matches` answer in under a second with the schema the app
+  reads (`pred.red_win_prob`, per-team `epas`), and EPA ranks, the charts and predictions
+  all render against a completed 2026 event. It does not cover **offseason events at all**
+  (zero tracked), and every 2026 official event is Completed, so nothing is live to test
+  against until the 2027 season. **Still to re-verify at the first live, Statbotics-tracked
+  event:** the V3.5.0 event-driven cache against real payloads, and the premise behind
+  V3.6.1 — that world/country/state/district ranks recompute only once per event. If they
+  move more often, the cost is a rank pill lagging until the team's next match (~45 min
+  during quals); EPA correctness is unaffected and it reverts by changing one argument in
+  `getTeamYear`.
+- **Settings ▸ connection check will read ❌ for Statbotics on 1 January 2027.** It probes
+  `team_year/254/<current year>`, and `team_year/254/2027` is a 500 until Statbotics builds
+  the new season. The service is fine; the probe's year is the problem. Fix before the
+  2027 kickoff — probe the previous year until the new one answers, or a year-independent
+  endpoint. Belongs with the #2 audit.
 
 ## Shipped outside the roadmap
 

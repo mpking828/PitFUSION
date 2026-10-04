@@ -5804,11 +5804,12 @@ async function openEpa(team, forceReload=false){
   renderEpaShell(teamYear, team, year, sbError);
 
   // ── Step 3: Fetch match history — render each chart as data arrives ──────────
-  let matches=[];
+  let matches=[], timedOut=false;
   try {
     // Default: current-event slice (fast). Full season loads on the toggle.
     matches = await getTeamMatches(team, epaShowCurrentOnly ? C.event : 'all');
   } catch(e){
+    timedOut=true;
     // Timed out — charts stay as skeletons with current values, offer retry
     const note=document.getElementById('epa-match-status');
     if(note) note.innerHTML=`<span style="color:var(--text-dim);font-size:var(--fs-sm)">Match history timed out — </span>
@@ -5823,51 +5824,12 @@ async function openEpa(team, forceReload=false){
     });
   }
 
-  // Sort matches chronologically
-  matches = (matches||[])
-    .filter(m=>matchHasEpa(m,team))
-    .sort(byMatchTime);
-
-  // Fill in charts one at a time with a small delay so the browser paints each
-  const cfgFields=epaFields(year);
-
-  if(cfgFields && matches.length>=2){
-    // Build event bands once
-    const filteredMatches = epaShowCurrentOnly
-      ? matches.filter(m=>(m.event||m.event_key||'')===C.event)
-      : matches;
-    const filteredEventMap={};
-    filteredMatches.forEach((m,i)=>{
-      const ek=m.event||m.event_key||'unknown';
-      if(!filteredEventMap[ek]) filteredEventMap[ek]={key:ek,startX:i,endX:i,shortLabel:ek.replace(/^\d{4}/,'')};
-      filteredEventMap[ek].endX=i;
-    });
-    const eventBands=Object.values(filteredEventMap);
-
-    // Update event count badge
-    const evKeys=[...new Set(matches.map(m=>m.event||''))].filter(Boolean);
-    const evBadge=document.getElementById('epa-ev-badge');
-    if(evBadge) evBadge.textContent=evKeys.length>1?`${evKeys.length} events in ${year}`:'';
-
-    const note=document.getElementById('epa-match-status');
-    if(note) note.innerHTML='';
-
-    for(let fi=0; fi<cfgFields.length; fi++){
-      const f=cfgFields[fi];
-      const mRef = epaShowCurrentOnly ? filteredMatches : matches;
-      const pts=mRef.map((m,i)=>{
-        const evShort=(m.event||m.event_key||'').replace(/^\d{4}/,'');
-        return {x:i, val: matchEpa(m,team,f.key), matchLabel: `${evShort} ${matchLabelOf(m)}`.trim()};
-      }).filter(p=>p.val!=null&&typeof p.val==='number'&&isFinite(p.val));
-
-      const curVal=curEpa(teamYear,f.key);
-      const slot=document.getElementById(`epa-slot-${fi}`);
-      if(slot) slot.innerHTML=drawLineChart(`epa-chart-${fi}`,pts,f.color,curVal,eventBands);
-
-      // Yield to browser to paint before next chart
-      await new Promise(res=>setTimeout(res,30));
-    }
-  }
+  // One filler for both entry points. openEpa() used to carry its own copy of this loop
+  // that only ran for two or more matches, so an event Statbotics has none for — it
+  // tracks no offseason events at all — left the skeletons on "Loading chart…" forever.
+  // _fillEpaCharts() handles that case, and clears the status line, which a timeout's
+  // Retry must keep, hence the guard.
+  if(!timedOut) await _fillEpaCharts({teamYear, matches}, team, year);
 }
 
 // Render the shell: header card + toggle + labelled skeleton placeholders
@@ -6309,7 +6271,7 @@ async function _fillEpaCharts(cached, team, year){
   if(filteredMatches.length<2){
     cfgFields.forEach((_,fi)=>{
       const slot=document.getElementById(`epa-slot-${fi}`);
-      if(slot) slot.innerHTML=`<div style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);padding:8px 0">Not enough match data yet</div>`;
+      if(slot) slot.innerHTML=`<div style="font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);padding:8px 0">${epaShowCurrentOnly?'No Statbotics match data for this event \u2014 try Show All Events for the season':'Not enough match data yet'}</div>`;
     });
     return;
   }

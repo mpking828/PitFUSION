@@ -210,10 +210,12 @@ the cache one way per display and made things strictly worse.
 ### Caveat
 
 The once-per-event rank cadence came from the project owner and could not be verified
-against live data — Statbotics has been down since ~July 2026. If it turns out ranks move
-more often, the cost is a rank pill lagging until the team's next match (~45 min during
-quals); EPA correctness is unaffected, and it reverts by changing one argument. On the
-January re-verification list.
+against live data — Statbotics was down ~July–October 2026. It is back, but tracks no
+offseason events and every 2026 official event is Completed, so there is still nothing live
+to measure against. If it turns out ranks move more often, the cost is a rank pill lagging
+until the team's next match (~45 min during quals); EPA correctness is unaffected, and it
+reverts by changing one argument. Re-verify at the first live Statbotics-tracked event of
+2027.
 
 ## Verification
 
