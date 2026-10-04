@@ -227,8 +227,10 @@ pitfusion.com — Cloudflare managed
   8 they are Round 1's "2v7"/"3v6". 4-alliance shape, confirmed live: P1 1v4, P2 2v3, P3 W1vW2
   (upper final), P4 L1vL2, P5 L3vW4 (lower final), Final 1–3; Nexus labels match
   (`Playoff 1–5`, `Final 1–3`). `BKT_LAYOUT_8`/`BKT_LAYOUT_4` carry card positions and
-  connectors as data; `bracketLayout()` picks one. Types 1 (16 alliances), 9 (2) and 8
-  (Custom) have no layout and fall through to the 8. Bracket cards use `P<n>`, matching
+  connectors as data; `bracketLayout()` picks one. Any other defined type — 1 (16
+  alliances), 9 (2), 8 (Custom), round robin — gets `rBracketFlat()`, a play-order list with
+  no assumed structure; never route an unknown type onto the 8 layout, which is how a
+  4-alliance event looked fine while being wrong. Bracket cards use `P<n>`, matching
   `shortLabel()` and Nexus's "Playoff N".
 
 ## Deliberate display choices — do not "fix" these

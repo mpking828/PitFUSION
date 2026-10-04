@@ -674,6 +674,15 @@ button.live-pill:hover{color:var(--text)}
 /* TBD */
 .bkt-tbd{color:var(--text-dim);font-style:italic;padding:5px 7px;font-family:var(--fd);font-size:var(--fs-sm)}
 
+/* Flat bracket fallback — a play-order list for playoff formats with no drawn layout.
+   Shared by desktop and mobile; the .bkt-mob wrapper only adds the mobile sheet rules. */
+.bkt-flat{max-width:560px;margin:0 auto;padding:14px 16px 24px}
+.bkt-flat .bkt-mob-hdr{font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim);border-bottom:2px solid var(--border);padding-bottom:5px;margin-bottom:8px}
+.bkt-flat-note{font-size:var(--fs-sm);color:var(--text-dim);font-style:italic;margin:0 0 10px}
+.bkt-flat .bkt-card{margin-bottom:8px}
+.bkt-flat-teams{font-family:var(--fm);font-size:var(--fs-sm);color:var(--text-dim);margin-top:1px}
+.bkt-flat-me{color:var(--accent);font-weight:700}
+
 /* Finals separator */
 .bkt-finals-sep{width:2px;background:var(--border2);border-radius:2px;align-self:stretch;flex-shrink:0;margin:0 4px}
 
@@ -4418,12 +4427,17 @@ const BKT_LAYOUT_4 = {
     [2,0,0,true,-1,0,1],  // P5 winner → Finals blue
   ],
 };
+// Any playoff_type we have no table for gets a flat play-order list instead of being
+// forced onto the 8 layout, which is how a 4-alliance event first looked "fine" while
+// being wrong. See rBracketFlat().
+const BKT_LAYOUT_FLAT = { flat:true };
 // Alliances is only the fallback signal: a demo or Nexus-only event has no TBA event
 // object, and Nexus's /alliances is a fixed-length positional array (8 slots on an
 // 8-alliance event, picks:[] until each is reached), so <=4 entries means a 4-bracket.
 function bracketLayout(alliances){
   const t=tbaEvent?.playoff_type;
   if(t===11) return BKT_LAYOUT_4;
+  if(t!=null && t!==10) return BKT_LAYOUT_FLAT;   // 16-alliance, 2-alliance, round robin, Custom…
   if(t==null && alliances.length>0 && alliances.length<=4) return BKT_LAYOUT_4;
   return BKT_LAYOUT_8;
 }
@@ -4504,6 +4518,7 @@ function rBracketMobile(){
 
   const {mxByNum, allianceOf} = bracketIndex(alliances);
   const layout=bracketLayout(alliances);
+  if(layout.flat){ rBracketFlat(el, alliances, true); return; }
 
   // Which match is on the field right now — shared with rQ() and the desktop
   // bracket via fieldState(), so all three agree.
@@ -4597,6 +4612,110 @@ function rBracketMobile(){
   if(prevScroll) el.scrollTo({top:prevScroll, behavior:'instant'});
 }
 
+// Alliance legend under the desktop bracket — a grid of one card per picked alliance.
+// Seed is captured BEFORE filtering: alliances is a fixed-length positional array
+// (index = seed-1), and once Nexus supplies it, unpicked seeds carry picks:[] rather
+// than being absent — filtering first would shift every later seed number down.
+// TBA's alliances were always all-or-nothing, so this never mattered before.
+function bktLegendHtml(alliances){
+  const myTeam=C.team;
+  if(!alliances.length) return '';
+  const legendCards = alliances
+    .map((a,i)=>({a, seed:i+1}))
+    .filter(({a})=>(a.picks||[]).length)        // skip seeds Nexus hasn't reached yet
+    .map(({a,seed})=>{
+      const teams = (a.picks||[]).map(tk=>tk.replace('frc','')).slice(0,4).join(' – ');
+      const isMe = (a.picks||[]).some(tk=>tk.replace('frc','')=== myTeam);
+      return `<div class="bkt-legend-card${isMe?' bkt-legend-me':''}">
+        <div class="bkt-legend-hdr">Alliance ${seed}</div>
+        <div class="bkt-legend-teams">${e(teams)}</div>
+      </div>`;
+    }).join('');
+  return legendCards ? `<div class="bkt-legend">${legendCards}</div>` : '';
+}
+
+// ── Flat bracket fallback ────────────────────────────────────────────────────
+// For a playoff_type with no layout table (16-alliance elimination, 2-alliance
+// finals-only, round robin, Custom): every playoff match in play order, with its
+// alliances and score. Nothing about the format is assumed — no rounds, no
+// advancement lines — so it cannot be wrong the way the 8 layout was on a 4 bracket.
+//
+// Order is Nexus's (play order). TBA supplies scores and winners where it can be
+// matched by nl() — only "Playoff N" -> sf and "Final N" -> f are matchable; any other
+// comp_level is appended from TBA alone, since Nexus labels for those are unknown.
+function bktFlatRows(){
+  const tba=(tbaMx||[]).filter(m=>m.comp_level!=='qm');
+  const tbaByKey={};
+  tba.filter(m=>m.comp_level==='sf'||m.comp_level==='f').forEach(m=>{ tbaByKey[mxKey(m)]=m; });
+  const used=new Set(), rows=[];
+  (nxData?.matches||[]).forEach(m=>{
+    if(/^(qual|practice)/i.test(m.label)) return;
+    const k=nl(m.label);
+    let mx=null;
+    if(tbaByKey[k] && !used.has(k)){ mx=tbaByKey[k]; used.add(k); }   // a "Replay" shares the key: first one wins
+    rows.push({label:m.label, nx:true, mx:mx||nexusBracketMatch(m)});
+  });
+  const ORDER={ef:0,qf:1,sf:2,f:3}, NAME={ef:'Eighthfinal',qf:'Quarterfinal',sf:'Playoff',f:'Final'};
+  tba.filter(m=>!used.has(mxKey(m)) || !(m.comp_level==='sf'||m.comp_level==='f'))
+    .sort((x,y)=>(ORDER[x.comp_level]??9)-(ORDER[y.comp_level]??9)||x.set_number-y.set_number||x.match_number-y.match_number)
+    .forEach(m=>{
+      const num=m.comp_level==='f' ? m.match_number : m.set_number;
+      const sub=(m.comp_level==='qf'||m.comp_level==='ef')&&m.match_number>1 ? ` (${m.match_number})` : '';
+      rows.push({label:`${NAME[m.comp_level]||m.comp_level} ${num}${sub}`, nx:false, mx:m});
+    });
+  return rows;
+}
+function rBracketFlat(el, alliances, mobile){
+  const myTeam=C.team;
+  const {allianceOf}=bracketIndex(alliances);
+  const onField=(fieldState().onField?.label||'').trim().toLowerCase();
+  const rows=bktFlatRows();
+
+  const card=r=>{
+    const mx=r.mx;
+    const red=mx&&allianceOf(mx,'red'), blue=mx&&allianceOf(mx,'blue');
+    const done=!!(mx&&mx.winning_alliance) && red?.score!=null && red.score>=0;
+    const mine=(red?.keys||[]).includes(myTeam)||(blue?.keys||[]).includes(myTeam);
+    const active=r.nx && !!onField && onField===r.label.trim().toLowerCase();
+    const t=(!done&&r.nx)?bktMatchTime(r.label):'';
+    const head=`<div class="bkt-card-lbl"><span>${e(r.label)}</span>${active?'<span style="color:var(--green)">● live</span>':t?`<span class="bkt-card-time">${t}</span>`:''}</div>`;
+    const row=(al,isRed)=>{
+      if(!al) return `<div class="bkt-row"><span class="bkt-tbd">TBD</span></div>`;
+      const won=done&&mx.winning_alliance===(isRed?'red':'blue');
+      const isMe=al.keys.includes(myTeam);
+      const known=al.seed!=='?';
+      return `<div class="bkt-row${done?(won?' bkt-row-winner':' bkt-row-loser'):''}${isRed?' bkt-row-red':' bkt-row-blue'}">
+        <div class="bkt-row-seed">${known?al.seed:'·'}</div>
+        <div class="bkt-row-body">${known?`<div class="bkt-row-alliance${isMe?' bkt-my':''}">Alliance ${al.seed}</div>`:''}
+          <div class="bkt-flat-teams">${al.keys.map(k=>`<span class="${k===myTeam?'bkt-flat-me':''}">${e(k)}</span>`).join(' · ')}</div>
+        </div>${done&&al.score!=null&&al.score>=0?`<div class="bkt-row-pts">${al.score}</div>`:''}
+      </div>`;
+    };
+    return `<div class="bkt-card${mine?' bkt-card-my':''}${active?' bkt-card-active':''}">${head}${row(red,true)}${row(blue,false)}</div>`;
+  };
+
+  const inner=`<div class="bkt-mob bkt-flat"><div class="bkt-mob-sect">
+    <div class="bkt-mob-hdr">Playoff matches</div>
+    <div class="bkt-flat-note">This event's playoff format has no bracket diagram yet, so matches are listed in play order.</div>
+    ${rows.length?rows.map(card).join(''):`<div class="bkt-flat-note">No playoff matches yet.</div>`}
+  </div></div>`;
+
+  // Same scroll-retention problem as the other two renderers: rebuilt every poll.
+  if(mobile){
+    const prev=el.scrollTop;
+    el.innerHTML=inner;
+    if(prev) el.scrollTo({top:prev, behavior:'instant'});
+    return;
+  }
+  const prevBkt=document.getElementById('bkt-scroll');
+  const prevT=prevBkt?prevBkt.scrollTop:0;
+  el.innerHTML=`<div style="overflow:auto;width:100%;height:100%;display:flex;flex-direction:column">
+    <div id="bkt-scroll" style="overflow:auto;flex:1;min-height:0">${inner}</div>
+    ${bktLegendHtml(alliances)}
+  </div>`;
+  if(prevT){ const sc=document.getElementById('bkt-scroll'); if(sc) sc.scrollTo({top:prevT, behavior:'instant'}); }
+}
+
 function rBracket(){
   const el = document.getElementById('bracket-panel');
   const myTeam = C.team;
@@ -4604,6 +4723,7 @@ function rBracket(){
 
   const {mxByNum, allianceOf} = bracketIndex(alliances);
   const layout=bracketLayout(alliances);
+  if(layout.flat){ rBracketFlat(el, alliances, false); return; }
 
   // Which match is on the field — shared with rQ() and the mobile bracket, and
   // computed once per render rather than re-derived inside every card.
@@ -4771,26 +4891,7 @@ function rBracket(){
     });
   }
 
-  // Build alliance legend — 4×2 grid of cards
-  // Seed is captured BEFORE filtering: alliances is a fixed-length positional array
-  // (index = seed-1), and once Nexus supplies it, unpicked seeds carry picks:[] rather
-  // than being absent — filtering first would shift every later seed number down.
-  // TBA's alliances were always all-or-nothing, so this never mattered before.
-  let legendHtml = '';
-  if(alliances.length){
-    const legendCards = alliances
-      .map((a,i)=>({a, seed:i+1}))
-      .filter(({a})=>(a.picks||[]).length)        // skip seeds Nexus hasn't reached yet
-      .map(({a,seed})=>{
-        const teams = (a.picks||[]).map(tk=>tk.replace('frc','')).slice(0,4).join(' – ');
-        const isMe = (a.picks||[]).some(tk=>tk.replace('frc','')=== myTeam);
-        return `<div class="bkt-legend-card${isMe?' bkt-legend-me':''}">
-          <div class="bkt-legend-hdr">Alliance ${seed}</div>
-          <div class="bkt-legend-teams">${e(teams)}</div>
-        </div>`;
-      }).join('');
-    legendHtml = legendCards ? `<div class="bkt-legend">${legendCards}</div>` : '';
-  }
+  const legendHtml = bktLegendHtml(alliances);
 
   // Same re-render problem as the mobile bracket and the match list: this
   // wrapper is the scroller and gets rebuilt on every 15s/30s poll, dropping

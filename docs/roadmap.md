@@ -165,10 +165,15 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   alliance count when there is no TBA event. The 8 layout renders byte-identically apart
   from the labels (A/B-checked against 2026mifli2). Bracket cards also now read `P7` rather
   than `M7`, matching the status strip, Upcoming and Nexus's own "Playoff 7".
-  **Not done, on purpose:** 16-alliance elimination (type 1, ~5–9 events/yr, mostly
-  preseason scrimmages, TBA holds no match data for them), 2-alliance finals-only (type 9)
-  and "Custom" (type 8) — a custom layout can't be drawn from a fixed table. They still
-  fall through to the 8 layout; a generic flat fallback is the proposed answer.
+  **Not drawn, on purpose:** 16-alliance elimination (type 1, ~5–9 events/yr, mostly
+  preseason scrimmages, TBA holds no match data for them), 2-alliance finals-only (type 9),
+  round robin and "Custom" (type 8) — a custom layout can't be drawn from a fixed table.
+  Any `playoff_type` other than 10/11 now gets `rBracketFlat()` instead: every playoff
+  match in play order with its alliances, scores, times and the live marker, on desktop
+  and mobile alike. Nexus supplies the order; TBA supplies scores where `nl()` can match
+  (`Playoff N`, `Final N`) and is the only source for any other comp_level. It assumes no
+  rounds and draws no advancement lines, so it can't be wrong the way the 8 layout was on
+  a 4 bracket. A `playoff_type` of `null` (no TBA event) still falls back on alliance count.
 
 ## Deferred / follow-up
 
