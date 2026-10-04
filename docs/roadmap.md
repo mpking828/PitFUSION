@@ -153,6 +153,23 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   because `sbVer(team)` keys on the SUBJECT team, not the viewer — keying it on the viewer
   would have fragmented the cache one way per display and been strictly worse (#88).
 
+- **Unreleased** — **4-alliance playoff bracket, and `P` labels on the bracket.** Found at
+  RISE (2026mnros1), an offseason event TBA types as `playoff_type 11`. The bracket was
+  hardcoded for the 8-alliance, 13-match layout and keyed cards by TBA set number, so a
+  4-alliance event *looked* fine — the right teams landed in cards — but sf3 and sf4 sat in
+  Round 1 under "2v7"/"3v6" notes (they are the upper final and lower round), M6–M13 were
+  eight permanent TBD cards, and the connector lines followed the 8 routing. The same key
+  means a different slot in each layout, so this is a layout choice, not a data fix.
+  Layouts are now data (`BKT_LAYOUT_8`, `BKT_LAYOUT_4`: columns, card centres in band
+  units, connectors) chosen by `bracketLayout()` — `tbaEvent.playoff_type`, falling back to
+  alliance count when there is no TBA event. The 8 layout renders byte-identically apart
+  from the labels (A/B-checked against 2026mifli2). Bracket cards also now read `P7` rather
+  than `M7`, matching the status strip, Upcoming and Nexus's own "Playoff 7".
+  **Not done, on purpose:** 16-alliance elimination (type 1, ~5–9 events/yr, mostly
+  preseason scrimmages, TBA holds no match data for them), 2-alliance finals-only (type 9)
+  and "Custom" (type 8) — a custom layout can't be drawn from a fixed table. They still
+  fall through to the 8 layout; a generic flat fallback is the proposed answer.
+
 ## Deferred / follow-up
 
 - **#8b done in #23.** A *deeper* collapse is possible but is not planned. The

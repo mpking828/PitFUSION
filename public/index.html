@@ -4340,23 +4340,93 @@ function bktMatchTime(nexusLabel){
   return t?ft(new Date(t)):'';
 }
 
-// ── Double-elim bracket structure (8 alliances, playoff_type 10) ─────────────
-// Single source of truth for both renderers: the desktop canvas maps these to
-// columns, the mobile view walks them top to bottom as rounds.
-const BKT_ROUNDS = [
-  { name:'Round 1', matches:[
-    {key:'sf1',label:'M1',note:'1v8'},{key:'sf2',label:'M2',note:'4v5'},
-    {key:'sf3',label:'M3',note:'2v7'},{key:'sf4',label:'M4',note:'3v6'}]},
-  { name:'Round 2', matches:[
-    {key:'sf7',label:'M7',note:'Upper'},{key:'sf8',label:'M8',note:'Upper'},
-    {key:'sf5',label:'M5',note:'Lower'},{key:'sf6',label:'M6',note:'Lower'}]},
-  { name:'Round 3', matches:[
-    {key:'sf10',label:'M10',note:'Lower'},{key:'sf9',label:'M9',note:'Lower'}]},
-  { name:'Round 4', matches:[
-    {key:'sf11',label:'M11',note:'Upper'},{key:'sf12',label:'M12',note:'Lower'}]},
-  { name:'Round 5', matches:[
-    {key:'sf13',label:'M13',note:'Lower Final'}]},
-];
+// ── Bracket layouts ──────────────────────────────────────────────────────────
+// Single source of truth for both renderers: the desktop canvas places the cards
+// by `cy` and routes `conns`; the mobile view just walks `rounds` top to bottom.
+//
+// Picked by TBA's playoff_type — 10 is "Double Elimination Bracket (8 Alliances)"
+// (~95% of events), 11 is "(4 Alliances)" (offseason, Michigan State Champ). Cards
+// are keyed by TBA set number (sf1..), so the SAME key means a different slot in
+// each layout: sf3 is "2v7" in the 8 and the upper final in the 4. That is why a
+// 4-alliance event cannot just be drawn on the 8 layout.
+//
+//   bands  vertical slots the canvas is divided into (one card per band per column)
+//   rounds [{name, matches:[{key,label,note}]}] — column order, top to bottom
+//   cy     per round, per card: vertical centre in band units (fractional = between)
+//   conns  [fromCol, fromCard, fromRow, isWinner, toCol, toCard, toRow]
+//          row 0 = red/top, 1 = blue/bottom; toCol -1 is the Finals column
+const BKT_LAYOUT_8 = {
+  bands:4,
+  rounds:[
+    { name:'Round 1', matches:[
+      {key:'sf1',label:'P1',note:'1v8'},{key:'sf2',label:'P2',note:'4v5'},
+      {key:'sf3',label:'P3',note:'2v7'},{key:'sf4',label:'P4',note:'3v6'}]},
+    { name:'Round 2', matches:[
+      {key:'sf7',label:'P7',note:'Upper'},{key:'sf8',label:'P8',note:'Upper'},
+      {key:'sf5',label:'P5',note:'Lower'},{key:'sf6',label:'P6',note:'Lower'}]},
+    { name:'Round 3', matches:[
+      {key:'sf10',label:'P10',note:'Lower'},{key:'sf9',label:'P9',note:'Lower'}]},
+    { name:'Round 4', matches:[
+      {key:'sf11',label:'P11',note:'Upper'},{key:'sf12',label:'P12',note:'Lower'}]},
+    { name:'Round 5', matches:[
+      {key:'sf13',label:'P13',note:'Lower Final'}]},
+  ],
+  cy:[[0,1,2,3],[0,1,2,3],[2,3],[0.5,2.5],[1.5]],
+  conns:[
+    [0,0,0,true, 1,0,0],  // P1 winner → P7 red
+    [0,0,1,false,1,2,0],  // P1 loser  → P5 red
+    [0,1,0,true, 1,0,1],  // P2 winner → P7 blue
+    [0,1,1,false,1,2,1],  // P2 loser  → P5 blue
+    [0,2,0,true, 1,1,0],  // P3 winner → P8 red
+    [0,2,1,false,1,3,0],  // P3 loser  → P6 red
+    [0,3,0,true, 1,1,1],  // P4 winner → P8 blue
+    [0,3,1,false,1,3,1],  // P4 loser  → P6 blue
+    [1,0,0,true, 3,0,0],  // P7 winner → P11 red
+    [1,0,1,false,2,1,0],  // P7 loser  → P9 red
+    [1,1,0,true, 3,0,1],  // P8 winner → P11 blue
+    // P8 loser is not drawn here
+    [1,2,0,true, 2,0,1],  // P5 winner → P10 blue
+    [1,3,0,true, 2,1,1],  // P6 winner → P9 blue
+    [2,0,0,true, 3,1,0],  // P10 winner → P12 red
+    [2,1,0,true, 3,1,1],  // P9 winner  → P12 blue
+    [1,1,1,false,2,0,0],  // P8 loser → P10 red
+    [3,0,0,true,-1,0,0],  // P11 winner → Finals red
+    [3,0,1,false,4,0,0],  // P11 loser  → P13 red
+    [3,1,0,true, 4,0,1],  // P12 winner → P13 blue
+    [4,0,0,true,-1,0,1],  // P13 winner → Finals blue
+  ],
+};
+const BKT_LAYOUT_4 = {
+  bands:3,
+  rounds:[
+    { name:'Round 1', matches:[
+      {key:'sf1',label:'P1',note:'1v4'},{key:'sf2',label:'P2',note:'2v3'}]},
+    { name:'Round 2', matches:[
+      {key:'sf3',label:'P3',note:'Upper'},{key:'sf4',label:'P4',note:'Lower'}]},
+    { name:'Round 3', matches:[
+      {key:'sf5',label:'P5',note:'Lower Final'}]},
+  ],
+  cy:[[0,1],[0.5,2],[2]],
+  conns:[
+    [0,0,0,true, 1,0,0],  // P1 winner → P3 red
+    [0,0,1,false,1,1,0],  // P1 loser  → P4 red
+    [0,1,0,true, 1,0,1],  // P2 winner → P3 blue
+    [0,1,1,false,1,1,1],  // P2 loser  → P4 blue
+    [1,0,1,false,2,0,0],  // P3 loser  → P5 red
+    [1,1,0,true, 2,0,1],  // P4 winner → P5 blue
+    [1,0,0,true,-1,0,0],  // P3 winner → Finals red
+    [2,0,0,true,-1,0,1],  // P5 winner → Finals blue
+  ],
+};
+// Alliances is only the fallback signal: a demo or Nexus-only event has no TBA event
+// object, and Nexus's /alliances is a fixed-length positional array (8 slots on an
+// 8-alliance event, picks:[] until each is reached), so <=4 entries means a 4-bracket.
+function bracketLayout(alliances){
+  const t=tbaEvent?.playoff_type;
+  if(t===11) return BKT_LAYOUT_4;
+  if(t==null && alliances.length>0 && alliances.length<=4) return BKT_LAYOUT_4;
+  return BKT_LAYOUT_8;
+}
 
 // ── Mobile bracket ───────────────────────────────────────────────────────────
 // The desktop bracket is a fixed ~1400px canvas of absolutely-positioned cards
@@ -4433,6 +4503,7 @@ function rBracketMobile(){
   const alliances=resolvedAlliances();
 
   const {mxByNum, allianceOf} = bracketIndex(alliances);
+  const layout=bracketLayout(alliances);
 
   // Which match is on the field right now — shared with rQ() and the desktop
   // bracket via fieldState(), so all three agree.
@@ -4478,8 +4549,8 @@ function rBracketMobile(){
     const state=st.status==='won'?'Winner':st.status==='eliminated'?'Eliminated':st.double_elim_round||'Playing';
     const mates=(alliances[myIdx].picks||[]).map(tk=>tk.replace('frc','')).join(' · ');
     // Every bracket slot this alliance appears in, in bracket order
-    const all=[...BKT_ROUNDS.flatMap(r=>r.matches), ...finals];
-    // Bracket order is not play order — Round 2 runs M7,M8,M5,M6. Your path
+    const all=[...layout.rounds.flatMap(r=>r.matches), ...finals];
+    // Bracket order is not play order — the 8's Round 2 runs P7,P8,P5,P6. Your path
     // should read chronologically, which for double-elim is sf1..sf13 then f1..
     const playOrder=c=>{ const m=c.key.match(/^(sf|f)(\d+)$/); return m?(m[1]==='sf'?0:100)+ +m[2]:999; };
     const mine=all.filter(c=>{
@@ -4512,7 +4583,7 @@ function rBracketMobile(){
     return;
   }
 
-  const roundsHtml=[...BKT_ROUNDS, {name:'Finals', matches:finals}]
+  const roundsHtml=[...layout.rounds, {name:'Finals', matches:finals}]
     .map(r=>`<div class="bkt-mob-sect">
       <div class="bkt-mob-hdr">${e(r.name)}</div>
       ${r.matches.map(card).join('')}
@@ -4532,6 +4603,7 @@ function rBracket(){
   const alliances = resolvedAlliances();
 
   const {mxByNum, allianceOf} = bracketIndex(alliances);
+  const layout=bracketLayout(alliances);
 
   // Which match is on the field — shared with rQ() and the mobile bracket, and
   // computed once per render rather than re-derived inside every card.
@@ -4546,8 +4618,7 @@ function rBracket(){
   }));
 
   // ── Layout constants ──────────────────────────────────────────────────────
-  // 5 rounds + Finals = 6 columns
-  // Rounds: R1(4 cards), R2(4 cards), R3(2 cards), R4(2 cards), R5(1 card), Finals(1-3 cards)
+  // One column per round + Finals. Card positions and connectors come from `layout`.
   const CARD_W   = 172;
   const CARD_H   = 88;   // label bar ~22px + 2 rows ~33px each
   const LABEL_H  = 22;
@@ -4556,82 +4627,25 @@ function rBracket(){
   const HDR_H    = 30;
   const PAD      = 16;
 
-  // The canvas is divided into 4 equal BANDS, one per R1 match.
-  // BAND is tall enough that cards in the same column never overlap.
-  // Every card position is derived from band centres — no double-conversion.
+  // The canvas is divided into equal BANDS (4 for the 8-alliance bracket, 3 for the
+  // 4). BAND is tall enough that cards in the same column never overlap, and every
+  // card position is derived from a band centre.
   const BAND   = CARD_H + 56;   // 144px per band — 56px gap between cards
-  const innerH = 4 * BAND;
+  const innerH = layout.bands * BAND;
 
   function colX(ci){ return PAD + ci*(CARD_W+COL_GAP); }
 
-  // Absolute Y of the vertical centre of band b
-  // Bands start immediately after the header row
+  // Absolute Y of the vertical centre of band b (fractional b sits between bands)
   function bandCY(b){ return HDR_H + PAD + b*BAND + BAND/2; }
 
-  // Convert a card-centre Y to a card-top Y
-  function cy2top(cy){ return cy - CARD_H/2; }
-
-  // All positions are card-top Y values.
-  // R1  : 4 cards, one per band, perfectly equidistant
-  // R2  : M7=top of upper half, M8=top of lower half (winner matches)
-  //        M5=bottom of upper half, M6=bottom of lower half (loser matches)
-  //        "top/bottom of half" = bands 0-1 for upper, bands 2-3 for lower
-  //        winner centred between the two bands, loser at the midpoint
-  //        between winner-centre and the next band start — guaranteed no overlap
-  // R3  : M10 upper (aligns with M8), M9 lower (aligns with M6)
-  // R4  : M11 upper (aligns with M7), M12 lower (between M10 and M9)
-  // R5  : M13 centred between M11 and M12
-  function getCardY(ci, si){
-    // Band centres (absolute Y of card centre for R1 slots)
-    const cy0=bandCY(0), cy1=bandCY(1), cy2=bandCY(2), cy3=bandCY(3);
-
-    if(ci===0){
-      // R1: one card perfectly centred in each band
-      return cy2top(bandCY(si));
-    }
-
-    if(ci===1){
-      // R2: M7, M8, M5, M6 — one card per band, same as R1
-      // This guarantees no overlap and gives clean visual ordering top to bottom
-      if(si===0) return cy2top(cy0);   // M7 — band 0 (top)
-      if(si===1) return cy2top(cy1);   // M8 — band 1
-      if(si===2) return cy2top(cy2);   // M5 — band 2
-      if(si===3) return cy2top(cy3);   // M6 — band 3 (bottom)
-    }
-
-    if(ci===2){
-      // R3: M10 on top (si=0), M9 on bottom (si=1)
-      // Image 2 shows M10 aligns with the M5/M8 area (upper-mid),
-      // and M9 aligns with the M6 area (lower).
-      // M10: between M8 and M5 vertically — use band 2 centre
-      if(si===0) return cy2top(cy2);
-      // M9: aligns with M6 — band 3 centre
-      if(si===1) return cy2top(cy3);
-    }
-
-    if(ci===3){
-      // R4: M11 upper (si=0), M12 lower (si=1)
-      // M11: aligns with M7/M8 area — centre of bands 0+1
-      if(si===0) return cy2top((cy0+cy1)/2);
-      // M12: aligns with M10/M9 area — centre of bands 2+3
-      if(si===1) return cy2top((cy2+cy3)/2);
-    }
-
-    if(ci===4){
-      // R5: M13 centred between M11 and M12
-      const m11cy = (cy0+cy1)/2;
-      const m12cy = (cy2+cy3)/2;
-      if(si===0) return cy2top((m11cy+m12cy)/2);
-    }
-
-    return HDR_H + PAD + si*(CARD_H+56);
-  }
+  // Card-top Y for card si of column ci
+  function getCardY(ci, si){ return bandCY(layout.cy[ci][si]) - CARD_H/2; }
 
   // Finals column
   const hasFinals    = finalCol.some(c=>mxByNum[c.key]);
   const shownFinals  = finalCol.filter((c,i)=>mxByNum[c.key]||(i===0));
   const FINALS_SEP   = 32;
-  const finalsX      = colX(5) + FINALS_SEP;
+  const finalsX      = colX(layout.rounds.length) + FINALS_SEP;
 
   function getFinalsY(si){
     const FGAP   = 14;
@@ -4718,76 +4732,12 @@ function rBracket(){
   const CW = 'rgba(220,50,50,0.7)';   // winner
   const CL = 'rgba(50,130,220,0.6)';  // loser
 
-  // Corrected connection map:
-  // [fromCi, fromSi, fromRow(0=red/top,1=blue/bot), isWinner, toCi, toSi, toRow]
-  // R1 M1=si0, M2=si1, M3=si2, M4=si3
-  // R2 M7=si0, M8=si1, M5=si2, M6=si3
-  // R3 M10=si0, M9=si1
-  // R4 M11=si0, M12=si1
-  // R5 M13=si0
-  const connMap = [
-    // R1 → R2
-    [0,0,0,true, 1,0,0],  // M1 winner → M7 red
-    [0,0,1,false,1,2,0],  // M1 loser  → M5 red
-    [0,1,0,true, 1,0,1],  // M2 winner → M7 blue
-    [0,1,1,false,1,2,1],  // M2 loser  → M5 blue
-    [0,2,0,true, 1,1,0],  // M3 winner → M8 red
-    [0,2,1,false,1,3,0],  // M3 loser  → M6 red
-    [0,3,0,true, 1,1,1],  // M4 winner → M8 blue
-    [0,3,1,false,1,3,1],  // M4 loser  → M6 blue
-    // R2 → R3/R4
-    [1,0,0,true, 3,0,0],  // M7 winner → M11 red
-    [1,0,1,false,2,1,0],  // M7 loser  → M9 red
-    [1,1,0,true, 3,0,1],  // M8 winner → M11 blue
-    // M8 loser not mapped (eliminated)
-    [1,2,0,true, 2,0,1],  // M5 winner → M10 blue
-    [1,3,0,true, 2,1,1],  // M6 winner → M9 blue
-    // R3 → R4
-    [2,0,0,true, 3,1,0],  // M10 winner → M12 red
-    [2,1,0,true, 3,1,1],  // M9 winner  → M12 blue
-    // R4 → R5 / Finals
-    [1,1,1,false,2,0,0],  // M8 loser → M10 red
-  ];
-
-  // Finals connections — handled separately from connMap because they cross
-  // into the finals column rather than spanning one ordinary column gap:
-  //   R4 M11 winner → Finals red
-  //   R4 M11 loser  → R5 M13 red
-  //   R4 M12 winner → R5 M13 blue   (lower-bracket winner advances)
-  //   R5 M13 winner → Finals blue
-
+  // Winner lines red, loser lines blue — see the `conns` format on the layouts.
   let svgLines = '';
-
-  // Standard connections (all span exactly one column gap)
-  for(const [fci,fsi,frow,isWin,tci,tsi,trow] of connMap){
+  for(const [fci,fsi,frow,isWin,tci,tsi,trow] of layout.conns){
     const x1=rightEdge(fci), y1=rowMid(fci,fsi,frow);
     const x2=leftEdge(tci),  y2=rowMid(tci,tsi,trow);
     svgLines += makePath(x1,y1,x2,y2, isWin?CW:CL, false);
-  }
-
-  // R4 M11 winner → Finals red row
-  {
-    const x1=rightEdge(3), y1=rowMid(3,0,0);
-    const x2=finalsX,      y2=rowMid(-1,0,0);
-    svgLines += makePath(x1,y1,x2,y2,CW,false);
-  }
-  // R4 M11 loser → R5 M13 red
-  {
-    const x1=rightEdge(3), y1=rowMid(3,0,1);
-    const x2=leftEdge(4),  y2=rowMid(4,0,0);
-    svgLines += makePath(x1,y1,x2,y2,CL,false);
-  }
-  // R4 M12 winner → R5 M13 blue (winner advances from lower bracket)
-  {
-    const x1=rightEdge(3), y1=rowMid(3,1,0);
-    const x2=leftEdge(4),  y2=rowMid(4,0,1);
-    svgLines += makePath(x1,y1,x2,y2,CW,false);
-  }
-  // R5 M13 winner → Finals blue row
-  {
-    const x1=rightEdge(4), y1=rowMid(4,0,0);
-    const x2=finalsX,      y2=rowMid(-1,0,1);
-    svgLines += makePath(x1,y1,x2,y2,CW,false);
   }
 
   // Finals dashed separator
@@ -4800,7 +4750,7 @@ function rBracket(){
   const hdrStyle=`font-family:var(--fd);font-size:var(--fs-sm);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim);text-align:center;padding-bottom:5px;border-bottom:2px solid var(--border)`;
 
   // Col labels
-  const colLabels=['Round 1','Round 2','Round 3','Round 4','Round 5'];
+  const colLabels=layout.rounds.map(r=>r.name);
   colLabels.forEach((lbl,ci)=>{
     cards+=`<div style="position:absolute;left:${colX(ci)}px;top:${PAD}px;width:${CARD_W}px;${hdrStyle}">${lbl}</div>`;
   });
@@ -4808,8 +4758,8 @@ function rBracket(){
     cards+=`<div style="position:absolute;left:${finalsX}px;top:${PAD}px;width:${CARD_W}px;${hdrStyle}">Finals</div>`;
   }
 
-  // Match cards — cols 0-4 (BKT_ROUNDS is shared with the mobile bracket)
-  const colDefs=BKT_ROUNDS.map(r=>r.matches);
+  // Match cards (the layout's rounds are shared with the mobile bracket)
+  const colDefs=layout.rounds.map(r=>r.matches);
   colDefs.forEach((col,ci)=>{
     col.forEach((c,si)=>{ cards+=cardHtml(colX(ci),getCardY(ci,si),c.key,c.label,c.note); });
   });

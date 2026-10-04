@@ -220,6 +220,16 @@ pitfusion.com — Cloudflare managed
   TBA wins any bracket key it has an entry for at all; Nexus fills every key TBA doesn't
   have yet. `bracketIndex()` rebuilds from scratch every render, so a later TBA correction
   simply wins on the next poll — nothing here is cached across renders.
+- **The playoff bracket layout follows TBA's `playoff_type`, not the data.** 10 = 8-alliance
+  double-elim (~95% of events), 11 = 4-alliance double-elim (offseason + Michigan State
+  Champ; RISE 2026mnros1). Cards are keyed by TBA set number and the same key is a different
+  slot in each layout — in the 4, sf3 is the upper final and sf4 the lower round, where in the
+  8 they are Round 1's "2v7"/"3v6". 4-alliance shape, confirmed live: P1 1v4, P2 2v3, P3 W1vW2
+  (upper final), P4 L1vL2, P5 L3vW4 (lower final), Final 1–3; Nexus labels match
+  (`Playoff 1–5`, `Final 1–3`). `BKT_LAYOUT_8`/`BKT_LAYOUT_4` carry card positions and
+  connectors as data; `bracketLayout()` picks one. Types 1 (16 alliances), 9 (2) and 8
+  (Custom) have no layout and fall through to the 8. Bracket cards use `P<n>`, matching
+  `shortLabel()` and Nexus's "Playoff N".
 
 ## Deliberate display choices — do not "fix" these
 Both look like bugs on sight. Both were examined against live data and kept on purpose;
