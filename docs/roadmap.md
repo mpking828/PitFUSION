@@ -153,7 +153,7 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   because `sbVer(team)` keys on the SUBJECT team, not the viewer — keying it on the viewer
   would have fragmented the cache one way per display and been strictly worse (#88).
 
-- **Unreleased** — **4-alliance playoff bracket, and `P` labels on the bracket.** Found at
+- **V3.6.2** — **4-alliance playoff bracket, a flat fallback for the rest, and `P` labels.** Found at
   RISE (2026mnros1), an offseason event TBA types as `playoff_type 11`. The bracket was
   hardcoded for the 8-alliance, 13-match layout and keyed cards by TBA set number, so a
   4-alliance event *looked* fine — the right teams landed in cards — but sf3 and sf4 sat in
@@ -174,6 +174,8 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   (`Playoff N`, `Final N`) and is the only source for any other comp_level. It assumes no
   rounds and draws no advancement lines, so it can't be wrong the way the 8 layout was on
   a 4 bracket. A `playoff_type` of `null` (no TBA event) still falls back on alliance count.
+  Also fixed: the mobile "Current" button was forced visible on both sheets, including the
+  bracket, by a CSS rule from #37 outranking its `.show` toggle.
 
 ## Deferred / follow-up
 
