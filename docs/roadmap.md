@@ -183,7 +183,7 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   Also fixed: the mobile "Current" button was forced visible on both sheets, including the
   bracket, by a CSS rule from #37 outranking its `.show` toggle.
 
-- **Unreleased** — **a match on the field during a break is no longer marked Done.** At RISE,
+- **V3.6.3** — **a match on the field during a break is no longer marked Done.** At RISE,
   Playoff 5 was played, voided, and replayed 30 minutes later with no replay entered in
   Nexus. It sat at "On field" with nothing queuing — the shape `matchPlayed()` read as "done,
   break begun" — so the match list badged it DONE and dimmed it (and My Team / Our Schedule
@@ -193,6 +193,9 @@ event never holds still for (see "Testing against Nexus — demo events" in `CLA
   Bracket cards also stop showing a bare, stale queue time on a match that has been queued:
   it reads "queued" (time in the tooltip), "soon" when Nexus has clamped the estimate, the
   estimate otherwise, and nothing once played or on the field.
+  Also fixed: the EPA overlay hung on "Loading chart…" for an event Statbotics has no
+  matches for — every offseason event — because `openEpa()` carried its own copy of the
+  chart-fill loop; it now uses `_fillEpaCharts()`, which handles the empty case (#95).
 
 ## Deferred / follow-up
 
