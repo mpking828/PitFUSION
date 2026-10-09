@@ -23,6 +23,7 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 11 | Playoff Bracket sidebar overflow — the Queuing tab's bumper box forces a scroll bar | shipped (#45, #46) | XS–S | — |
 | 12 | Playoff Bracket rosters/matches sourced from Nexus (works with no TBA data at all — teams appear as alliance selection happens, instead of waiting on TBA's all-or-nothing post) | shipped (V3.4.0, #73) | M | — |
 | 13 | Event-driven cache invalidation — every cache TTL replaced by a version derived from posted scores, client and Worker edge alike | shipped (V3.5.0, #80) | S–M | [features/13-event-driven-cache.md](features/13-event-driven-cache.md) |
+| 15 | Custom theme: "Import from frc-colors" — team number → full palette from the team's colours + its avatar in the header (button-only, preview until Save) | building | S | [features/15-frc-colors-import.md](features/15-frc-colors-import.md) |
 
 Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, may split.
 
