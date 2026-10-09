@@ -6,6 +6,21 @@ Owner decisions (2026-10-09): palette derived **locally**, no thecolorapi; avata
 **next to the team number** (right side), not by the wordmark; Import sets the panel
 tint to match and leaves any background image alone.
 
+> **Revised in #15b — the avatar is no longer part of this feature.** Everything below
+> about the avatar describes V3.7.0 as shipped. The owner then asked for it to follow
+> the display team on every theme, so it moved out of the Custom theme:
+> - fetched when a team number is typed on the setup screen, not on Import, and always
+>   the **display** team's (importing 254's colours no longer changes it);
+> - shown in the header and as the setup-screen logo (80 px, 2×) on every theme;
+>   hosted mode stops loading `logo.png`, which showed one team's logo to everyone;
+> - stored per team in `localStorage['pitfusion_avatars']` for an instant, offline-safe
+>   paint, revalidated every load through the browser's HTTP cache (the server's 24 h
+>   `max-age` is the timeout), with a ↺ Refresh and a Show toggle in ⚙ Settings ▸
+>   Appearance;
+> - `cfg.avatar` is gone; `migrateThemeAvatar()` moves a V3.7.0 one into the store.
+>
+> Import from frc-colors now sets colours only. Current behaviour: CLAUDE.md ▸ Team avatar.
+
 ## Goal
 
 One button in Settings ▸ Appearance ▸ Edit Custom theme: type a team number, press

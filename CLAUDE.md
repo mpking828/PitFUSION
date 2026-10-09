@@ -59,10 +59,30 @@ Single HTML file, no framework, no build step.
   as JPEG; input over 30 MB is rejected, as is a stored data URL over 3.5 MB.
 - Custom editor ▸ **Import from frc-colors** (button-only, preview until Save): team
   colours from `api.frc-colors.com` → `paletteFromTeamColors()` (local HSL, no palette
-  API), and the 40×40 avatar from `avatars.frc.sh` stored in the theme as a data URL
-  (`cfg.avatar`), shown as `#hdr-avatar` beside the team number on the Custom theme only.
-  Both hosts are keyless and CORS-open, so they're called directly, not via `apiUrl()`.
-  Status/alliance colours are never team-tinted. See docs/features/15.
+  API). Colours only — status/alliance colours are never team-tinted. See docs/features/15.
+
+## Team avatar
+- FIRST's 40×40 avatar for the **display team** (never the team whose colours were
+  imported), from `avatars.frc.sh` — not frc-colors. Shown as `#hdr-avatar` beside the
+  header team number and at exactly 2× (80 px, pixelated) as the setup-screen logo, on
+  **every theme**. Hidden on mobile with the team number. Toggle: ⚙ Settings ▸
+  Appearance ▸ Show team avatar (`pitfusion_show_avatar`, on by default).
+- Kept in `localStorage['pitfusion_avatars']` as `{team: {image, at}}`, last 10 teams;
+  `image:''` caches "no avatar" (404). The stored copy paints instantly (and offline);
+  every page load and every team typed on the setup screen (500 ms debounce)
+  revalidates in the background through the **browser's HTTP cache**, so the server's
+  `Cache-Control: public, max-age=86400, stale-while-revalidate=86400` is the
+  effective timeout — a new avatar shows within ~1–2 days, with no TTL of ours.
+  Deliberately NOT `no-store`: #35's rule exists for a pitfusion.com zone setting and
+  doesn't apply to a third-party origin. A year-based "season cache" was built first
+  and dropped — it added logic to save ~3 KB per reload. Network errors are never
+  cached. ⚙ Settings ▸ ↺ Refresh avatar fetches with `cache:'reload'`.
+- Keyless and CORS-open, so called directly in both modes, not via `apiUrl()`.
+- **Setup-screen logo**: hosted mode never loads `logo.png` (it would show one team's
+  logo to every pitfusion.com visitor). Self-hosted still probes `logo.png`/`.jpg`/… next
+  to `index.html` and shows it when the team has no avatar; the avatar always wins.
+- V3.7.0 stored an imported avatar inside the Custom theme config (`cfg.avatar`);
+  `migrateThemeAvatar()` moves it into the store once and deletes the key.
 - `tj2` still carries ~195 fine-grained overrides — see docs/features/08 for the
   planned collapse. User-facing guide: docs/custom-theme.md.
 
