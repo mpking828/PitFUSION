@@ -13,9 +13,10 @@ tint to match and leaves any background image alone.
 >   the **display** team's (importing 254's colours no longer changes it);
 > - shown in the header and as the setup-screen logo (80 px, 2×) on every theme;
 >   hosted mode stops loading `logo.png`, which showed one team's logo to everyone;
-> - stored per team in `localStorage['pitfusion_avatars']` with a season cache keyed on
->   `X-Avatar-Year` (final once it's this year's avatar, otherwise rechecked once per
->   page load), and a ↺ Refresh plus a Show toggle in ⚙ Settings ▸ Appearance;
+> - stored per team in `localStorage['pitfusion_avatars']` for an instant, offline-safe
+>   paint, revalidated every load through the browser's HTTP cache (the server's 24 h
+>   `max-age` is the timeout), with a ↺ Refresh and a Show toggle in ⚙ Settings ▸
+>   Appearance;
 > - `cfg.avatar` is gone; `migrateThemeAvatar()` moves a V3.7.0 one into the store.
 >
 > Import from frc-colors now sets colours only. Current behaviour: CLAUDE.md ▸ Team avatar.

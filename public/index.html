@@ -1827,7 +1827,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
         Show team avatar
       </label>
       <p style="color:var(--text-dim);font-size:var(--fs-sm);margin:0 0 6px">
-        Your team&rsquo;s FIRST avatar next to the header team number and on the setup screen. Saved in this browser; rechecked when a new season&rsquo;s avatar could exist.
+        Your team&rsquo;s FIRST avatar next to the header team number and on the setup screen. Saved in this browser and rechecked about once a day.
       </p>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <button class="s-btn" type="button" onclick="refreshAvatar(this)" style="padding:4px 12px">&#8635; Refresh avatar</button>
@@ -1987,16 +1987,18 @@ function applyCustomTheme(cfg){
 }
 // ── Team avatar (header + setup screen, every theme) ────────────────────────
 // FIRST's 40×40 avatar from avatars.frc.sh (keyless, CORS-open; not frc-colors).
-// Fetched when a team number is typed on the setup screen and kept in
-// localStorage['pitfusion_avatars'] as {team: {image, year, at}} — image '' means
-// "this team has no avatar". Season cache, not a TTL: an entry whose avatar is from
-// the current year is final; an older-year or missing one is rechecked at most once
-// per page load (teams upload a new avatar each season). ⚙ Settings ▸ Refresh
-// forces it. Always the DISPLAY team's avatar, whatever colours were imported.
+// Kept in localStorage['pitfusion_avatars'] as {team: {image, at}} — image '' means
+// "this team has no avatar". The stored copy paints instantly (and offline); every
+// page load, and every team typed on the setup screen, revalidates in the
+// background. That fetch uses the browser's HTTP cache, so the server's own
+// Cache-Control (max-age=86400) is the effective timeout — no TTL of ours. This is a
+// third-party origin, so #35's no-store rule (a pitfusion.com zone setting) doesn't
+// apply. ⚙ Settings ▸ Refresh bypasses the HTTP cache. Always the DISPLAY team's
+// avatar, whatever colours were imported.
 const LS_AVATARS = 'pitfusion_avatars', LS_SHOW_AVATAR = 'pitfusion_show_avatar';
 const AVATAR_KEEP = 10;                     // most recently used teams kept
 let _avTeam = '', _setupLogoFile = '';
-const _avChecked = new Set(), _avInFlight = new Map();
+const _avInFlight = new Map();
 function _avStore(){
   try { const o = JSON.parse(localStorage.getItem(LS_AVATARS) || '{}'); return (o && typeof o === 'object') ? o : {}; }
   catch(e){ return {}; }
@@ -2030,33 +2032,29 @@ function applyAvatar(team){
     su.alt = img ? 'Team ' + _avTeam + ' avatar' : 'Team Logo';
   }
 }
-// → {image, year} | {image:''} when the team has none (404). Throws on a network
-// error or a 5xx, which are NOT cached.
-async function fetchAvatar(team){
-  const r = await fetch('https://avatars.frc.sh/teams/' + team + '.png', { cache:'no-store' });
-  if(r.status === 404) return { image:'', year:null };
+// → data URL, or '' when the team has none (404). Throws on a network error or a
+// 5xx, which are NOT cached. reload = bypass the browser's HTTP cache.
+async function fetchAvatar(team, reload){
+  const r = await fetch('https://avatars.frc.sh/teams/' + team + '.png', { cache: reload ? 'reload' : 'default' });
+  if(r.status === 404) return '';
   if(!r.ok) throw new Error('HTTP ' + r.status);
   const b = await r.blob();
-  if(!/^image\//.test(b.type) || b.size > 256 * 1024) return { image:'', year:null };
+  if(!/^image\//.test(b.type) || b.size > 256 * 1024) return '';
   const image = await new Promise((res, rej) => {
     const fr = new FileReader();
     fr.onload = () => res(String(fr.result || '')); fr.onerror = rej;
     fr.readAsDataURL(b);
   });
-  return { image, year: +r.headers.get('X-Avatar-Year') || null };
+  return image;
 }
-// Make sure `team` has an up-to-date cached avatar, then repaint if it's still the
-// team on screen. Resolves to the entry, or null on a network failure.
+// Revalidate `team`'s stored avatar, then repaint if it's still the team on screen.
+// Resolves to the entry, or null on a network failure (the stored copy is kept).
 function ensureAvatar(team, force){
   team = _validTeam(team);
   if(!team) return Promise.resolve(null);
-  const e = _avStore()[team];
-  const final = e && e.image && e.year >= new Date().getFullYear();
-  if(!force && (final || (e && _avChecked.has(team)))) return Promise.resolve(e);
   if(_avInFlight.has(team)) return _avInFlight.get(team);
-  const p = fetchAvatar(team).then(r => {
-    _avChecked.add(team);
-    const entry = { image:r.image, year:r.year, at:Date.now() };
+  const p = fetchAvatar(team, force).then(image => {
+    const entry = { image, at:Date.now() };
     _avPut(team, entry);
     if(team === _avTeam) applyAvatar();
     return entry;
@@ -2078,7 +2076,7 @@ async function refreshAvatar(btn){
   const e = await ensureAvatar(team, true);
   if(btn) btn.disabled = false;
   say(!e ? 'Couldn’t reach the avatar server — try again later.'
-     : e.image ? 'Team ' + team + ' avatar updated' + (e.year ? ' (' + e.year + ')' : '') + '.'
+     : e.image ? 'Team ' + team + ' avatar updated.'
      : 'Team ' + team + ' has no avatar on file.');
 }
 // One-time move: V3.7.0 stored an imported avatar inside the Custom theme config.
@@ -2087,7 +2085,7 @@ async function refreshAvatar(btn){
   if(!cfg || !cfg.avatar) return;
   const a = cfg.avatar, t = _validTeam(a.team);
   if(t && typeof a.image === 'string' && a.image.startsWith('data:image/') && !_avStore()[t])
-    _avPut(t, { image:a.image, year:null, at:Date.now() });
+    _avPut(t, { image:a.image, at:Date.now() });
   delete cfg.avatar;
   try { localStorage.setItem(LS_CUSTOM_THEME, JSON.stringify(cfg)); } catch(e){}
 })();

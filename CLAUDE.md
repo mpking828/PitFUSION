@@ -67,12 +67,16 @@ Single HTML file, no framework, no build step.
   header team number and at exactly 2× (80 px, pixelated) as the setup-screen logo, on
   **every theme**. Hidden on mobile with the team number. Toggle: ⚙ Settings ▸
   Appearance ▸ Show team avatar (`pitfusion_show_avatar`, on by default).
-- Fetched when a team number is typed on the setup screen (500 ms debounce) and kept in
-  `localStorage['pitfusion_avatars']` as `{team: {image, year, at}}`, last 10 teams;
-  `image:''` caches "no avatar" (404). **Season cache, not a TTL**: an entry whose
-  `year` (the `X-Avatar-Year` response header) is the current calendar year is final;
-  an older-year or missing one is rechecked at most once per page load. Network errors
-  are never cached. ⚙ Settings ▸ ↺ Refresh avatar forces a refetch.
+- Kept in `localStorage['pitfusion_avatars']` as `{team: {image, at}}`, last 10 teams;
+  `image:''` caches "no avatar" (404). The stored copy paints instantly (and offline);
+  every page load and every team typed on the setup screen (500 ms debounce)
+  revalidates in the background through the **browser's HTTP cache**, so the server's
+  `Cache-Control: public, max-age=86400, stale-while-revalidate=86400` is the
+  effective timeout — a new avatar shows within ~1–2 days, with no TTL of ours.
+  Deliberately NOT `no-store`: #35's rule exists for a pitfusion.com zone setting and
+  doesn't apply to a third-party origin. A year-based "season cache" was built first
+  and dropped — it added logic to save ~3 KB per reload. Network errors are never
+  cached. ⚙ Settings ▸ ↺ Refresh avatar fetches with `cache:'reload'`.
 - Keyless and CORS-open, so called directly in both modes, not via `apiUrl()`.
 - **Setup-screen logo**: hosted mode never loads `logo.png` (it would show one team's
   logo to every pitfusion.com visitor). Self-hosted still probes `logo.png`/`.jpg`/… next
