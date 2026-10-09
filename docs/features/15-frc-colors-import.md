@@ -1,6 +1,6 @@
 # 15 — Import Custom theme from frc-colors
 
-Status: **building** · Size: **S** · Depends on: #8 (Custom theme editor, shipped)
+Status: **shipped (V3.7.0, #101)** · Size: **S** · Depends on: #8 (Custom theme editor, shipped)
 
 Owner decisions (2026-10-09): palette derived **locally**, no thecolorapi; avatar sits
 **next to the team number** (right side), not by the wordmark; Import sets the panel
