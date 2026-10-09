@@ -57,6 +57,12 @@ Single HTML file, no framework, no build step.
   override into `<style id="custom-theme-style">` (pre-paint in the head script,
   no flash). Uploaded background images are downscaled to 1920 px and re-encoded
   as JPEG; input over 30 MB is rejected, as is a stored data URL over 3.5 MB.
+- Custom editor ▸ **Import from frc-colors** (button-only, preview until Save): team
+  colours from `api.frc-colors.com` → `paletteFromTeamColors()` (local HSL, no palette
+  API), and the 40×40 avatar from `avatars.frc.sh` stored in the theme as a data URL
+  (`cfg.avatar`), shown as `#hdr-avatar` beside the team number on the Custom theme only.
+  Both hosts are keyless and CORS-open, so they're called directly, not via `apiUrl()`.
+  Status/alliance colours are never team-tinted. See docs/features/15.
 - `tj2` still carries ~195 fine-grained overrides — see docs/features/08 for the
   planned collapse. User-facing guide: docs/custom-theme.md.
 

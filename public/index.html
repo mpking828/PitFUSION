@@ -311,6 +311,8 @@ body.page-has-bg .tp{
 .cd-val{font-family:var(--fd);font-size:var(--fs-cd);font-weight:900;color:var(--accent);line-height:1;letter-spacing:.03em;flex-shrink:0}
 .cd-val.urg{color:var(--red);animation:pulsered .8s infinite alternate}
 @keyframes pulsered{from{opacity:1}to{opacity:.4}}
+.hdr-avatar{display:none;height:calc(var(--fs-hdr) * 1.2 + 10px);width:auto;aspect-ratio:1;image-rendering:pixelated;flex-shrink:0}
+.hdr-avatar.on{display:block}
 .hdr-team{background:var(--surface2);border:2px solid var(--accent);border-radius:var(--r);padding:3px 14px;font-family:var(--fd);font-size:var(--fs-hdr);font-weight:900;color:var(--accent);white-space:nowrap}
 .delay-pill{border-radius:var(--r);padding:2px 14px;font-family:var(--fd);font-size:var(--fs-cd);font-weight:900;white-space:nowrap;line-height:1;letter-spacing:.03em}
 .delay-pill.ontime{background:rgba(46,204,113,.15);border:1px solid rgba(46,204,113,.4);color:#2ecc71}
@@ -1194,6 +1196,7 @@ button.live-pill:hover{color:var(--text)}
 .cte-hint{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);line-height:1.5;margin:2px 0 8px}
 .cte-file{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-mid);min-width:0}
 .cte-thumb{width:60px;height:38px;object-fit:cover;border:1px solid var(--border2);border-radius:4px;flex-shrink:0}
+.cte-avatar{width:40px;height:40px;image-rendering:pixelated;border:1px solid var(--border2);border-radius:4px;flex-shrink:0}
 .cte-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px}
 .cte-dirty{font-family:var(--fd);font-size:var(--fs-sm);color:var(--yellow)}
 .cte-msg{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);margin-top:8px;min-height:1.2em}
@@ -1370,7 +1373,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
 
   /* Header: Queue-Now pill + schedule delay + live dot + menu only */
   .hdr{ gap:8px; padding:0 8px }
-  .hdr-l, .hdr-clk, .hdr-team, .hdr-r .help-btn{ display:none }
+  .hdr-l, .hdr-clk, .hdr-team, .hdr-avatar.on, .hdr-r .help-btn{ display:none }
   .hdr-r{ gap:8px }
   #mobile-menu-btn{ display:flex }
 
@@ -1615,6 +1618,7 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <button class="help-btn" onclick="openSettings()" title="Settings" style="font-size:12px">&#9881;</button>
       <div class="hdr-clk" id="hdr-clk">&mdash;</div>
       <div id="hdr-delay"></div>
+      <img class="hdr-avatar" id="hdr-avatar" alt="">
       <div class="hdr-team" id="hdr-team">&mdash;</div>
       <button class="live-pill" id="live-pill" onclick="toggleStatusPop(event)" title="Connection status" aria-expanded="false" aria-controls="status-pop"><div class="ldot" id="ldot"></div><span id="ltxt">Connected</span></button>
       <button class="help-btn" id="mobile-menu-btn" onclick="openMobileMenu()" title="Menu" aria-label="Menu">&#9776;</button>
@@ -1932,6 +1936,7 @@ function applyTheme(t){
     const c = customThemeConfig();
     injectCustomThemeStyle(c ? buildCustomThemeCss(mergedCustomTheme(c)) : '');
   }
+  applyHeaderAvatar(t === 'custom' ? mergedCustomTheme(customThemeConfig()) : null);
   applyPageBg();
 }
 
@@ -1946,6 +1951,9 @@ const DEFAULT_CUSTOM_THEME = {
   },
   glass: { bg:'#141414', bgAlpha:0.72, border:'#ffffff', borderAlpha:0.14, blur:12 },
   bg:    { image:'', pos:'center', washout:0, washoutColor:'#000000' },
+  // Team avatar shown next to the header team number. A data URL fetched once on
+  // "Import from frc-colors", so the header never makes a third-party request.
+  avatar:{ image:'', team:null, show:false },
 };
 
 function customThemeConfig(){
@@ -1962,11 +1970,25 @@ function mergedCustomTheme(cfg){
     colors: Object.assign({}, d.colors, cfg.colors || {}),
     glass:  Object.assign({}, d.glass,  cfg.glass  || {}),
     bg:     Object.assign({}, d.bg,     cfg.bg     || {}),
+    avatar: Object.assign({}, d.avatar, cfg.avatar || {}),
   };
 }
 function applyCustomTheme(cfg){
-  injectCustomThemeStyle(buildCustomThemeCss(mergedCustomTheme(cfg)));
+  const m = mergedCustomTheme(cfg);
+  injectCustomThemeStyle(buildCustomThemeCss(m));
+  applyHeaderAvatar(m);
   applyPageBg();
+}
+// cfg = a merged Custom theme config, or null to hide (any other theme).
+function applyHeaderAvatar(cfg){
+  const el = document.getElementById('hdr-avatar');
+  if(!el) return;
+  const a = (cfg && cfg.avatar) || {};
+  const on = !!(a.show && typeof a.image === 'string' && a.image.startsWith('data:image/'));
+  if(on){ if(el.getAttribute('src') !== a.image) el.src = a.image; }
+  else el.removeAttribute('src');
+  el.classList.toggle('on', on);
+  el.title = on && a.team ? 'Team ' + a.team : '';
 }
 
 // Build the swatch grid into a container. Used by the setup screen AND the
@@ -2294,6 +2316,120 @@ function _cteLiveApply(){
   _cteTimer = setTimeout(() => applyCustomTheme(_cteDraft), 40);
 }
 
+// ── Import from frc-colors (docs/features/15) ───────────────────────────────
+// Button-only: nothing here runs until the user presses Import, and the result is
+// just another edit to _cteDraft — preview until Save. Both hosts are keyless and
+// CORS-open, so this is a direct call in both modes (no Worker route, no apiUrl()).
+let _cteFrcTeam = '';
+function _hsl(hex){
+  const [r,g,b] = (_hexToRgb(hex) || [0,0,0]).map(v => v / 255);
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), l = (mx + mn) / 2, d = mx - mn;
+  let h = 0, s = 0;
+  if(d){
+    s = d / (1 - Math.abs(2*l - 1));
+    h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return [h, s * 100, l * 100];
+}
+function _hslHex(h, s, l){
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+  return '#' + [f(0), f(8), f(4)].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+function _contrast(a, b){
+  const lum = hex => {
+    const [r,g,b] = (_hexToRgb(hex) || [0,0,0]).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+    return 0.2126*r + 0.7152*g + 0.0722*b;
+  };
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+// Team colours → the editor's colour tokens, on a dark (pit-TV) base. Status and
+// alliance colours are deliberately left alone: a team's blue must never read as an
+// alliance colour. Text stays neutral for legibility.
+function paletteFromTeamColors(primary, secondary){
+  const neutral = hex => { const [, s, l] = _hsl(hex); return s < 15 || l > 90 || l < 8; };
+  let acc = primary, acc2 = _hexToRgb(secondary) ? secondary : '', swapped = false;
+  if(neutral(acc) && acc2 && !neutral(acc2)){ [acc, acc2] = [acc2, acc]; swapped = true; }
+  const grey = neutral(acc);                       // both neutral: plain grey surfaces
+  const [H] = _hsl(acc);
+  const bs = grey ? 0 : 18, ds = grey ? 0 : 15;
+  const bg = _hslHex(H, bs, 5);
+  // Both neutral (a black + white team): take whichever shows up on the page.
+  if(grey && acc2 && _contrast(acc2, bg) > _contrast(acc, bg)){ [acc, acc2] = [acc2, acc]; swapped = !swapped; }
+  // A neutral secondary that shows up (751's white) is the team's own; one that
+  // doesn't (254's #232323) gives way to the accent's complement.
+  if(!acc2 || (neutral(acc2) && _contrast(acc2, bg) < 3)) acc2 = _hslHex((H + 180) % 360, grey ? 0 : 65, 45);
+  // Contrast guard (3:1, non-text): a navy colour would vanish on a near-black page.
+  let lightened = false;
+  const lift = hex => {
+    let [h, s, l] = _hsl(hex);
+    while(_contrast(hex, bg) < 3 && l < 90){ l += 2; hex = _hslHex(h, s, l); lightened = true; }
+    return hex;
+  };
+  acc = lift(acc); acc2 = lift(acc2);
+  const onAcc = _contrast(acc, '#000000') >= _contrast(acc, '#ffffff') ? '#000000' : '#ffffff';
+  return {
+    colors: {
+      '--bg': bg, '--surface': _hslHex(H, bs, 8), '--surface2': _hslHex(H, bs, 11),
+      '--border': _hslHex(H, ds, 17), '--border2': _hslHex(H, ds, 24),
+      '--accent': acc, '--accent2': acc2, '--on-accent': onAcc,
+    },
+    swapped, lightened,
+  };
+}
+async function fetchFrcColors(team){
+  const r = await fetch('https://api.frc-colors.com/v1/team/' + team, { cache:'no-store' });
+  if(r.status === 404) return null;               // E_TEAM_NOT_FOUND: no stored colours
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+// The 40×40 FIRST avatar, as a data URL ('' when the team has none — common).
+async function fetchFrcAvatar(team){
+  try {
+    const r = await fetch('https://avatars.frc.sh/teams/' + team + '.png', { cache:'no-store' });
+    if(!r.ok) return '';
+    const b = await r.blob();
+    if(!/^image\//.test(b.type) || b.size > 256 * 1024) return '';
+    return await new Promise(res => {
+      const fr = new FileReader();
+      fr.onload  = () => res(String(fr.result || ''));
+      fr.onerror = () => res('');
+      fr.readAsDataURL(b);
+    });
+  } catch(e){ return ''; }
+}
+async function _cteImportFrc(btn){
+  const raw = String(_cteFrcTeam || '').trim(), team = parseInt(raw, 10);
+  if(!/^\d+$/.test(raw) || !(team >= 1 && team <= 50000)){ _cteMsg('Enter a team number.', true); return; }
+  if(btn){ btn.disabled = true; btn.textContent = 'Importing…'; }
+  const [res, av] = await Promise.all([
+    fetchFrcColors(team).then(c => ({ c }), e => ({ e })),
+    fetchFrcAvatar(team),
+  ]);
+  if(btn){ btn.disabled = false; btn.textContent = 'Import from frc-colors'; }
+  if(res.e){ _cteMsg('Couldn’t reach frc-colors — try again in a moment.', true); return; }
+  const col = res.c;
+  if(!col || !_hexToRgb(col.primaryHex)){ _cteMsg('frc-colors has no colours for team ' + team + '.', true); return; }
+  const pal = paletteFromTeamColors(col.primaryHex, col.secondaryHex);
+  Object.assign(_cteDraft.colors, pal.colors);
+  _cteDraft.glass.bg = pal.colors['--surface'];
+  // The avatar belongs to the imported team: replace it, or clear a previous team's.
+  _cteDraft.avatar = av ? { image:av, team, show:true } : { image:'', team:null, show:false };
+  _cteMarkDirty();
+  applyCustomTheme(_cteDraft);
+  renderCustomEditor();
+  const notes = [];
+  if(col.verified === false) notes.push('colours auto-extracted from the team avatar — check them');
+  if(pal.swapped)   notes.push('secondary used as accent');
+  if(pal.lightened) notes.push('a dark team colour lightened for contrast');
+  if(!av)           notes.push('no avatar on file');
+  _cteMsg('Imported team ' + team + ' — ' + col.primaryHex + ' / ' + (col.secondaryHex || '—')
+          + (notes.length ? ' (' + notes.join('; ') + ')' : '') + '. Press Save to keep it.');
+}
+
 function openCustomThemeEditor(){
   const box = document.getElementById('custom-theme-editor');
   const btn = document.getElementById('edit-custom-btn');
@@ -2326,6 +2462,30 @@ function renderCustomEditor(){
     (kids || []).forEach(c => c != null && el.append(c));
     return el;
   };
+
+  // ── import from frc-colors ──
+  box.append(h('div', { class:'cte-group-hdr', text:'FRC Colors' }));
+  if(!_cteFrcTeam) _cteFrcTeam = String(C.team || lsGet(LS_TEAM, '') || '');
+  const frcIn  = h('input', { type:'text', class:'cte-hex', value:_cteFrcTeam, inputMode:'numeric',
+                              placeholder:'Team #', spellcheck:false, 'aria-label':'Team number' });
+  const frcBtn = h('button', { class:'s-btn', type:'button', text:'Import from frc-colors' });
+  frcIn.addEventListener('input', () => { _cteFrcTeam = frcIn.value.trim(); });
+  frcIn.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); _cteImportFrc(frcBtn); } });
+  frcBtn.addEventListener('click', () => _cteImportFrc(frcBtn));
+  box.append(h('div', { class:'cte-row' }, [ frcIn, frcBtn ]));
+  box.append(h('div', { class:'cte-hint', text:'Fills the colours below from this team’s frc-colors.com entry and adds its avatar next to the header team number. Preview only until you Save.' }));
+  const av = _cteDraft.avatar || {};
+  if(av.image){
+    const show = h('input', { type:'checkbox', checked: !!av.show });
+    show.addEventListener('change', () => { _cteDraft.avatar.show = show.checked; _cteMarkDirty(); _cteLiveApply(); });
+    const rmAv = h('button', { class:'s-btn', type:'button', text:'Remove avatar' });
+    rmAv.addEventListener('click', () => { _cteDraft.avatar = { image:'', team:null, show:false }; _cteMarkDirty(); applyCustomTheme(_cteDraft); renderCustomEditor(); _cteMsg('Avatar removed.'); });
+    box.append(h('div', { class:'cte-row' }, [
+      h('img', { src:av.image, class:'cte-avatar', alt:'Team ' + (av.team || '') + ' avatar' }),
+      h('label', { class:'cte-lbl' }, [ show, ' Show next to team number' ]),
+      rmAv,
+    ]));
+  }
 
   // ── colours ──
   const isHex = v => /^#[0-9a-f]{6}$/i.test(String(v||'').trim());
@@ -2481,7 +2641,8 @@ function _cteReset(){
 }
 function _cteCopyCss(){
   const css = buildCustomThemeCss(mergedCustomTheme(_cteDraft), '[data-theme="custom"]');
-  const ok = () => _cteMsg('CSS copied — paste it over the [data-theme="custom"] block in index.html.');
+  const note = (_cteDraft.avatar && _cteDraft.avatar.image) ? ' The header avatar is markup, not CSS, so it isn’t included.' : '';
+  const ok = () => _cteMsg('CSS copied — paste it over the [data-theme="custom"] block in index.html.' + note);
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(css).then(ok, () => window.prompt('Copy this CSS:', css));
   } else {
