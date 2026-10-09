@@ -701,6 +701,8 @@ button.live-pill:hover{color:var(--text)}
 .setup-logo-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:4px}
 .setup-logo-img{max-height:80px;max-width:240px;object-fit:contain;display:none}
 .setup-logo-img.loaded{display:block}
+/* A 40×40 FIRST avatar at exactly 2× — integer scaling keeps the pixels square. */
+.setup-logo-img.avatar{width:80px;height:80px;image-rendering:pixelated}
 .setup-wordmark{font-family:var(--fd);font-size:2.8rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;line-height:1;display:flex;align-items:center}
 .setup-wordmark em{color:var(--accent);font-style:normal}
 .setup-wordmark .wm-pit{color:var(--text)}
@@ -1196,7 +1198,6 @@ button.live-pill:hover{color:var(--text)}
 .cte-hint{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);line-height:1.5;margin:2px 0 8px}
 .cte-file{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-mid);min-width:0}
 .cte-thumb{width:60px;height:38px;object-fit:cover;border:1px solid var(--border2);border-radius:4px;flex-shrink:0}
-.cte-avatar{width:40px;height:40px;image-rendering:pixelated;border:1px solid var(--border2);border-radius:4px;flex-shrink:0}
 .cte-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px}
 .cte-dirty{font-family:var(--fd);font-size:var(--fs-sm);color:var(--yellow)}
 .cte-msg{font-family:var(--fd);font-size:var(--fs-sm);color:var(--text-dim);margin-top:8px;min-height:1.2em}
@@ -1821,6 +1822,17 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
       <div class="theme-swatches" id="settings-theme-swatches" style="margin-bottom:10px"><!-- rendered by renderThemeSwatches() --></div>
       <button class="s-btn" id="edit-custom-btn" onclick="openCustomThemeEditor()" style="padding:6px 16px">Edit Custom theme&hellip;</button>
       <div id="custom-theme-editor" hidden style="margin-top:14px"></div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:14px 0 4px">
+        <input type="checkbox" id="set-show-avatar" onchange="setShowAvatar(this.checked)">
+        Show team avatar
+      </label>
+      <p style="color:var(--text-dim);font-size:var(--fs-sm);margin:0 0 6px">
+        Your team&rsquo;s FIRST avatar next to the header team number and on the setup screen. Saved in this browser; rechecked when a new season&rsquo;s avatar could exist.
+      </p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="s-btn" type="button" onclick="refreshAvatar(this)" style="padding:4px 12px">&#8635; Refresh avatar</button>
+        <span id="set-avatar-msg" style="color:var(--text-dim);font-size:var(--fs-sm)"></span>
+      </div>
 
       <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
       <h3>Display</h3>
@@ -1936,7 +1948,6 @@ function applyTheme(t){
     const c = customThemeConfig();
     injectCustomThemeStyle(c ? buildCustomThemeCss(mergedCustomTheme(c)) : '');
   }
-  applyHeaderAvatar(t === 'custom' ? mergedCustomTheme(customThemeConfig()) : null);
   applyPageBg();
 }
 
@@ -1951,9 +1962,6 @@ const DEFAULT_CUSTOM_THEME = {
   },
   glass: { bg:'#141414', bgAlpha:0.72, border:'#ffffff', borderAlpha:0.14, blur:12 },
   bg:    { image:'', pos:'center', washout:0, washoutColor:'#000000' },
-  // Team avatar shown next to the header team number. A data URL fetched once on
-  // "Import from frc-colors", so the header never makes a third-party request.
-  avatar:{ image:'', team:null, show:false },
 };
 
 function customThemeConfig(){
@@ -1970,26 +1978,119 @@ function mergedCustomTheme(cfg){
     colors: Object.assign({}, d.colors, cfg.colors || {}),
     glass:  Object.assign({}, d.glass,  cfg.glass  || {}),
     bg:     Object.assign({}, d.bg,     cfg.bg     || {}),
-    avatar: Object.assign({}, d.avatar, cfg.avatar || {}),
   };
 }
 function applyCustomTheme(cfg){
   const m = mergedCustomTheme(cfg);
   injectCustomThemeStyle(buildCustomThemeCss(m));
-  applyHeaderAvatar(m);
   applyPageBg();
 }
-// cfg = a merged Custom theme config, or null to hide (any other theme).
-function applyHeaderAvatar(cfg){
-  const el = document.getElementById('hdr-avatar');
-  if(!el) return;
-  const a = (cfg && cfg.avatar) || {};
-  const on = !!(a.show && typeof a.image === 'string' && a.image.startsWith('data:image/'));
-  if(on){ if(el.getAttribute('src') !== a.image) el.src = a.image; }
-  else el.removeAttribute('src');
-  el.classList.toggle('on', on);
-  el.title = on && a.team ? 'Team ' + a.team : '';
+// ── Team avatar (header + setup screen, every theme) ────────────────────────
+// FIRST's 40×40 avatar from avatars.frc.sh (keyless, CORS-open; not frc-colors).
+// Fetched when a team number is typed on the setup screen and kept in
+// localStorage['pitfusion_avatars'] as {team: {image, year, at}} — image '' means
+// "this team has no avatar". Season cache, not a TTL: an entry whose avatar is from
+// the current year is final; an older-year or missing one is rechecked at most once
+// per page load (teams upload a new avatar each season). ⚙ Settings ▸ Refresh
+// forces it. Always the DISPLAY team's avatar, whatever colours were imported.
+const LS_AVATARS = 'pitfusion_avatars', LS_SHOW_AVATAR = 'pitfusion_show_avatar';
+const AVATAR_KEEP = 10;                     // most recently used teams kept
+let _avTeam = '', _setupLogoFile = '';
+const _avChecked = new Set(), _avInFlight = new Map();
+function _avStore(){
+  try { const o = JSON.parse(localStorage.getItem(LS_AVATARS) || '{}'); return (o && typeof o === 'object') ? o : {}; }
+  catch(e){ return {}; }
 }
+function _avPut(team, entry){
+  const o = _avStore();
+  o[team] = entry;
+  Object.keys(o).sort((a, b) => (o[b].at || 0) - (o[a].at || 0)).slice(AVATAR_KEEP).forEach(k => delete o[k]);
+  try { localStorage.setItem(LS_AVATARS, JSON.stringify(o)); } catch(e){}
+}
+function showAvatarOn(){ return lsGet(LS_SHOW_AVATAR, '1') !== '0'; }
+function _validTeam(t){ t = String(t || '').trim(); return /^\d{1,5}$/.test(t) && +t > 0 ? String(+t) : ''; }
+// Paint the header + setup avatar for `team` (omit to repaint the current one).
+function applyAvatar(team){
+  if(team !== undefined) _avTeam = _validTeam(team);
+  const e = _avTeam ? _avStore()[_avTeam] : null;
+  const img = (showAvatarOn() && e && typeof e.image === 'string' && e.image.startsWith('data:image/')) ? e.image : '';
+  const hdr = document.getElementById('hdr-avatar');
+  if(hdr){
+    if(img){ if(hdr.getAttribute('src') !== img) hdr.src = img; } else hdr.removeAttribute('src');
+    hdr.classList.toggle('on', !!img);
+    hdr.title = img ? 'Team ' + _avTeam : '';
+  }
+  // Setup screen: the avatar, else a self-hosted logo file, else just the wordmark.
+  const su = document.getElementById('setup-logo-img');
+  if(su){
+    const src = img || _setupLogoFile;
+    if(src){ if(su.getAttribute('src') !== src) su.src = src; } else su.removeAttribute('src');
+    su.classList.toggle('loaded', !!src);
+    su.classList.toggle('avatar', !!img);
+    su.alt = img ? 'Team ' + _avTeam + ' avatar' : 'Team Logo';
+  }
+}
+// → {image, year} | {image:''} when the team has none (404). Throws on a network
+// error or a 5xx, which are NOT cached.
+async function fetchAvatar(team){
+  const r = await fetch('https://avatars.frc.sh/teams/' + team + '.png', { cache:'no-store' });
+  if(r.status === 404) return { image:'', year:null };
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  const b = await r.blob();
+  if(!/^image\//.test(b.type) || b.size > 256 * 1024) return { image:'', year:null };
+  const image = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result || '')); fr.onerror = rej;
+    fr.readAsDataURL(b);
+  });
+  return { image, year: +r.headers.get('X-Avatar-Year') || null };
+}
+// Make sure `team` has an up-to-date cached avatar, then repaint if it's still the
+// team on screen. Resolves to the entry, or null on a network failure.
+function ensureAvatar(team, force){
+  team = _validTeam(team);
+  if(!team) return Promise.resolve(null);
+  const e = _avStore()[team];
+  const final = e && e.image && e.year >= new Date().getFullYear();
+  if(!force && (final || (e && _avChecked.has(team)))) return Promise.resolve(e);
+  if(_avInFlight.has(team)) return _avInFlight.get(team);
+  const p = fetchAvatar(team).then(r => {
+    _avChecked.add(team);
+    const entry = { image:r.image, year:r.year, at:Date.now() };
+    _avPut(team, entry);
+    if(team === _avTeam) applyAvatar();
+    return entry;
+  }, () => null).finally(() => _avInFlight.delete(team));
+  _avInFlight.set(team, p);
+  return p;
+}
+function setShowAvatar(on){
+  try { localStorage.setItem(LS_SHOW_AVATAR, on ? '1' : '0'); } catch(e){}
+  applyAvatar();
+}
+async function refreshAvatar(btn){
+  const msg = document.getElementById('set-avatar-msg');
+  const team = _avTeam || _validTeam(document.getElementById('setup-team')?.value);
+  const say = t => { if(msg) msg.textContent = t; };
+  if(!team){ say('Enter a team number first.'); return; }
+  if(btn) btn.disabled = true;
+  say('Checking team ' + team + '…');
+  const e = await ensureAvatar(team, true);
+  if(btn) btn.disabled = false;
+  say(!e ? 'Couldn’t reach the avatar server — try again later.'
+     : e.image ? 'Team ' + team + ' avatar updated' + (e.year ? ' (' + e.year + ')' : '') + '.'
+     : 'Team ' + team + ' has no avatar on file.');
+}
+// One-time move: V3.7.0 stored an imported avatar inside the Custom theme config.
+(function migrateThemeAvatar(){
+  const cfg = customThemeConfig();
+  if(!cfg || !cfg.avatar) return;
+  const a = cfg.avatar, t = _validTeam(a.team);
+  if(t && typeof a.image === 'string' && a.image.startsWith('data:image/') && !_avStore()[t])
+    _avPut(t, { image:a.image, year:null, at:Date.now() });
+  delete cfg.avatar;
+  try { localStorage.setItem(LS_CUSTOM_THEME, JSON.stringify(cfg)); } catch(e){}
+})();
 
 // Build the swatch grid into a container. Used by the setup screen AND the
 // Settings ▸ Appearance section — both stay in sync because selectTheme()
@@ -2050,16 +2151,19 @@ function selectTheme(t){
   });
 })();
 
-// Try to show a logo.png/logo.jpg from the same directory as this .html file
+// Self-hosted: try to show a logo.png/logo.jpg from the same directory as this
+// .html file. Hosted skips it — pitfusion.com's folder logo would be one team's
+// logo shown to every visitor. Either way, the team avatar takes precedence.
 (function tryLoadLogo(){
-  const img = document.getElementById('setup-logo-img');
+  if(MODE === 'hosted') return;
   const exts = ['logo.png','logo.jpg','logo.jpeg','logo.svg','logo.webp'];
   let idx = 0;
   function next(){
     if(idx>=exts.length) return;
-    img.onerror = ()=>{ idx++; next(); };
-    img.onload  = ()=>{ img.classList.add('loaded'); };
-    img.src = exts[idx++];
+    const probe = new Image(), src = exts[idx++];
+    probe.onerror = next;
+    probe.onload  = ()=>{ _setupLogoFile = src; applyAvatar(); };
+    probe.src = src;
   }
   next();
 })();
@@ -2070,6 +2174,8 @@ function selectTheme(t){
   const ev = lsGet(LS_EVENT);
   if(t)  document.getElementById('setup-team').value  = t;
   if(ev) document.getElementById('setup-event-manual').value = ev;
+  applyAvatar(t || '');
+  if(t) ensureAvatar(t);
 })();
 
 // ── EVENT DROPDOWN — team-aware filtering ────────────────────────────────────
@@ -2202,6 +2308,15 @@ async function filterDropdownForTeam(teamNum){
   }
 }
 
+// Avatar follows the team box: cached one at once, fetch after a pause in typing.
+let _avTypeTimer = null;
+document.getElementById('setup-team').addEventListener('input', function(){
+  const val = this.value;
+  applyAvatar(val);
+  clearTimeout(_avTypeTimer);
+  _avTypeTimer = setTimeout(() => ensureAvatar(val), 500);
+});
+
 // Debounced listener on team number input
 document.getElementById('setup-team').addEventListener('input', function(){
   clearTimeout(_teamFilterTimer);
@@ -2276,6 +2391,8 @@ function openSettings(){
   document.getElementById('set-results').innerHTML = '';
   renderThemeSwatches(document.getElementById('settings-theme-swatches'));
   document.querySelectorAll('.pred-toggle-cb').forEach(cb => { cb.checked = PREDICT; });
+  document.getElementById('set-show-avatar').checked = showAvatarOn();
+  document.getElementById('set-avatar-msg').textContent = '';
   document.getElementById('settings-overlay').classList.add('show');
 }
 function closeSettings(){ document.getElementById('settings-overlay').classList.remove('show'); }
@@ -2386,29 +2503,11 @@ async function fetchFrcColors(team){
   if(!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
-// The 40×40 FIRST avatar, as a data URL ('' when the team has none — common).
-async function fetchFrcAvatar(team){
-  try {
-    const r = await fetch('https://avatars.frc.sh/teams/' + team + '.png', { cache:'no-store' });
-    if(!r.ok) return '';
-    const b = await r.blob();
-    if(!/^image\//.test(b.type) || b.size > 256 * 1024) return '';
-    return await new Promise(res => {
-      const fr = new FileReader();
-      fr.onload  = () => res(String(fr.result || ''));
-      fr.onerror = () => res('');
-      fr.readAsDataURL(b);
-    });
-  } catch(e){ return ''; }
-}
 async function _cteImportFrc(btn){
   const raw = String(_cteFrcTeam || '').trim(), team = parseInt(raw, 10);
   if(!/^\d+$/.test(raw) || !(team >= 1 && team <= 50000)){ _cteMsg('Enter a team number.', true); return; }
   if(btn){ btn.disabled = true; btn.textContent = 'Importing…'; }
-  const [res, av] = await Promise.all([
-    fetchFrcColors(team).then(c => ({ c }), e => ({ e })),
-    fetchFrcAvatar(team),
-  ]);
+  const res = await fetchFrcColors(team).then(c => ({ c }), e => ({ e }));
   if(btn){ btn.disabled = false; btn.textContent = 'Import from frc-colors'; }
   if(res.e){ _cteMsg('Couldn’t reach frc-colors — try again in a moment.', true); return; }
   const col = res.c;
@@ -2416,8 +2515,6 @@ async function _cteImportFrc(btn){
   const pal = paletteFromTeamColors(col.primaryHex, col.secondaryHex);
   Object.assign(_cteDraft.colors, pal.colors);
   _cteDraft.glass.bg = pal.colors['--surface'];
-  // The avatar belongs to the imported team: replace it, or clear a previous team's.
-  _cteDraft.avatar = av ? { image:av, team, show:true } : { image:'', team:null, show:false };
   _cteMarkDirty();
   applyCustomTheme(_cteDraft);
   renderCustomEditor();
@@ -2425,7 +2522,6 @@ async function _cteImportFrc(btn){
   if(col.verified === false) notes.push('colours auto-extracted from the team avatar — check them');
   if(pal.swapped)   notes.push('secondary used as accent');
   if(pal.lightened) notes.push('a dark team colour lightened for contrast');
-  if(!av)           notes.push('no avatar on file');
   _cteMsg('Imported team ' + team + ' — ' + col.primaryHex + ' / ' + (col.secondaryHex || '—')
           + (notes.length ? ' (' + notes.join('; ') + ')' : '') + '. Press Save to keep it.');
 }
@@ -2473,19 +2569,7 @@ function renderCustomEditor(){
   frcIn.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); _cteImportFrc(frcBtn); } });
   frcBtn.addEventListener('click', () => _cteImportFrc(frcBtn));
   box.append(h('div', { class:'cte-row' }, [ frcIn, frcBtn ]));
-  box.append(h('div', { class:'cte-hint', text:'Fills the colours below from this team’s frc-colors.com entry and adds its avatar next to the header team number. Preview only until you Save.' }));
-  const av = _cteDraft.avatar || {};
-  if(av.image){
-    const show = h('input', { type:'checkbox', checked: !!av.show });
-    show.addEventListener('change', () => { _cteDraft.avatar.show = show.checked; _cteMarkDirty(); _cteLiveApply(); });
-    const rmAv = h('button', { class:'s-btn', type:'button', text:'Remove avatar' });
-    rmAv.addEventListener('click', () => { _cteDraft.avatar = { image:'', team:null, show:false }; _cteMarkDirty(); applyCustomTheme(_cteDraft); renderCustomEditor(); _cteMsg('Avatar removed.'); });
-    box.append(h('div', { class:'cte-row' }, [
-      h('img', { src:av.image, class:'cte-avatar', alt:'Team ' + (av.team || '') + ' avatar' }),
-      h('label', { class:'cte-lbl' }, [ show, ' Show next to team number' ]),
-      rmAv,
-    ]));
-  }
+  box.append(h('div', { class:'cte-hint', text:'Fills the colours below from this team’s frc-colors.com entry. Preview only until you Save.' }));
 
   // ── colours ──
   const isHex = v => /^#[0-9a-f]{6}$/i.test(String(v||'').trim());
@@ -2641,8 +2725,7 @@ function _cteReset(){
 }
 function _cteCopyCss(){
   const css = buildCustomThemeCss(mergedCustomTheme(_cteDraft), '[data-theme="custom"]');
-  const note = (_cteDraft.avatar && _cteDraft.avatar.image) ? ' The header avatar is markup, not CSS, so it isn’t included.' : '';
-  const ok = () => _cteMsg('CSS copied — paste it over the [data-theme="custom"] block in index.html.' + note);
+  const ok = () => _cteMsg('CSS copied — paste it over the [data-theme="custom"] block in index.html.');
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(css).then(ok, () => window.prompt('Copy this CSS:', css));
   } else {

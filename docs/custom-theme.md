@@ -27,18 +27,20 @@ on [frc-colors.com](https://frc-colors.com) and fills in:
 - **Page background, panels and borders** as dark shades of the accent colour,
   plus the frosted-panel tint to match.
 - **Text on accent** as black or white, whichever reads better.
-- The team's **avatar** (FIRST's 40×40 pixel-art icon), shown next to the team
-  number in the header. Untick **Show next to team number** to hide it, or
-  **Remove avatar**. It's hidden on phones, along with the team number.
 
 Text, status and alliance colours are left alone, so a blue team never makes its
 matches look like blue-alliance ones. Your background image isn't touched either.
 
 Nothing is fetched until you press the button, and as with any edit, nothing is
-kept until you press **Save**. The avatar is stored inside the theme, so the
-display never contacts frc-colors while it's running. If the colours say
-"auto-extracted", the team hasn't submitted official colours and frc-colors
-guessed them from the avatar, so check them.
+kept until you press **Save**, so the display never contacts frc-colors while
+it's running. If the colours say "auto-extracted", the team hasn't submitted
+official colours and frc-colors guessed them from the team avatar, so check them.
+
+The import only sets colours. Your team's **avatar** (FIRST's 40×40 pixel-art
+icon) is separate: it appears next to the header team number and on the setup
+screen on every theme, for the team number you typed on the setup screen. Turn
+it off, or refresh it if your team uploads a new one mid-season, under
+**⚙ Settings ▸ Appearance**.
 
 ### Colours
 
