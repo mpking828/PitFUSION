@@ -6,7 +6,7 @@ Owner decisions (2026-10-09): palette derived **locally**, no thecolorapi; avata
 **next to the team number** (right side), not by the wordmark; Import sets the panel
 tint to match and leaves any background image alone.
 
-> **Revised in #15b — the avatar is no longer part of this feature.** Everything below
+> **Revised in #15b (V3.8.0, #103) — the avatar is no longer part of this feature.** Everything below
 > about the avatar describes V3.7.0 as shipped. The owner then asked for it to follow
 > the display team on every theme, so it moved out of the Custom theme:
 > - fetched when a team number is typed on the setup screen, not on Import, and always
