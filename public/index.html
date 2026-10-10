@@ -1371,6 +1371,13 @@ body.pit-xl .rt th{ font-size:var(--fs-pit) !important; }
     --fs-pit:1rem; --fs-pit-xl:1.3rem; --fs-lbl:0.85rem; --fs-body:0.9rem;
   }
   .footer{ display:none }
+  /* 100vh is the viewport with the browser's toolbars HIDDEN. They're normally
+     showing, and html/body are overflow:hidden so scrolling can't retract them —
+     so the bottom of #app sat behind Chrome's toolbar and the tab panels' last
+     rows (My Team's Played list most visibly) could never be scrolled into view.
+     dvh tracks the space actually shown; 100vh stays as the fallback. */
+  #app{ height:100vh; height:100dvh }
+  .tp{ padding-bottom:calc(var(--pad) + 24px) }
 
   /* Header: Queue-Now pill + schedule delay + live dot + menu only */
   .hdr{ gap:8px; padding:0 8px }
