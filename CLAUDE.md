@@ -450,6 +450,10 @@ Default team: 88, event key format: e.g. 2025cthar
   `#panel-m` (Match Schedule) and the Bracket are promoted to a fixed full-screen
   panel from the ☰ menu via `openMobilePanel()` — which must **not** call
   `toggleBracket()` (desktop-only DOM shuffle).
+- `#app` is `100dvh` on mobile, not `100vh`: with `html,body{overflow:hidden}` the
+  browser toolbars can never retract, so `100vh` (toolbars-hidden height) put the
+  bottom of every tab behind Chrome's toolbar — My Team's last Played rows were
+  unreachable. A home-screen shortcut is the same (no manifest → a normal tab).
 - Mobile-only controls hide via a real CSS rule, never `style="display:none"` —
   inline styles outrank the media query. Same trap applies to `applyLayout()`'s
   inline grid sizes, which it now clears on mobile.
