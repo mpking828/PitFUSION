@@ -124,8 +124,8 @@ pitfusion.com — Cloudflare managed
   at "On field" at the second match played. The pileup starts immediately, not late in
   the weekend — which is exactly what the old `activeCount<=3` guard got wrong.
 - Never rely on match status alone — gate on nowQueuing being non-null
-- **Absent nowQueuing means "not queuing", not "on a break".** FOUR states share it, all
-  observed on a demo event:
+- **Absent nowQueuing means "not queuing", not "on a break".** FIVE states share it; (1)–(4)
+  were observed on a demo event, (5) at a real one:
   1. **the event hasn't started** — nothing has ever been at "On field". `eventNotStarted()`.
   2. **a scheduled break** — the last "On field" match carries a `breakAfter`. `activeBreak()`
      names it.
@@ -133,8 +133,40 @@ pitfusion.com — Cloudflare managed
      "On field", every qual "Queuing soon", and no `breakAfter` anywhere. Renders as the
      bare "On Break" badge, which is fair: play really is paused.
   4. **end of day** — same shape as (3) with nothing left to queue.
+  5. **a playoff bracket gap** — Nexus will not queue past a match whose participants
+     aren't settled yet, so it drops `nowQueuing` after nearly every late-bracket match.
+     See the playoff-gap bullet below; this one is routine, frequent, and not a pause.
   Tell (1) apart by the field, (2) by `breakAfter`. (3) and (4) are not currently
   distinguished, and the bare badge implies play resumes — a known gap at end of day.
+- **Playoff bracket gaps drop `nowQueuing` constantly, and that is normal.** Recorded
+  across the whole of playoffs at 2026matb (1267 Nexus states, 526 of them mid-gap):
+
+  | gap | duration | scheduled break? |
+  |---|---|---|
+  | after P9 | 35s | no |
+  | after P10 | 2m15s | yes |
+  | after P11 | 1m45s | no |
+  | after P12 | 12m10s | yes |
+  | after P13 | 8m42s | yes |
+  | after Final 1 | 10m32s | yes |
+
+  Six gaps, ~19% of playoff wall-clock. It **starts at P9** — P1–P8 queue continuously
+  because Round 1/2 participants come from the seeds, and only later rounds depend on
+  results. Nothing here is a defect: `!nowQueuing` means exactly "Nexus is not queuing",
+  which was true in all six. Do not try to suppress the resulting badge — see the
+  deliberate-display-choices section for why both obvious fixes are wrong.
+- **The 2026 Game Manual publishes where playoff breaks fall — use it to DIAGNOSE, never
+  hardcode it.** §10.6.2 and Table 10-2 (p.127): a 6-minute break after M10, then
+  15-minute awards breaks after M12, M13, M14 (= Final 1) and M15 (= Final 2). That maps
+  exactly onto the long gaps above, which is how "is this a real break?" was settled.
+  **FIRST has announced the table changes for 2027**, and offseason events do not follow it
+  anyway — 2026matb ran 2m15s/12m10s/8m42s/10m32s against a scheduled 6/15/15/15. So it is
+  reference knowledge for a human diagnosing a feed, not a lookup table for the app.
+- **Nexus DOES carry `breakAfter` on playoff matches — and operators edit it live.** At
+  2026matb, P12 read `None` → `'Lunch'` → `'Break'` → `'Awards break'` inside 35 seconds,
+  P8 and P10 flipped between `None` and a name, and Final 2 settled on the generic
+  `'Break'`. Never treat one poll's `breakAfter` as settled, and never conclude from a
+  single sample that Nexus omits playoff breaks.
 - **The queue pipeline stops at any interruption — a phase change or a scheduled break.**
   It normally runs two deep (with Practice 1 on deck, Practice 2 is already "Now queuing"),
   then stops dead at the last match before the interruption. Observed twice:
@@ -153,6 +185,15 @@ pitfusion.com — Cloudflare managed
   slot must not invent one — the break occupies that slot instead. An early instinct that
   the strip should read `Q19 | Q20 | Q21` there was wrong for this reason: it would assert
   a queue call Nexus never made. See `rQ()`'s sequence model.
+
+  **Third cause of the same collapse: a CONDITIONAL match.** At 2026matb's finals, Final 1
+  was On field, Final 2 On deck, Final 3 "Queuing soon", and `nowQueuing` had collapsed onto
+  Final 2 with nothing at "Now queuing" at all — because Final 3 only happens if the
+  finals are split, so Nexus will not queue a match that may never be played. Identical
+  signature to the break collapse, different reason. So the underlying rule is not "breaks
+  do this" but **Nexus never queues past anything it cannot commit to** — a break, an
+  undetermined bracket slot, or a conditional match. `fieldState()` reading statuses rather
+  than the `indexOf(nowQueuing) - 1` arithmetic is what keeps all three harmless.
 - **Real `breakAfter` strings, from 2026cc's posted qual schedule** — the names are free
   text from the event, so match them loosely, never by equality:
   `Qualification 16 → "Lunch"`, `Qualification 35 → "Lunch"` (two, on the same day),
@@ -241,6 +282,24 @@ pitfusion.com — Cloudflare managed
   `dataAsOfTime` on **every** poll, forever, even after the match is over. Practice 1's
   `estimatedOnFieldTime` walked with the clock long after it was played and committed,
   ending up LATER than its own `estimatedStartTime`. Treat such a value as "not a time".
+- **"Expected soon" has TWO routes, and they need different diagnosis.** Don't assume the
+  clamp when you see it:
+  1. **The Nexus clamp** above — `estimatedQueueTime` rewritten to `dataAsOfTime`, so
+     `queueTimeOf()` refuses it.
+  2. **The break-mode TBA path.** While paused, the queuing card stops using the Nexus
+     match and asks TBA for the team's next match with no `actual_time` (which is how it
+     avoids the `breakUnresolved()` staleness). That synthetic object has **no
+     `actualQueueTime`** and only `estimatedQueueTime = predicted_time − 30min`, so once
+     that moment passes `queueTimeOf()` refuses it and the card falls through to
+     "Expected soon".
+
+  Worked example, 2026matb: the card showed "Qual 24 — Expected soon" while Q25 was on the
+  field. Q25 carries `breakAfter: "Alliance selection"` so the pipeline had stopped and
+  `nowQueuing` was gone; TBA had not yet scored Q24, so it was still TBA's "next match with
+  no `actual_time`"; its synthetic queue time (16:41:22Z) was 41 minutes behind
+  `dataAsOfTime`. **Nothing in that entire feed was ever clamped** — route 2, not route 1.
+  It cleared when TBA posted Q24 at 17:09:37Z. Check whether any estimate actually equals
+  `dataAsOfTime` before reaching for the clamp explanation.
 - Phase (practice vs quals) comes from what the field is doing, never from "are there
   unplayed practice matches" — an event that cuts practice short leaves them at
   "Queuing soon" forever. `eventInPractice()`.
@@ -263,6 +322,30 @@ pitfusion.com — Cloudflare managed
   TBA wins any bracket key it has an entry for at all; Nexus fills every key TBA doesn't
   have yet. `bracketIndex()` rebuilds from scratch every render, so a later TBA correction
   simply wins on the next poll — nothing here is cached across renders.
+
+  Recorded end-to-end through one selection + playoffs at 2026matb:
+  - **Pre-selection Nexus `/alliances` is `[]`**, not `null` — the empty outer array is
+    not in the documented `Array<Array<string|null>|null>` shape, and `resolvedAlliances()`
+    handles it only because `Math.max` over two empty lengths is 0.
+  - **TBA's all-or-nothing really is all-or-nothing**: its first non-null response already
+    carried all 8 seeds with 4 picks each, and the roster never changed afterwards. The 16
+    later `/alliances` changes were pure `status` churn — `None` → `playing` →
+    `eliminated`, then `level: sf` → `f` for the two finalists.
+  - **Nexus led TBA by only 3m12s** (17:59:16Z vs 18:02:28Z) at this event. "Well before"
+    is normally much larger; it was small here *because* selection was posted atomically
+    rather than progressively (the event was having technical trouble). Progressive posting
+    is the norm — do not conclude otherwise from one recording.
+  - **Playoff rosters on `matches[]` populate progressively as the bracket resolves** —
+    P1–P4 at selection, then P5/P7, P6/P8, P9, P10/P11, P12, P13, Finals. This is separate
+    from, and no evidence about, how *selection* itself was posted.
+  - **`redTeams`/`blueTeams` ordering is NOT stable.** The same alliance appeared as
+    `['6328','1768','1474','9991']` in P1 and `['1768','9991','6328','1474']` in P11.
+    Position carries no meaning — never infer the captain from index 0. Harmless today
+    because `teamToSeed` maps every member and the bracket cards read TBA's `team_keys`,
+    but it would bite anything that assumed order.
+  - **`matches[]` grew 25 → 41** when the playoff schedule posted: all 16 playoff matches
+    appeared in one poll (17:55:26Z) with `redTeams`/`blueTeams` null. Another instance of
+    the "matches[] is not the fixed schedule it looks like" rule above.
 - **The playoff bracket layout follows TBA's `playoff_type`, not the data.** 10 = 8-alliance
   double-elim (~95% of events), 11 = 4-alliance double-elim (offseason + Michigan State
   Champ; RISE 2026mnros1). Cards are keyed by TBA set number and the same key is a different
@@ -277,8 +360,8 @@ pitfusion.com — Cloudflare managed
   `shortLabel()` and Nexus's "Playoff N".
 
 ## Deliberate display choices — do not "fix" these
-Both look like bugs on sight. Both were examined against live data and kept on purpose;
-confirm with the owner before changing either.
+Each of these looks like a bug on sight. Every one was examined against live data and kept
+on purpose; confirm with the owner before changing any of them.
 - **The Practice section stays visible through the phase gap, fully dimmed.** Practice has
   finished, quals are not queued, and `eventInPractice()` is still true because the last
   match on the field is a practice match. Reads as a stale panel; it isn't. Tightening it
@@ -289,11 +372,54 @@ confirm with the owner before changing either.
   "On deck" and "Now queuing", so all three light up. Long-standing behaviour for
   qualifications; practice inherits it unchanged (verified byte-identical in #65). Narrowing
   it to the on-field match alone would silently change quals and playoffs too.
+- **A bare "⏸ On Break" during a playoff bracket gap.** The most convincing-looking bug of
+  the three, investigated at length against 526 recorded gap states, and correct. Two fixes
+  were drafted and both rejected:
+  - *Suppress when the break is unnamed* — would have hidden the **real** 15-minute awards
+    break after P12 and the break after Final 2, where Nexus supplied the generic `'Break'`
+    (deliberately stripped as uninformative in `rQ()`) or momentarily `None` while the
+    operator was editing the label.
+  - *Gate on Game Manual Table 10-2* — hardcodes a table FIRST is replacing for 2027 and
+    that offseason events ignore.
+
+  And the premise was weaker than it looked: `breakBadge` is only emitted inside
+  `if(nowQ||myNextFinal)`, so the badge **never rendered at all** through the P11 gap (no
+  determined next match → the `else` branch showed "Not queuing"), and in the one
+  genuinely break-free moment that did render it (≈24s after P9) the card simultaneously
+  read `Est. Queue: 8:05 PM` with the header counting `Queue in 18m00s`. Calling an
+  18-minute wait "on break" is fair. `!nowQueuing` means "Nexus is not queuing", and that
+  was true in all six gaps.
+- **"⏸ On Break — 🍽 Lunch" shown during a playoff AWARDS break** (2026matb, 20:26:19Z).
+  PitFusion faithfully echoing an operator mislabel in `breakAfter`; it corrected itself 11
+  seconds later. Same parity principle as the four-digit delay pill — agreeing with the
+  operator's dashboard beats being independently tidier.
+- **Four-team alliance rosters rendered as a flat, unmarked list.** Four teams is the
+  *selection format* at offseason and World Championship events. At a regular event a 4th
+  team instead means a **substitution** — and a subbed-out team can be repaired and go back
+  in, with the decision made on the field, match by match. So TBA's `backup:{in,out}` is a
+  point-in-time snapshot that goes stale, and striking out the "out" team would tell a crew
+  someone is finished for the event when they may play the next match. Four undifferentiated
+  names state the only durable truth: *any of these four may play*. The per-match answer
+  already comes from the bracket cards, which read the match's own `team_keys`. Do not add
+  strikethrough or an in/out marker. (The code is length-agnostic throughout —
+  `resolvedAlliances()`, `teamToSeed`, and the alliance list already capped at 4.)
 
 ## Testing against Nexus — demo events
 There is no test harness. A Nexus **demo event** is the only way to exercise real queue
 states without waiting for a competition, and it is how the play-order rules above were
 confirmed.
+
+There is one other fixture, and it is the only way to reach states a demo cannot produce
+at all — real bracket dependency, real scored TBA data, real operator behaviour:
+**record a live event and replay it.** Poll the proxy on a loop and append each payload to
+a JSONL only when it has *changed* (hash the body, compare with the previous). One line per
+distinct state keeps it readable and cuts ~18 MB/hour of identical snapshots to a few
+hundred lines. 2026matb produced 1267 distinct Nexus states across 4 hours, and replaying
+them — assigning a captured state to `nxData` and calling `rQ()` — is what settled the
+playoff-gap question that two rounds of plausible reasoning had got wrong in both
+directions. Prefer this to any synthetic payload. Two gotchas: de-dup state lives in the
+process, so restarting the recorder writes one duplicate line per feed, and a long poll
+loop needs its own deadline or it outlives the event by hours.
 
 **Never design against a payload you constructed.** Every rule above that was inferred from
 the schema turned out wrong when the real feed arrived — a 90s lead that discarded real
@@ -411,6 +537,11 @@ Default team: 88, event key format: e.g. 2025cthar
   score take two polls to land. Don't fold it back in.
 - None of this is exercised by a Nexus demo event — no TBA means `tbaMx` is empty and
   `sbVer()` pins at `<key>:0` forever. See docs/features/13.
+- **`sbVer()` has now run live, once.** At 2026matb it reached `2026matb:24` with 24 scored
+  qualifications, so `scoreMap()` and `qualRpMap()` finally ran against a real TBA feed
+  rather than a synthetic payload — closing most of #50's "structurally verified only" gap.
+  Predictions are still unexercised: Statbotics tracks no offseason events, so
+  `getEventMatches()` for one returns a clean `[]`.
 - **`SB_BACKOFF` / `_sbFail` guard the COLD-cache case**, which version-keying cannot:
   with nothing cached and Statbotics down, every read refetches forever. A failed key
   now backs off 30s → 30m. Any success clears it, and `bustTeamCache()` clears it too —
