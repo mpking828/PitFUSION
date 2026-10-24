@@ -138,6 +138,10 @@ pitfusion.com — Cloudflare managed
      See the playoff-gap bullet below; this one is routine, frequent, and not a pause.
   Tell (1) apart by the field, (2) by `breakAfter`. (3) and (4) are not currently
   distinguished, and the bare badge implies play resumes — a known gap at end of day.
+  **That gap is narrower than it reads**: at 2026cokc the operator set
+  `Qualification 45 -> 'End of day'`, so overnight the badge named it (⏸ On Break —
+  🌙 End of day) rather than going bare. The bare case needs an operator who
+  doesn't label the break, not end-of-day per se.
 - **Playoff bracket gaps drop `nowQueuing` constantly, and that is normal.** Recorded
   across the whole of playoffs at 2026matb (1267 Nexus states, 526 of them mid-gap):
 
@@ -155,6 +159,25 @@ pitfusion.com — Cloudflare managed
   results. Nothing here is a defect: `!nowQueuing` means exactly "Nexus is not queuing",
   which was true in all six. Do not try to suppress the resulting badge — see the
   deliberate-display-choices section for why both obvious fixes are wrong.
+
+  **Replicated at a second, better-run event** — 2026cokc, 547 Nexus states. Same shape,
+  and the P9 threshold holds independently (P1–P9 queued continuously; P6 skipped in the
+  `nowQueuing` sequence at both events):
+
+  | gap | duration | lastOnField `breakAfter` | badge |
+  |---|---|---|---|
+  | end of quals → selection | 79m | `'Alliance selection'` | named |
+  | after P9 | 8m15s | `None` | **bare** |
+  | after P10 | 1m45s | `'Awards break'` | named |
+  | after P12 | 12m38s | `'Awards break'` | named |
+  | after P13 | 59s | `'Awards break'` | named |
+  | after Final 1 | 19m34s | `'Awards break'` | named |
+
+  **Five of six named**, because this operator set `breakAfter` ahead of time rather than
+  editing it live. So the bare badge is rarer than 2026matb suggested — and the one bare
+  case again sits exactly where Table 10-2 has no break. It lasted 8m15s here against
+  2026matb's 35s, and was still coherent: the card read "Playoff 10 / Expected soon" with
+  the header agreeing, rather than 2026matb's badge-beside-a-live-countdown.
 - **The 2026 Game Manual publishes where playoff breaks fall — use it to DIAGNOSE, never
   hardcode it.** §10.6.2 and Table 10-2 (p.127): a 6-minute break after M10, then
   15-minute awards breaks after M12, M13, M14 (= Final 1) and M15 (= Final 2). That maps
@@ -162,6 +185,10 @@ pitfusion.com — Cloudflare managed
   **FIRST has announced the table changes for 2027**, and offseason events do not follow it
   anyway — 2026matb ran 2m15s/12m10s/8m42s/10m32s against a scheduled 6/15/15/15. So it is
   reference knowledge for a human diagnosing a feed, not a lookup table for the app.
+  The *positions* held at a second event (2026cokc: breaks after P10, P12, P13 and Final 1,
+  none after P9) while the *durations* again did not — 1m45s/12m38s/59s/19m34s. Two events,
+  same conclusion: trust the positions for diagnosis, never the durations, and don't encode
+  either.
 - **Nexus DOES carry `breakAfter` on playoff matches — and operators edit it live.** At
   2026matb, P12 read `None` → `'Lunch'` → `'Break'` → `'Awards break'` inside 35 seconds,
   P8 and P10 flipped between `None` and a name, and Final 2 settled on the generic
@@ -203,7 +230,11 @@ pitfusion.com — Cloudflare managed
   arms of that gate open at the same moment rather than one racing the other.
   Confirmed at a second event the same weekend — 2026mibig1 (FSR), a 27-qual one-dayer:
   `Qualification 10 → "Lunch"`, `Qualification 27 → "Alliance selection"`. Same spelling,
-  same position after the final qualification.
+  same position after the final qualification. Four events now agree on that last one
+  (2026cc Q70, 2026mibig1 Q27, 2026matb Q25, 2026cokc Q62) — always after the FINAL
+  qualification, which is what lets `alliancesPosted()` key on it safely. 2026cokc also
+  shows a multi-day shape: `Q18 → "Lunch"`, `Q45 → "End of day"`, `Q62 → "Alliance
+  selection"`.
 - **The On Field slot is the sequence position BEFORE the on-deck match, and it can be -1.**
   On the first queue call of the event the on-deck match is the first match in the
   schedule, so that slot falls off the front and belongs empty. Don't clamp it to 0 — that
@@ -265,7 +296,9 @@ pitfusion.com — Cloudflare managed
   "not set for playoffs" clause) and demos. 2026cc's quals run on a ~7.5–8.5 min cadence,
   Q1 at 09:45 PT and Q70 two days later.
   Confirmed at a second event the same weekend — 2026mibig1 (FSR): 27 quals, all with
-  `scheduledStartTime`, none of the other phases present at all.
+  `scheduledStartTime`, none of the other phases present at all. Third and fourth samples
+  agree: 2026matb and 2026cokc (62 of 68 matches carried it — exactly the 62 quals, none
+  of the 6 practice).
   This is what the "Nm behind / Nm ahead" pill measures `estimatedStartTime` against —
   see the demo-section note, including what a day-shifted schedule does to it.
 - **Nexus never publishes an estimate in the past.** When a queue time comes due and the
@@ -300,6 +333,10 @@ pitfusion.com — Cloudflare managed
   `dataAsOfTime`. **Nothing in that entire feed was ever clamped** — route 2, not route 1.
   It cleared when TBA posted Q24 at 17:09:37Z. Check whether any estimate actually equals
   `dataAsOfTime` before reaching for the clamp explanation.
+
+  A clean **route 1** example for contrast, 2026cokc's P9 gap: `estimatedQueueTime` on
+  Playoff 10 was clamped, so the card read "Playoff 10 / Expected soon" and the header
+  agreed — no TBA involvement at all. One recorded example of each route now exists.
 - Phase (practice vs quals) comes from what the field is doing, never from "are there
   unplayed practice matches" — an event that cuts practice short leaves them at
   "Queuing soon" forever. `eventInPractice()`.
@@ -335,6 +372,18 @@ pitfusion.com — Cloudflare managed
     is normally much larger; it was small here *because* selection was posted atomically
     rather than progressively (the event was having technical trouble). Progressive posting
     is the norm — do not conclude otherwise from one recording.
+
+  **Progressive selection then captured in full at 2026cokc** (23 `/alliances` states,
+  18:09:15Z → 18:24:10Z), which is what 2026matb's technical trouble had hidden:
+  - The array **grows**; it is not pre-sized to 8. It went `[]` → `[['9068',None,None]]` →
+    3 seeds → … → 8. So both the outer length AND the inner slots fill in over time, and
+    `(nxAlliances||[])[i]` being undefined is a normal mid-selection state, not an error.
+  - **Null slots in open picks, exactly as documented** — `['9068', None, None]` while that
+    alliance had only its captain.
+  - Captains and 1st picks interleave as the picking order runs, then **2nd picks fill in
+    REVERSE seed order** (seed 8 first, seed 1 last) — the serpentine draft. Don't assume
+    seeds complete in order.
+  - Whole selection took ~15 minutes, so a display polling at 15s sees ~60 distinct states.
   - **Playoff rosters on `matches[]` populate progressively as the bracket resolves** —
     P1–P4 at selection, then P5/P7, P6/P8, P9, P10/P11, P12, P13, Finals. This is separate
     from, and no evidence about, how *selection* itself was posted.
@@ -346,6 +395,25 @@ pitfusion.com — Cloudflare managed
   - **`matches[]` grew 25 → 41** when the playoff schedule posted: all 16 playoff matches
     appeared in one poll (17:55:26Z) with `redTeams`/`blueTeams` null. Another instance of
     the "matches[] is not the fixed schedule it looks like" rule above.
+
+  **TBA's `backup` field is NOT a reliable substitution signal, and TBA pads rosters.**
+  Both observed at 2026cokc, which ran 3-team alliances:
+  - A real BACKUP TEAM came in — Nexus's `/alliances` showed seed 5 go
+    `['1977','4068','2972']` → `['1977','4068','2972','159']` at 20:05:25Z, and team 159
+    then appears in the `redTeams`/`blueTeams` of Playoff 5 and Playoff 10. It genuinely
+    played.
+  - **TBA's `backup` stayed `None` for every seed, in all 17 states**, start to finish. It
+    never reported the substitution at all.
+  - **TBA instead padded every alliance to 4 picks with placeholder teams 9981–9988**,
+    sequential by seed, which are not real picks.
+  - Consequence for `resolvedAlliances()`: its per-seed "longer list wins" rule took
+    **TBA's padded 4 over Nexus's real 3 on seven seeds**, and Nexus's real 4 over TBA's
+    padded 4 on seed 5 (`4 >= 4`). Working as designed, but "longer" was filler on seven
+    of eight. Worth knowing before trusting roster length as a completeness signal.
+
+  So Nexus's flat array was the only source carrying the substitution. That is the
+  evidence behind the four-team-roster display choice below — there is no dependable
+  in/out data to annotate with.
 - **The playoff bracket layout follows TBA's `playoff_type`, not the data.** 10 = 8-alliance
   double-elim (~95% of events), 11 = 4-alliance double-elim (offseason + Michigan State
   Champ; RISE 2026mnros1). Cards are keyed by TBA set number and the same key is a different
@@ -403,6 +471,13 @@ on purpose; confirm with the owner before changing any of them.
   already comes from the bracket cards, which read the match's own `team_keys`. Do not add
   strikethrough or an in/out marker. (The code is length-agnostic throughout —
   `resolvedAlliances()`, `teamToSeed`, and the alliance list already capped at 4.)
+
+  **A real substitution at 2026cokc closed this off empirically.** Team 159 joined seed 5
+  mid-playoffs and played; Nexus's array showed it, and **TBA's `backup:{in,out}` — the
+  only field that could name who went OUT — was `None` throughout**. So a strikethrough
+  could not have been drawn even if it were desirable: there was no data for it. Both
+  shapes of the 4-team array are now recorded (2026matb: four from selection, the offseason
+  / World Championship format; 2026cokc: three, then four when a backup came in).
 
 ## Testing against Nexus — demo events
 There is no test harness. A Nexus **demo event** is the only way to exercise real queue
