@@ -4788,12 +4788,21 @@ function bracketIndex(alliances){
     const key=bktKeyFromLabel(m.label);
     if(key && !mxByNum[key]){ const nb=nexusBracketMatch(m); if(nb) mxByNum[key]=nb; }
   });
+  // Every name EITHER feed uses for a seed's teams, not just the roster that won in
+  // resolvedAlliances(). The two disagree on "B" robots: at 2026nhrr TBA listed
+  // "frc3467B" where Nexus listed the placeholder "9997", so a TBA bracket match looked
+  // up against a Nexus roster (Nexus wins a tie) found nothing and drew "Alliance ?".
   const teamToSeed={};
-  (alliances||[]).forEach((a,i)=>{ (a.picks||[]).forEach(tk=>{ teamToSeed[tk.replace('frc','')]=i+1; }); });
+  const addSeed=(tk,i)=>{ if(tk) teamToSeed[String(tk).replace('frc','')]=i+1; };
+  (nxAlliances||[]).forEach((a,i)=>{ (a||[]).forEach(tk=>addSeed(tk,i)); });
+  (tbaAlliances||[]).forEach((a,i)=>{ (a?.picks||[]).forEach(tk=>addSeed(tk,i)); });
+  (alliances||[]).forEach((a,i)=>{ (a.picks||[]).forEach(tk=>addSeed(tk,i)); });
   const allianceOf=(mx,side)=>{
     const keys=teamsOf(mx,side);
     if(!keys.length) return null;
-    return {keys, seed:teamToSeed[keys[0]]??'?', score:mx.alliances?.[side]?.score};
+    // Any team on the side identifies the alliance — the first may be one only one feed knows.
+    const hit=keys.find(k=>teamToSeed[k]!=null);
+    return {keys, seed:hit!=null?teamToSeed[hit]:'?', score:mx.alliances?.[side]?.score};
   };
   return {mxByNum, allianceOf};
 }
