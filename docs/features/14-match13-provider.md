@@ -166,7 +166,7 @@ on displays we can't see or count.
 
 - `headerPrefix` is new: every existing route sends the bare secret.
 - `Cache-Control: private` from upstream is already overwritten with `public` for 2xx.
-  Doing so is redistribution of a "private" response — see Open questions.
+  Doing so is redistribution of a "private" response — allowed (Open question 1).
 - `MATCH13_API_KEY` is a new Worker secret. It should come from an account opened for
   PitFusion, not a personal one, since the quota is per account.
 
@@ -300,10 +300,10 @@ So, required, not optional:
 
 ## Open questions — for the owner and for match13
 
-1. **Permission to edge-cache and redistribute.** Responses are `private`; the licence is
-   "All rights reserved". Sharing one cached response among every display at an event
-   is the whole cost model. **Ask match13 before building** (contact is in the API spec),
-   and in the same message: whether a pit display showing win probabilities is clear of
+1. ~~**Permission to edge-cache and redistribute.**~~ **Resolved 2026-10-24: allowed**
+   (confirmed by the owner). Sharing one cached response among every display at an event
+   is the whole cost model, so this was the blocker to building. Still worth asking
+   match13 before launch: whether a pit display showing win probabilities is clear of
    the faux-gambling clause, and whether a higher limit is available for a multi-event
    display.
 2. **Both on the match list** — Statbotics-with-fallback, as proposed, or match13 first?
