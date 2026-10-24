@@ -23,6 +23,7 @@ One design doc per non-trivial feature under `docs/features/`. Build one per PR 
 | 11 | Playoff Bracket sidebar overflow — the Queuing tab's bumper box forces a scroll bar | shipped (#45, #46) | XS–S | — |
 | 12 | Playoff Bracket rosters/matches sourced from Nexus (works with no TBA data at all — teams appear as alliance selection happens, instead of waiting on TBA's all-or-nothing post) | shipped (V3.4.0, #73) | M | — |
 | 13 | Event-driven cache invalidation — every cache TTL replaced by a version derived from posted scores, client and Worker edge alike | shipped (V3.5.0, #80) | S–M | [features/13-event-driven-cache.md](features/13-event-driven-cache.md) |
+| 14 | match13 as a second ratings provider — selectable Statbotics / match13 / Both (hosted only; no CORS). Offseason coverage, projected rank, RP chances | designing — ask match13 about edge-caching first | M–L | [features/14-match13-provider.md](features/14-match13-provider.md) |
 | 15 | Custom theme: "Import from frc-colors" — team number → full palette from the team's colours + its avatar in the header (button-only, preview until Save) | shipped (V3.7.0, #101) | S | [features/15-frc-colors-import.md](features/15-frc-colors-import.md) |
 | 15b | Team avatar follows the display team on every theme — fetched as the team number is typed, stored per team and revalidated via the browser's HTTP cache, header + setup-screen logo (hosted drops `logo.png`); Show / ↺ Refresh in Settings | shipped (V3.8.0, #103) | S | [features/15-frc-colors-import.md](features/15-frc-colors-import.md) |
 
@@ -30,6 +31,9 @@ Size: XS < half a day · S ~1 session · M ~2–3 sessions · L multi-session, m
 
 ## Known issues
 
+- **Statbotics went down again on 2026-10-09** — every `/v3` endpoint tried (`team_year`
+  for 2025 and 2026, `team_event`, `matches`, `event`) answered 500. Not re-checked since.
+  This is what prompted #14 (match13 as a second provider). The entry below predates it.
 - **Statbotics is back (confirmed 2026-10-04), but two assumptions still can't be
   checked.** `team_year` and `matches` answer in under a second with the schema the app
   reads (`pred.red_win_prob`, per-team `epas`), and EPA ranks, the charts and predictions
