@@ -302,10 +302,13 @@ So, required, not optional:
 
 1. ~~**Permission to edge-cache and redistribute.**~~ **Resolved 2026-10-24: allowed**
    (confirmed by the owner). Sharing one cached response among every display at an event
-   is the whole cost model, so this was the blocker to building. Still worth asking
-   match13 before launch: whether a pit display showing win probabilities is clear of
-   the faux-gambling clause, and whether a higher limit is available for a multi-event
-   display.
+   is the whole cost model, so this was the blocker to building. Also settled with
+   match13 the same day: a pit display showing win probabilities is **clear of the
+   faux-gambling clause**, and **no limit increase up front** — match13 want to see
+   whether PitFusion actually gets rate-limited before raising it. So the stock
+   60/min · 1 000/hr · 30 000/week applies at launch, and the failure-amplification
+   guards and `X-RateLimit-Remaining` logging above are what will show whether an
+   increase is needed.
 2. **Both on the match list** — Statbotics-with-fallback, as proposed, or match13 first?
 3. **Predicted scores** — show them in match13 mode, or keep Feature #1's "no predicted
    scores" rule for both sources?
