@@ -149,7 +149,7 @@ on displays we can't see or count.
 |---|---|
 | Queuing card prediction | both probabilities, labelled ("EPA 62% · xP 58%"). Favored-alliance highlight **only when they agree**; when they disagree, no highlight — an honest toss-up |
 | Queuing card RP chances | match13 only (no Statbotics equivalent) |
-| Match list prediction | one number — no room for two. Statbotics, falling back to match13 *(open question)* |
+| Match list prediction | one number — no room for two. Statbotics, falling back to match13 (decided 2026-10-24) |
 | My Team | EPA ranks row and xP ranks row; projected rank from the sim |
 | EPA overlay — ranks | two sections, "Statbotics EPA" and "match13 xP" |
 | EPA overlay — chart | a source toggle rather than both sets of lines on one axis; ten lines on two similar-but-different scales reads as one confusing chart |
@@ -309,16 +309,19 @@ So, required, not optional:
    60/min · 1 000/hr · 30 000/week applies at launch, and the failure-amplification
    guards and `X-RateLimit-Remaining` logging above are what will show whether an
    increase is needed.
-2. **Both on the match list** — Statbotics-with-fallback, as proposed, or match13 first?
-3. **Predicted scores** — show them in match13 mode, or keep Feature #1's "no predicted
+2. ~~**Both on the match list**~~ **Decided 2026-10-24: Statbotics first**, falling back to
+   match13, as proposed.
+3. **Predicted scores** *(owner wants a mock-up before deciding)* — show them in match13 mode, or keep Feature #1's "no predicted
    scores" rule for both sources?
-4. **Season-history chart** — per-event step chart from `/teams/{t}/years/{y}/events`
+4. **Season-history chart** *(owner wants a mock-up before deciding)* — per-event step chart from `/teams/{t}/years/{y}/events`
    (1 request), or per-match from each event's matches route (3–6 requests, but those URLs
    are finished events and cache for a day)?
-5. **Default for offseason events.** With the selector on Statbotics, an offseason event
+5. ~~**Default for offseason events.**~~ **Decided 2026-10-24: yes, fall back.** With the selector on Statbotics, an offseason event
    shows nothing. Should Statbotics mode silently fall back to match13 when Statbotics
    doesn't cover the event? That makes the default useful at offseasons without anyone
    finding a setting — but it means "Statbotics" no longer strictly means Statbotics.
+   Accepted: the selector reads as "preferred source". Labels and the footer credit must
+   still name match13 / xP whenever the fallback is what is showing.
 
 ## Testing
 
