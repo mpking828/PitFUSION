@@ -547,7 +547,9 @@ Default team: 88, event key format: e.g. 2025cthar
   now backs off 30s → 30m. Any success clears it, and `bustTeamCache()` clears it too —
   without that the overlay's ↺ Retry would be inert for up to 30 minutes. Not persisted
   (a reload earns one fresh attempt); the Settings connection check bypasses it.
-- **Statbotics was down ~July–October 2026 and is back (confirmed 2026-10-04).** It
+- **Statbotics was down ~July–October 2026 and is back (confirmed 2026-10-04).** **It went down
+  again on 2026-10-09** (every `/v3` endpoint 500) — see docs/features/14 for the match13
+  alternative this prompted. It
   tracks **no offseason events** (zero in 2026) and every 2026 official event is
   Completed, so between seasons there is no live Statbotics data at all: `matches` for an
   offseason event is a clean `[]` (not an error) and EPA charts for it correctly show "No
